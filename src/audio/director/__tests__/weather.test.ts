@@ -89,7 +89,7 @@ test("rain plays a bed at the ears while it falls, at the rate falling there; dr
   assert.equal(rain({ ...raining(20), anomaly: -15 }), undefined)
 })
 
-test("heavy rain raises the masking floor: a car at full load 200 m across the meadow, heard in the dry, is lost in a downpour", () => {
+test("heavy rain raises the masking floor: a car at full load 230 m across the meadow, heard in the dry, is lost in a downpour", () => {
   const engine = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
@@ -350,39 +350,39 @@ const windAt = (
 
 test("in the usual wind the wind voice is the one tuned before the weather, by altitude, open ground and streets", () => {
   // Regression: a law rebased for the gale's headroom ran the usual wind's voice at 0.75 of its strength, 5 dB up: as loud, but
-  // duller, and a ridge hardly whistled. The law was tuned on lucido from 150 to 1000 m a.s.l., over its floor of 230.3 m; it
-  // counts from the map's floor, so it holds to that floor's 0.3 m: under 0.001 of strength, 0.01 dB.
-  const { floor } = place()
+  // duller, and a ridge hardly whistled. The law was tuned on lucido from 150 to 1000 m a.s.l. (80 m under its floor of 230.3 m
+  // to 770 m over it); it spans 18–868 m a.s.l., where the map's floor of 98.4 m put it before Sarzana's part (issue #20).
   for (const spot of [RIDGE, MEADOW, STREET, HILLSIDE, SPAWN]) {
     const tuned =
       0.15 +
-      0.7 * smoothstep(floor - (230.3 - 150), floor + (1000 - 230.3), groundZ(spot.x, spot.y)) +
+      0.7 * smoothstep(18, 868, groundZ(spot.x, spot.y)) +
       0.15 * ambienceAt(spot.x, spot.y).open -
       0.3 * streetAt(spot.x, spot.y)
     const still = 10 ** ((floorDb(MORNING.sun) - BEDS.wind) / 40)
     assert.ok(
-      Math.abs(windAt(spot).strength - Math.min(1, Math.max(still, tuned))) < 1e-3,
+      Math.abs(windAt(spot).strength - Math.min(1, Math.max(still, tuned))) < 1e-9,
       `${JSON.stringify(spot)}: ${windAt(spot).strength} against ${tuned}`,
     )
   }
 })
 
-test("the wind rises with the ears' height over the map's floor, not over the sea: where the floor stands above the ridge it blows there as on the floor", () => {
+// Regression: the law counted from the map's floor, so Sarzana's plain, taking it from 98.4 m to 18.5, blew lucido 3.1 dB harder.
+test("the wind rises with the ears' height over the sea, not over the map's floor: a part that moves the floor moves no wind", () => {
   const shipped = place(),
-    { open } = ambienceAt(RIDGE.x, RIDGE.y)
-  assert.ok(
-    windAt(RIDGE).strength > 0.15 + 0.15 * open + 0.6,
-    `${windAt(RIDGE).strength} on the shipped map`,
-  )
-  // An Alpine map whose floor lies 500 m over the ridge: the ridge's ears stand at its floor's stillness, open ground's share only.
-  providePlace({ ...shipped, floor: groundZ(RIDGE.x, RIDGE.y) + 500 })
-  try {
-    assert.ok(
-      Math.abs(windAt(RIDGE).strength - (0.15 + 0.15 * open)) < 1e-9,
-      `${windAt(RIDGE).strength} under an Alpine floor`,
-    )
-  } finally {
-    providePlace(shipped)
+    spots = [RIDGE, MEADOW, STREET, HILLSIDE, SPAWN],
+    blowing = spots.map((spot) => windAt(spot).strength)
+  // An Alpine map whose floor lies 500 m over the ridge, and a coastal plain's at the sea.
+  for (const floor of [groundZ(RIDGE.x, RIDGE.y) + 500, 0]) {
+    providePlace({ ...shipped, floor })
+    try {
+      assert.deepEqual(
+        spots.map((spot) => windAt(spot).strength),
+        blowing,
+        `under a floor of ${floor} m`,
+      )
+    } finally {
+      providePlace(shipped)
+    }
   }
 })
 
@@ -403,10 +403,9 @@ test("the wind blows as the weather does: stiller than usual down to the rural f
     Math.abs(windDb(still.strength) - floorDb(MORNING.sun)) < 1e-9,
     `${windDb(still.strength)} dB(A)`,
   )
-  // Twice the usual wind is twice the strength: 12 dB louder, until the gale's. In the lane at Pian del Molino (0.406 on the
-  // map's floor of 18.5 m): on the meadow, at 0.577, twice is past the voice's full strength.
-  const breeze = windAt(STREET),
-    windy = windAt(STREET, { wind: 2 * USUAL_WIND })
+  // Twice the usual wind is twice the strength: 12 dB louder, until the gale's.
+  const breeze = windAt(MEADOW),
+    windy = windAt(MEADOW, { wind: 2 * USUAL_WIND })
   assert.ok(Math.abs(windy.strength / breeze.strength - 2) < 1e-9 && windDb(1) === BEDS.wind)
 })
 
@@ -433,8 +432,8 @@ test("the usual wind the law was tuned for is a cloudy day's, a little over the 
 // regime's 8 m/s a car 20 m off was culled, though on foot it was heard 12 dB under its full gain.
 test("in a car the wind masks as it plays there, through the cabin: a car across the meadow is heard as on foot less the cabin's loss, in any wind", () => {
   for (const wind of [USUAL_WIND, 6, 8]) {
-    // Within 30 m: on the map's floor of 18.5 m the meadow blows hard enough at 8 m/s that this car is culled from 33 m on
-    // foot as in the car (40 m was heard on Fosdinovo's floor of 162.3 m), and two culled gains, 0/0, compare as NaN.
+    // Within 30 m: the meadow blows hard enough at 8 m/s that this car is culled from 35 m on foot as in the car (40 m was
+    // heard when the law counted from Fosdinovo's floor of 162.3 m), and two culled gains, 0/0, compare as NaN.
     for (const metres of [10, 20, 30]) {
       const engine = (inside: boolean) => {
         const director = rig(),
@@ -460,9 +459,7 @@ test("in a car the wind masks as it plays there, through the cabin: a car across
 
 test("night stills the valley: the wind's floor falls to the night's, so steps are heard farther; no songbird sings in the woods all night", () => {
   const director = rig()
-  // In still air, so the bed is the floor itself: in the usual wind Monzone's street blows over the night's floor on the map's
-  // floor of 18.5 m (33.9 dB(A) against 28), as the meadow below does by day.
-  director.hear(world(SPAWN, { sky: NIGHT, weather: { ...CALM, wind: 0 } }), 2)
+  director.hear(world(SPAWN, { sky: NIGHT }), 2)
   const wind = director.held().get("wind")?.sound
   assert.ok(
     wind?.kind === "wind" && Math.abs(windDb(wind.strength) - NIGHT_DB) < 1e-9,
@@ -516,7 +513,7 @@ test("songbirds sing a dawn chorus, louder than the day's song; at dusk they roo
 
 test("at night a tawny owl calls from its wood, no owl more than once in 30 s; none by day", () => {
   // Under the owl nearest the woods above Isolano, 40 m from its tree: from `HILLSIDE` itself that owl, 123 m off through the
-  // woods, stood within half a dB of the masking cull: the wind of a map's floor 5–8 m lower lost its every call.
+  // woods, stood within half a dB of the masking cull: the wind law, then counted from a floor 5–8 m lower, lost its every call.
   const [owl] = owlsNear(HILLSIDE.x, HILLSIDE.y, 600).toSorted(
       (a, b) =>
         Ops.hypot(a.x - HILLSIDE.x, a.y - HILLSIDE.y) -
@@ -593,11 +590,10 @@ test("crickets sing in warm, dry air at the ears: on the meadow at 11 °C, not o
 })
 
 test("snow hushes the valley: a car farther off is fainter, a street's reverb drier, the leaves stiller, and steps crunch in it", () => {
-  // 60 m off, both heard: on the map's floor of 18.5 m the meadow's wind masks the car in fresh snow by 80 m (100 m before it).
   const gain = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
-      world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 60, SOUTH), FULL)], weather }),
+      world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 100, SOUTH), FULL)], weather }),
     )
     return director.held().get("engine:1")!.at.gain
   }

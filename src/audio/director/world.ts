@@ -11,7 +11,6 @@
  */
 import type { WeatherValue } from "../../sim/schema.ts"
 import type { Conditions } from "../../sim/sky/local.ts"
-import { place } from "../../sim/sky/place.ts"
 import { audibility, CABIN, dbToGain, EAR_HEIGHT, mixGain, spreading, sumDb } from "../acoustics.ts"
 import { smoothstep } from "../buffers.ts"
 import {
@@ -64,12 +63,12 @@ const NEAR_EVERY = 0.25,
 /** The street around the listener eases over this long, s. */
 const STREET_TAU = 0.5
 /**
- * Wind strength from the ears' height over the map's floor (`place().floor`, its 5th-percentile height): a smoothstep over `ALTITUDE`
- * m from it, `CALM`…`GALE`, up to `OPEN` more in the open, `STREETS` less in streets, in the usual wind. Tuned by ear on lucido alone
- * over the 150–1000 m a.s.l. it spanned there: from 80 m under its 230 m floor, about its lowest ground (147 m), to 770 m over it. It
- * counts from the floor so that any map's low ground is calm; with Fivizzano, Fosdinovo, Aulla and Sarzana the floor is 18.5 m, so lucido blows as at 212 m higher.
+ * Wind strength from the ears' height: a smoothstep over `ALTITUDE` m a.s.l., `CALM`…`GALE`, up to `OPEN` more in the open, `STREETS`
+ * less in streets, in the usual wind. Tuned by ear on lucido alone over the 150–1000 m it spanned there: from 80 m under its 230 m
+ * floor, about its lowest ground (147 m), to 770 m over it. It counts from the sea, not the map's floor, so a part moving the floor
+ * moves no wind (the user's choice, issue #20): 132 m lower, where the floor of 98.4 m put it before Sarzana's part.
  */
-const ALTITUDE = [-80, 770] as const,
+const ALTITUDE = [18, 868] as const,
   CALM = 0.15,
   GALE = 0.85,
   OPEN = 0.15,
@@ -251,10 +250,8 @@ export const makeWorld = () => {
           ? enclosed
           : street + (enclosed - street) * (1 - Math.exp(-dt / STREET_TAU))
       ;({ forest, open, built } = ambienceAt(ears.x, ears.y))
-      const low = place().floor,
-        height =
-          CALM +
-          (GALE - CALM) * smoothstep(low + ALTITUDE[0], low + ALTITUDE[1], ears.z - EAR_HEIGHT)
+      const height =
+        CALM + (GALE - CALM) * smoothstep(ALTITUDE[0], ALTITUDE[1], ears.z - EAR_HEIGHT)
       // The stillest the wind gets (`windDb` at the floor): the rural background itself, leaves and the far valley, even in a sheltered street.
       const still = 10 ** ((floorDb(around.sky.sun) - BEDS.wind) / 40)
       strength = Math.min(

@@ -70,7 +70,7 @@ test("the stereo image turns with the view: a car ahead of the home seat's scree
   assert.ok(Math.abs(centred) < 1e-9, `${centred}`)
 })
 
-test("a car at full load 200 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
+test("a car at full load 230 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
   const open = rig()
   open.hear(
     world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, ACROSS_MEADOW, SOUTH), FULL)] }),
@@ -543,15 +543,14 @@ test("a wall crash heard on foot is not the listener's own: the building in the 
   assert.ok(behind.at.gain < open.at.gain * dbToGain(-10), `${behind.at.gain} < ${open.at.gain}`)
 })
 
-// Both at full gain within 109 m on the map's floor of 18.5 m (141 m on Aulla's 98.4 m), where the meadow's wind starts to mask the bump.
-test("a 2 m/s bump plays quieter than a 20 m/s crash, so masking culls it nearer: both at full gain 100 m away, only the crash 1.2 km away", () => {
+test("a 2 m/s bump plays quieter than a 20 m/s crash, so masking culls it nearer: both at full gain 150 m away, only the crash 1.2 km away", () => {
   const gains = (metres: number) =>
     [2, 20].map((speed) => {
       const director = rig()
       director.hear(world(MEADOW, { happenings: [wallHit(away(MEADOW, metres, SOUTH), speed)] }))
       return director.take("crash")[0]?.at.gain
     })
-  const [bump, crash] = gains(100)
+  const [bump, crash] = gains(150)
   assert.ok(bump !== undefined && bump === crash, `${bump} vs ${crash}`)
   const [far, heavy] = gains(1200)
   assert.ok(far === undefined && heavy !== undefined && heavy > 0, `${far} vs ${heavy}`)
