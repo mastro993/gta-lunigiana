@@ -106,6 +106,26 @@ test("a road at grade meeting a deck's end reaches no farther under the deck: pa
   assert.equal(turn.atGrade(-2, 1), 106 + LIFT, "beside the deck's end")
 })
 
+// Regression (#20): the A15's toll plaza 520616095 (lanes=6, 24 m) starts where the two-lane
+// 287552094 (10 m) ends, and its round end reached 12.3 m back round that joint, over the ramp of the
+// service road 100468086 climbing beside it to its bridge over the plaza at (−18205, −1690): the
+// ground there blended the ramp with the plaza 2.4 m under it, and a car on the ramp drove under its
+// own bridge.
+test("past a joint with another road at grade, a road's surface reaches no farther than the narrower one's: a widening starts at its joint", () => {
+  // A road 10 m wide along y = 0 to x = 0, and on from there one 24 m wide, over terrain at 99 m.
+  const narrow = road({ w: 10, from: [-50, 0], to: [0, 0], z: [100, 100] }),
+    wide = road({ w: 24, from: [0, 0], to: [50, 0], z: [100, 100] })
+  const { atGrade, drawnZ } = scene({ terrain: () => 99, roads: [narrow, wide] })
+  const road100 = (z: number) => Math.abs(z - (100 + LIFT)) < 1e-9
+  assert.equal(atGrade(-2, 10), 99, "behind the joint beside the narrow road: the terrain")
+  assert.equal(drawnZ(-2, 10, 99), 99, "and no ribbon drawn there")
+  assert.ok(road100(atGrade(2, 10)), "ahead of it, the wide road's carriageway")
+  assert.ok(road100(atGrade(-2, 4)), "within the narrow road's: both")
+  // Where a third road meets them it is a junction, and the wide road keeps its round end there.
+  const side = road({ w: 4, from: [0, 0], to: [0, -40], z: [100, 100] })
+  assert.ok(road100(scene({ terrain: () => 99, roads: [narrow, wide, side] }).atGrade(-2, 10)))
+})
+
 test("a platform's top along its axis is the ground on it, unless the terrain stands higher", () => {
   const platforms = [
     { rings: [[10, 10, 20, 10, 20, 20, 10, 20]], axis: [10, 15, 20, 15], top: [101, 102] },
