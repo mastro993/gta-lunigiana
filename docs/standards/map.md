@@ -295,13 +295,18 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   Fosdinovo's part and the graph, the lanes and the residents too (format version 5) 8,319,700 B.
 - The build peaks under 3 GB resident (issue #3's scale check, CI's runners; `/usr/bin/time -l pnpm
   map`, its maximum resident set size, and its peak memory footprint beside it, which memory
-  compression under other work does not lower): Lunigiana's peaked at 2.69–2.74 GB resident and
-  2.32–2.35 GB of footprint with Sarzana's part (2026-11-21), from 4.20–4.27 GB and 3.78–3.84
-  GB before the memory work ([Pipeline](../map.md#pipeline)). What grows with the box is held in
-  typed arrays, by the phase that reads it and no longer; a stage's indexes hold what its queries
-  reach (`nearBoxes`); a bake whose items read the tiles round them takes them tile by tile
-  (`byTile`), as the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which
-  lists every node first.
+  compression under other work does not lower): Lunigiana's peaked at 2.32–2.36 GB resident and
+  2.16–2.19 GB of footprint with Sarzana's part (2026-11-21), from 4.20–4.27 GB and 3.78–3.84 GB
+  before the memory work ([Pipeline](../map.md#pipeline)). The parts to come add about as much box
+  again, and the peak is where the DTM and the uncarved grid, 0.8 GB that grows with the box, are
+  held together, so the next engine work is there (Pipeline names it). What grows with the box is
+  held in typed arrays at the fewest bytes that keep its values bit for bit (the finished grid in
+  decimetres, the trees in 32-bit integers), by the phase that reads it and no longer; a stage's
+  indexes hold what its queries reach (`nearBoxes`), and a deck's fields the nodes within reach of
+  its segments (`bandOf`); a bake whose items read the tiles round them takes them tile by tile
+  (`byTile`), as the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which lists
+  every node first. `pnpm map` gives node `--heap-growing-percent=20` on its command line, which
+  takes 0.2 GB off the peak (2.57 GB without it; 3.04 GB at e5f7a67e, over the check).
 - The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
   on a production build, three runs): Lunigiana's is 160–161 MB with Aulla's part (2026-11-21). What
   the game builds at load from the whole map grows with every part: the road graph, the lookups

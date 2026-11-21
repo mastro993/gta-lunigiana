@@ -95,11 +95,11 @@ export const uncarvedGrid = (dem: Dem): Grid => {
 
 /**
  * The finished grid on `uncarved` (`uncarvedGrid`, which it leaves as it is), in the decimetres the
- * file ships (`DmGrid`: each tile's window is worked in metres, rounded to 0.1 m, then written to it),
- * the nodes the listed tiles hold (`listed`, 1, as `listedNodes` in grid-tiles.ts) and those of them the sea's (`sea`, 1,
- * carved to its floor: the catchments' outlets), the carved grid before its rounding
- * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and the ground
- * under the decks moved. A node no listed tile holds (an L's notch) is, in the finished grid, the
+ * file ships (`DmGrid`: each tile's window is worked in metres, rounded to 0.1 m, then written to
+ * it), the nodes the listed tiles hold (`listed`, 1, as `listedNodes` in grid-tiles.ts) and those of
+ * them the sea's (`sea`, 1, carved to its floor: the catchments' outlets), the carved grid before its
+ * rounding under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and
+ * the ground under the decks moved. A node no listed tile holds (an L's notch) is, in the finished grid, the
  * listed node the game reads there (`extendEdges`), so the walls' slopes, the buildings' floors and
  * the water on the play area's inner edge read the edge extended, not a cliff down to 0 m.
  */

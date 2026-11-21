@@ -45,7 +45,7 @@ export interface BuiltMap extends Omit<
   readonly areas: ReadonlyArray<Area>
   readonly barriers: ReadonlyArray<Barrier>
   /**
-   * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in
+   * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetre` in
    * terrain.ts fits them to int16: the finished grid's own array); a node no listed tile holds is
    * the edge's (`extendEdges` in grid-tiles.ts), which no tile writes and the place leaves out.
    */

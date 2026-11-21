@@ -115,11 +115,11 @@ const bankCandidates = (water: ReadonlyArray<WaterF>) => {
 
 /**
  * The scatter of `features` on `ground`'s lattices. `(window)` gives the trees whose rounded point
- * lies in the window [x0, y0, x1, y1) (whole metres) in id order, flat (x, y, scale) triples on
- * whole metres: in the woods, then on the banks, each clear of the other areas, then in the olive
- * groves, clear of the areas drawn over them; all clear of the buildings (2 m), roads (w/2 + 2 m),
- * stream beds and the rail (6 m), 1 m inside the built terrain. Any cut of the ground into windows
- * gives the same trees with the same ids.
+ * lies in the window [x0, y0, x1, y1) (whole metres) in id order (`TreeList`): in the woods, then
+ * on the banks, each clear of the other areas, then in the olive groves, clear of the areas drawn
+ * over them; all clear of the buildings (2 m), roads (w/2 + 2 m), stream beds and the rail (6 m),
+ * 1 m inside the built terrain. Any cut of the ground into windows gives the same trees with the
+ * same ids.
  */
 export const treeScatter = (
   features: TreeFeatures,

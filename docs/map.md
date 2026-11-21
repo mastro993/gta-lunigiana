@@ -451,10 +451,10 @@ stages were sped up (lucido's files the same, byte for byte), and that evening, 
 
 - **Memory**: 1.55–1.67 GB (1.46–1.48 GB before #63; 1.85–1.86 GB on #17's code at bd9c29c and
   1.84 GB on #18's, with the real terrain past lucido), under the 3 GB issue #3 asks of a 3× region,
-  and 9 MB more a tile: the grid (twice, carved and uncarved, 8 bytes a node), the catchments'
-  arrays (15 bytes a node), the walls' bit sets and the cut tiles still grow with the area
-  ([Pipeline](#pipeline)). It was 1.6 GB and 10 MB a tile before the catchments' D8 went to a byte a
-  node.
+  and 9 MB more a tile: the grid (twice, carved and uncarved, 8 bytes a node; the carved one 2 since
+  2026-11-21), the catchments' arrays (15 bytes a node), the walls' bit sets and the cut tiles still
+  grow with the area ([Pipeline](#pipeline)). It was 1.6 GB and 10 MB a tile before the catchments'
+  D8 went to a byte a node.
 - **Time**: sped up, (15.48 − 8.29) s over 48 more tiles is 0.150 s a tile, against the 0.3 s
   issue #3 asks (0.33 s before), plus a fixed 3.8 s (lucido's 8.29 s less its 30 tiles at that
   rate). The 7.2 s more, stage by stage: the catchments 1.5 s, the grid 1.3 s (2.1 s rather than
@@ -547,9 +547,18 @@ box from the cells each file spans (`tileGrid`), and a cell is held where its so
 with Sarzana's part, all 190 tiles decoded at once took 640 MB beside the mosaic and a mask of the
 held cells 222 MB more, and the build peaked at 2.93 GB resident while it read them (2026-11-21).
 `assembled` in `build-map.ts` puts the map together in a function of its own too, so the sources,
-the finished terrain and the world go before the cut: the finished grid alone is 362 MB on
-Lunigiana (8426 × 5376 nodes at 8 bytes), and the cut stage ended at 2,533 MB resident rather than
-2,973 MB (one build each).
+the finished terrain and the world go before the cut (at 33789c02 the cut stage ended at 2,533 MB
+resident rather than 2,973 MB, one build each, the finished grid then 362 MB of `Float64Array`).
+The finished grid is held in decimetres (`DmGrid` in `terrain.ts`): the tile pass works each
+tile's window in metres, rounds it to 0.1 m and writes it into an `Int16Array`, which the ground
+under the decks, the phases after the terrain and the cut read as `dm / 10`, the metres it was
+rounded to, bit for bit, and which the global file's heightmap is, with no copy: 91 MB for
+Lunigiana's 8426 × 5376 nodes, against 362 MB from the tile pass to the map put together and 91 MB
+more for its copy in decimetres before (a node rounded to −0, 10,031 of Lunigiana's and 336 of the
+coast's, reads +0, as the game reads it, and moves no byte of any region's build). The trees are
+held as `Int32Array` triples, (x, y) on whole metres and the scale in decimetres (`TreeList` in
+`trees.ts`), which the cut turns back into metres for the tile file: Lunigiana's 8,937,478 took
+214 MB as `Float64Array`, twice over while the tiles' scatters were merged, and take 107 MB.
 
 The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
 with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
@@ -667,6 +676,10 @@ build peaked there at 4.27 GB resident). The indexes of segments (`segIndex`) ke
 ends and radius in a `Float64Array` and each bucket's segments in a chain of `Int32Array` entries,
 and the walls under the decks read their fields from typed arrays a row of the lattice at a time
 (`Field` in `deck-space.ts`), not from an object a segment, an array a bucket and a `Map` a node.
+Each row of a field spans the columns within reach of the deck segments across it (`bandOf`), not
+their boxes, which along a long diagonal deck grow with the square of its length: sized to the
+boxes, Lunigiana's 1,101 fields held 50.5 million slots for 12.2 million nodes within reach (4.18
+million for 573,000 in the largest).
 
 On 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs at
 a load average of 6–7.5 from other work, each beside a build of main) the build of lucido alone
@@ -751,51 +764,89 @@ build):
 | s | 14.16 | 41.16 | 64.98 | 65.71 | 122.25 | 135.15 | 146.73 | 220.10 | 229.60 | 234.23 | 234.41 | 245.65 | 650.58 | 657.60 | 662.84 |
 | MB | 2,167 | 2,354 | 2,346 | 2,351 | 2,501 | 2,863 | 2,677 | 3,300 | 3,425 | 3,570 | 3,390 | 3,471 | 2,538 | 2,805 | 2,762 |
 
-The work that followed, every change byte-identical on the four regions (the indexes near the
-bridges, the bakes tile by tile, the catchments' mask in a loop, the DTM's tiles read one at a time,
-the cut without the sources, the terrain and the world, the segments' indexes and the deck fields in
-typed arrays, the kerbside spots spaced by squares, and the heap's growth, below), took it to
-2.69–2.74 GB resident (2.58 GB in a third build, part of whose pages memory pressure from other
-work compressed) and 2.32–2.35 GB of footprint, in 273.5–326.4 s, the bake 35.9–38.2 s (three
-builds at a load average of 6–37). Its stages ended at (the first build, at a load average of
-6–16):
+The first round of work that followed (to e5f7a67e), every change byte-identical on the four
+regions (the indexes near the bridges, the bakes tile by tile, the catchments' mask in a loop, the
+DTM's tiles read one at a time, the cut without the sources, the terrain and the world, the
+segments' indexes and the deck fields in typed arrays, the kerbside spots spaced by squares, and
+the heap's growth, below), took it to 2.69–2.74 GB resident (2.58 GB in a third build, part of
+whose pages memory pressure from other work compressed) and 2.32–2.35 GB of footprint, in
+273.5–326.4 s, the bake 35.9–38.2 s (three builds at a load average of 6–37). Its stages ended at
+(the first build, at a load average of 6–16):
 
 | | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write | overview |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | s | 14.80 | 36.11 | 60.38 | 61.11 | 115.79 | 126.72 | 137.99 | 201.16 | 210.46 | 214.11 | 214.30 | 225.56 | 261.41 | 268.24 | 273.45 |
 | MB | 1,947 | 1,777 | 1,745 | 1,750 | 1,960 | 2,317 | 2,080 | 2,068 | 2,465 | 2,541 | 2,533 | 2,616 | 1,606 | 1,902 | 1,903 |
 
-It now peaks at the end of the cut, which holds the map put together (its walls, trees and
-heights, about 0.5 GB) beside the tiles it packs (0.29 GB unstamped, without their vectors), and
-the trees' merge and the spawns come within 0.1–0.2 GB of that. A sampling heap profile that
-counts what was collected (`HeapProfiler.startSampling` with `includeObjectsCollectedByMajorGC`)
-and `vmmap --summary` at each stage's end found where the resident set went beyond what was live. V8 let the JS heap grow up to fourfold past what a full
-collection left before the next, so the stages' short-lived indexes and fields took the resident
-set 0.6–0.9 GB past the live heap at the walls stage's start, again and again; `build-map.ts` now
-sets `--heap-growing-percent=20` (`setFlagsFromString`) as it starts, which took the peak from 3.40
-to 2.78 GB resident at no cost in time (one build each, to the end of the cut). macOS's allocator
-keeps freed blocks resident (`MALLOC_LARGE (empty)` in `vmmap`, 0.2–0.6 GB through the walls and
-the spawns) and empty small regions (about 0.3 GB, mostly clean), and its libraries take about
-0.3 GB. `Uint8Array.from` with a mapping function lists its source first: over the grid's 45
-million nodes, 1.1 GB of the JS heap for a second at the catchments' start. Under memory pressure
-from other work, the system compresses the build's pages out of its resident set (`vm_stat`'s
-compressions rise), so the peak memory footprint, which counts them, is the figure to compare
-then.
+It then peaked at the end of the cut, which held the map put together (its walls, trees and
+heights, about 0.5 GB) beside the tiles it packs (0.29 GB unstamped, without their vectors), with
+the trees' merge and the spawns within 0.1–0.2 GB of that, and the finished grid's 362 MB through
+the whole world phase. A sampling heap profile that counts what was collected
+(`HeapProfiler.startSampling` with `includeObjectsCollectedByMajorGC`) and `vmmap --summary` at
+each stage's end found where the resident set went beyond what was live. V8 let the JS heap grow
+up to fourfold past what a full collection left before the next, so the stages' short-lived
+indexes and fields took the resident set 0.6–0.9 GB past the live heap at the walls stage's start,
+again and again; growing it by a fifth (`--heap-growing-percent=20`) took the peak from 3.40 to
+2.78 GB resident at no cost in time (one build each, to the end of the cut), and without it
+e5f7a67e peaked at 3.04 GB (one build). `pnpm map` and `pnpm maps` give the flag on node's
+command line, V8's supported way; `build-map.ts` sets it too (`setFlagsFromString`) for a build
+run as `node src/tools/build-map.ts`, though V8 may ignore a flag set once it has started.
+`Uint8Array.from` with a mapping function lists its source first: over the grid's 45 million
+nodes, 1.1 GB of the JS heap for a second at the catchments' start.
+
+The second round (to eacc0a79) held the finished grid in decimetres and the trees in 32-bit
+integers, and cut each deck field's rows to the bands within reach of its segments (above), every
+change byte-identical on the four regions again. It took the build to 2.32–2.36 GB resident and
+2.16–2.19 GB of footprint, in 274.5–279.3 s, the bake 35.5–37.0 s (three builds, `/usr/bin/time -l
+node --heap-growing-percent=20 src/tools/build-map.ts` as `pnpm map` runs it, at a load average of
+5–8 from other work). Its stages ended at (the first build):
+
+| | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write | overview |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| s | 14.25 | 35.44 | 60.17 | 60.91 | 119.02 | 129.28 | 140.37 | 204.14 | 213.06 | 216.61 | 216.67 | 227.59 | 263.06 | 269.66 | 274.85 |
+| MB | 1,950 | 1,766 | 1,777 | 1,762 | 1,749 | 2,106 | 1,866 | 1,795 | 2,037 | 2,142 | 2,144 | 2,285 | 1,652 | 1,946 | 1,942 |
+
+It now peaks at the end of the profiles, 75–84 s in, where the uncarved grid (362 MB of
+`Float64Array`) is sampled beside the whole DTM (443 MB of heights) and the profiles: 2.26–2.29 GB
+resident, sampled every 0.5 s. The end of the cut comes within 0.1 GB of that (2.18–2.29 GB, the
+build's prints), and the catchments and the spawns within 0.15–0.3 GB. Without the heap's growth
+flag it peaked at 2.57 GB resident and 2.44 GB of footprint, at the end of the profiles too (one
+build): the flag no longer stands between the build and 3 GB, but takes 0.2 GB off its peak. macOS's
+allocator keeps freed blocks resident: the large blocks' cache (`MALLOC_LARGE (empty)` in `vmmap`,
+0.27 GB from the sources' stage through the profiles' end, 0.2–0.6 GB through the walls and the
+spawns before), empty small regions (about 0.3 GB, mostly clean), and its libraries take about 0.3
+GB. With the cache off (`MallocLargeCache=0`, one build of the second round's code) the build's peak
+footprint was 1.65 GB, against 2.16–2.19 GB with it: about 0.5 GB of the peak is freed blocks macOS
+keeps for reuse, not memory the build holds (that build's resident set, 1.73 GB at most, was lowered
+by memory compression under other work). Under memory pressure from other work, the system
+compresses the build's pages out of its resident set (`vm_stat`'s compressions rise), so the peak
+memory footprint, which counts them, is the figure to compare then.
+
+What still grows with the map's box, for the parts to come (#21–#26 add about 800 km², near the
+760 km² of today's 190 tiles, mostly woods): the DTM, 443 MB of heights, and 222 MB of sources
+while the sources are read; the uncarved grid, 362 MB from the profiles' end, where it is sampled
+beside the whole DTM, through the catchments; the catchments' arrays, 5 bytes a node; the finished
+grid, 91 MB; the trees, 107 MB and their ids 36 MB, which woods grow most; and, at the cut, the
+tiles it packs (0.29 GB) beside the map put together. The next cuts, in the order they would pay:
+sample the uncarved grid tile by tile from the DTM's tile files, so the whole DTM is never held
+beside it; count the sources' areas tile by tile, so their codes are never held whole; and hold
+the cut's packed tiles deflated (at level 1 Lunigiana's 190 tiles, 367 MB gunzipped, take 74 MB,
+and a tile inflates in 2.3 ms).
 
 On lucido alone, resident memory climbs most in the spawns, by 108 MB (the clearance indexes of
 every wall and trunk), in the bake, by 188 MB (the game decoding the global file and the tiles it
 reads, while the build still holds the cut tiles without their vectors, 38.5 MB unstamped, the files
 the bake reads, 46.5 MB with their vectors, and the whole map's vectors), and in the overview, by
 108 MB (its pixels, 3195 × 4096 × 4 bytes, 52 MB a copy, painted, made straight and filtered for the
-PNG); it peaks in the overview. The grid stays whole (8 bytes a node, 39 MB there) for the walls'
-slope test, the railway's platforms, the paths' and buildings' heights and the cut, and so do the
-catchments (5 bytes a node beside the uncarved grid they fill: the owner, an `Int16`, the flood's
-marks, the D8 direction and the inflow count, a byte each, and the flood's heap; 15 bytes before
-issue #19), the walls' bit sets (1 byte a cell each) and their trace (a bit a crossing, not a map
-of every crossing), which are the parts that still grow with the area: 9 MB a tile on the 3x test
-region ([Test regions](#test-regions)). The spawns' clearance indexes are packed `Int32` buckets
-(`staticSegs`) and one trunk point index the walk and drive checks share (`staticPoints`), with no
-copy of the walls.
+PNG); it peaks in the overview. The grid stays whole (2 bytes a node in decimetres since 2026-11-21,
+8 before, 39 MB there) for the walls' slope test, the railway's platforms, the paths' and buildings'
+heights and the cut, and so do the catchments (5 bytes a node beside the uncarved grid they fill:
+the owner, an `Int16`, the flood's marks, the D8 direction and the inflow count, a byte each, and
+the flood's heap; 15 bytes before issue #19), the walls' bit sets (1 byte a cell each) and their
+trace (a bit a crossing, not a map of every crossing), which are the parts that still grow with the
+area: 9 MB a tile on the 3x test region ([Test regions](#test-regions)). The spawns' clearance
+indexes are packed `Int32` buckets (`staticSegs`) and one trunk point index the walk and drive
+checks share (`staticPoints`), with no copy of the walls.
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `dbt.ts`, `nc5.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -3426,8 +3477,8 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
   tile of its rounded point, so two lattice points that round onto one spot, even from either side
   of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's, then the bank
-  trees', then the olives'). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`). The
-  scatter took 0.7 s for lucido's 30 tiles (the trees stage takes 4.2 s for Lunigiana's 102, 3.0 s
+  trees', then the olives'). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`), as
+  32-bit integers with the scale in decimetres ([Pipeline](#pipeline)). The scatter took 0.7 s for lucido's 30 tiles (the trees stage takes 4.2 s for Lunigiana's 102, 3.0 s
   for its 79 before Fosdinovo's part and 2.7 s before the olives) and holds one tile's five masks,
   5 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
@@ -4430,13 +4481,14 @@ a tile from another build; and stamps each tile as `encodeTile` packs it with th
 `map-upgrade.test.ts` reads a version-6 build, its parked spots, farms, farm centres and lamps on
 its global file's line and its vectors on its tiles' lines, as the same build of today's, keys in
 their order (`decodeUpgraded`).
-`build-output.test.ts` checks that `decimetres`, which rounds the grid into the
-`Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
-−4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
-that every listed tile of both maps and, built or in CI, both test regions has its file, of at
-most 0.7 MB, and that each map's global JSON line is at most 8,000,000 B (it failed on the build
-before version 6: "lunigiana: the global file's JSON line is 8319700 B"), and `maps.test.ts` one
-tile of each.
+`terrain.test.ts` checks that `decimetre`, which rounds each node of a tile's window into the
+`Int16Array` the later phases and the cut read, throws for a height that does not fit int16
+decimetres (4000 m, −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it, and that `sampleGrid`
+reads a grid in decimetres as it reads the metres they were rounded from, bit for bit.
+`src/__tests__/maps.map-test.ts` checks that every listed tile of both maps and, built or in CI,
+both test regions has its file, of at most 0.7 MB, and that each map's global JSON line is at most
+8,000,000 B (it failed on the build before version 6: "lunigiana: the global file's JSON line is
+8319700 B"), and `maps.test.ts` one tile of each.
 
 `src/tools/__tests__/overlap.map-test.ts` reads every building of the shipped map: no two of
 different sources (OSM's and each survey's, by the id's slot) share half the smaller one's area,
