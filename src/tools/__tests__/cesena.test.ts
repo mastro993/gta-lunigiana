@@ -6,14 +6,13 @@ import { decodeMap } from "../../sim/map/format/global-file.ts"
 import { decodeTile, type Layer, type TileVectors } from "../../sim/map/format/tile-file.ts"
 import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
 import { MAP_URL, readMapFile } from "../../sim/map/source.ts"
+import { carOn } from "../../sim/population/parked.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
 import { clearance, trunkIndex } from "../spawns.ts"
 
 // Cesena's global file, and the tiles round its start: every wall within 50 m of it lives in one of
 // them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it), and
-// every road and building within `vectors.halo` of their squares lies whole in them (on Cesena,
-// whose start is by the corner its four tiles share, they are all four). Decoded here, apart from
-// the sim, which only the boot test below loads (on Cesena, picked on the first line).
+// every road and building within `vectors.halo` of their squares lies whole in them.
 const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
 const start = (() => {
   const { x, y } = map.spawns.player,
@@ -47,21 +46,23 @@ const start = (() => {
   }
 })()
 
-test("Cesena contains the real city, station, historic centre and connected streets", () => {
+test("Cesena contains the real city, station and connected streets", () => {
   assert.equal(map.origin.lon, 12.2429)
   assert.ok(map.districts.some((district) => district.name === "Cesena"))
   assert.ok(map.districts.every((district) => !/Monzone|Sagro|Equi/.test(district.name)))
   assert.ok(map.pois.some((poi) => poi.name === "Cesena" && poi.kind === "railway=station"))
   assert.ok(map.roads.some((road) => road.name?.includes("Mazzini")))
-  // the Rocca Malatestiana, 270–360 m south-west of the start
-  assert.ok(start.buildings.some((building) => building.name?.includes("Malatestiana")))
   assert.ok(map.graph.traffic.length > 0 && map.graph.walk.length > 0)
 })
 
-test("Cesena starts on clear ground in the centre with cars to steal", () => {
+test("Cesena starts on clear ground near Ponte Vecchio with cars to steal", () => {
   const { x, y } = map.spawns.player,
+    bridge = {
+      x: (12.23394 - map.origin.lon) * map.mPerDeg.lon,
+      y: (44.13394 - map.origin.lat) * map.mPerDeg.lat,
+    },
     { trees } = start
-  assert.ok(Math.hypot(x, y) < 200)
+  assert.ok(Math.hypot(x - bridge.x, y - bridge.y) < 150)
   // With no buildings or roads read round it, the checks below would pass on nothing.
   assert.ok(start.buildings.length > 0, "no buildings round the start")
   assert.ok(
@@ -103,21 +104,55 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
     return false
   })
   assert.ok(reachesStreet, "Player must have an unobstructed walking route to the street")
-  assert.ok(map.spawns.parked.some((car) => Math.hypot(car.x - x, car.y - y) < 150))
+})
+
+test("Cesena keeps a parked car within 25 m of the start across seeds", () => {
+  const { x, y } = map.spawns.player,
+    nearby = map.spawns.parked.flatMap((spot, index) =>
+      Math.hypot(spot.x - x, spot.y - y) <= 25 ? [index] : [],
+    )
+  assert.ok(nearby.length > 0, "no parked spot within 25 m of the start")
+  for (const seed of [0, 1, 7, 42, 0xffffffff])
+    assert.ok(
+      nearby.some((index) => carOn(seed, index)?.model === "panda"),
+      `seed ${seed}`,
+    )
 })
 
 test("Cesena boots the existing simulation, populates it and replays walking deterministically", async () => {
   const { Keyboard } = await import("@typeonce/ritmo-browser")
-  const { bindings, Game, KeyboardInput, makeRuntime, PlayerView, setup, update, Vehicle } =
-    await import("../../sim/index.ts")
+  const {
+    bindings,
+    Game,
+    KeyboardInput,
+    makeRuntime,
+    Parked,
+    PlayerView,
+    Pose,
+    setup,
+    update,
+    Vehicle,
+  } = await import("../../sim/index.ts")
   const vehicles = Game.Inspector(
     "Test/CesenaVehicles",
     { queries: { vehicles: Game.Query({ selection: { vehicle: Game.Query.read(Vehicle) } }) } },
     ({ queries }) => queries.vehicles.each().length,
   )
-  const run = () => {
+  const parked = Game.Inspector(
+    "Test/CesenaStartParked",
+    {
+      queries: {
+        vehicles: Game.Query({
+          selection: { pose: Game.Query.read(Pose) },
+          with: [Parked],
+        }),
+      },
+    },
+    ({ queries }) => queries.vehicles.each().map(({ data }) => data.pose.get()),
+  )
+  const run = (seed = 1, frames = 180) => {
     const made = makeRuntime({
-      seed: 1,
+      seed,
       services: Game.Runtime.services(
         Game.Runtime.service(
           KeyboardInput,
@@ -131,16 +166,20 @@ test("Cesena boots the existing simulation, populates it and replays walking det
     assert.ok(made.ok)
     const runtime = made.value
     assert.ok(runtime.tick(setup).ok)
-    for (let frame = 0; frame < 180; frame++) assert.ok(runtime.tick(update).ok)
+    const startCars = runtime.inspect(parked)
+    for (let frame = 0; frame < frames; frame++) assert.ok(runtime.tick(update).ok)
     const saved = runtime.snapshot()
     assert.ok(saved.ok)
     return {
       player: runtime.inspect(PlayerView),
       vehicles: runtime.inspect(vehicles),
+      startCars,
       world: saved.value,
     }
   }
   const first = run()
+  const hasNearbyCar = (cars: ReadonlyArray<{ readonly x: number; readonly y: number }>) =>
+    cars.some((car) => Math.hypot(car.x - map.spawns.player.x, car.y - map.spawns.player.y) <= 25)
   assert.ok(first.player !== undefined)
   assert.ok(
     Math.hypot(
@@ -149,5 +188,8 @@ test("Cesena boots the existing simulation, populates it and replays walking det
     ) > 1,
   )
   assert.ok(first.vehicles > 0)
+  assert.ok(hasNearbyCar(first.startCars))
+  for (const seed of [0, 42, 0xffffffff])
+    assert.ok(hasNearbyCar(run(seed, 0).startCars), `seed ${seed}`)
   assert.deepEqual(run(), first)
 })

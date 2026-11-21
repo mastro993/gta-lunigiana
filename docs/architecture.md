@@ -60,7 +60,7 @@ and `Input` (idle keys).
 `setup` runs once after the runtime is made:
 
 1. `SpawnWorld` (`systems/spawn.ts`): the player, the two Carabinieri cars and the parked cars
-   the spots' hash gives the spots within 300 m of the start (`PARKING`,
+   the spots' hash gives the spots within 300 m of the start, including Cesena's reserved Panda (`PARKING`,
    [gameplay.md](gameplay.md#parked-cars)).
 2. `applyDeferred`
 3. `FillPeople` (`systems/populate.ts`): the first fill, as many people out around the player's

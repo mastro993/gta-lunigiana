@@ -219,3 +219,10 @@ test("startNear starts by the Carabinieri, and without them by the traffic node 
   assert.deepEqual(startNear(GRAPH, ROADS, undefined), { at: { x: 30, y: 40 }, road: ROADS[2] })
   assert.equal(startNear({ ...GRAPH, traffic: [] }, ROADS, undefined), undefined)
 })
+
+test("startNear chooses the connected traffic node nearest a supplied target", () => {
+  assert.deepEqual(startNear(GRAPH, ROADS, undefined, { x: 490, y: 0 }), {
+    at: { x: 500, y: 0 },
+    road: ROADS[1],
+  })
+})
