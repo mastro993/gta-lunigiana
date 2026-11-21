@@ -247,7 +247,15 @@ export const layRailway = (
     ...input,
     // A line's pieces are one track; each loop or siding is its own.
     tracks: rail.flatMap(({ r, pts }, i) =>
-      r.tunnel === true ? [] : [{ pts, group: lineOf.get(i) ?? lines.length + i }],
+      r.tunnel === true
+        ? []
+        : [
+            {
+              pts,
+              group: lineOf.get(i) ?? lines.length + i,
+              ...(kinds[i] === "siding" ? { siding: true } : {}),
+            },
+          ],
     ),
     lines,
     stops,

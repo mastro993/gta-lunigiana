@@ -3087,9 +3087,11 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   stand 1.63–1.81 m from the nearest track. A piece narrower than 1.2 m, or with tracks under 6 m
   apart on both sides of most of it, is a rail-level walkway, not a platform: Gragnola's strip
   between tracks 1 and 2 (4.3–5.0 m apart; 1.74 m wide once clipped). Equi Terme's island platform
-  lies between tracks 7.1–7.6 m apart and stays one. So is a piece no edge of which comes within
-  `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow line) of a track:
-  no train's step reaches it, and nobody waits there. The CTR maps a strip north of Pieve San
+  lies between tracks 7.1–7.6 m apart and stays one. So is a piece with under 10 m of its edge
+  (`SERVED`) within `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow
+  line) of a line's track or a loop: no train's step reaches it, and nobody waits there (OSM's line
+  for Sarzana's platform 4 runs along a siding no line takes, its band reaching a loop 3 m off at a
+  corner). The CTR maps a strip north of Pieve San
   Lorenzo's line as a platform (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via
   Bugliatico's bank (the ground stands up to 5 m over its top on 42% of it): bare ground on the 2010
   orthophoto, a 1 m path along the track and three low dark structures and a cabinet on the 2023
