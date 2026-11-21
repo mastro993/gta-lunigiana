@@ -11,10 +11,11 @@
 //   its polygons as flat rings [e, n, z, …] on whole centimetres; the mapped area (L6945), one
 //   polygon of 942.57 km² over La Spezia's lot, clipped to the box. Each file holds its box and the
 //   server's count.
-// - dtm/<i>_<j>.tif: the DTM ed. 2023's native 5 m cells over each 2 km tile round fetch-rt's crop
-//   of the part (`dtmTiles`, `dtmCropBox`), as the WCS gives them (a deflated GeoTIFF in EPSG:3003);
-//   none for a tile beyond the coverage or without a cell of data (past the regional border), and a
-//   crop left from an earlier run that it no longer writes is deleted with its lock entry.
+// - dtm/<i>_<j>.tif: the DTM ed. 2023's native 5 m cells over each 2 km tile the cells fetch-rt
+//   fills for the part meet (`dtmTiles`, `dtmCropBox`), as the WCS gives them (a deflated GeoTIFF
+//   in EPSG:3003); none for a tile beyond the coverage or without a cell of data (past the regional
+//   border), and a crop left from an earlier run that it no longer writes is deleted with its lock
+//   entry.
 // - uds.json.gz: the land use ed. 2025's polygons of the classes `ucs.ts` keeps, as `ucs.json.gz`
 //   holds the Tuscan land cover: {crs, year, polygons: [{id, code, rings}]}, sorted by id (`ID_RLIG`),
 //   the code the whole of `COD_USO` (3 or 4 digits), the rings flat [e, n, …] on decimetres; empty
@@ -54,7 +55,7 @@ import {
 } from "./liguria.ts"
 import { getText, request } from "./net.ts"
 import { dropRaw, fetchedToday, writeRaw } from "./raw-lock.ts"
-import { ligDir, partOf, type Rect } from "./region.ts"
+import { ligDir, partOf, type Rect, regionOfPart } from "./region.ts"
 import { REACH } from "./sea-floor.ts"
 import { geoTiffRaster } from "./terrain-sources.ts"
 import { kindOfCode, UCS_CODES } from "./ucs.ts"
@@ -81,7 +82,8 @@ for (const layer of Object.values(NC5_LAYERS)) {
 }
 
 const crops = new Set<string>()
-for (const { i, j } of dtmTiles(part.rects)) {
+const region = regionOfPart(part)
+for (const { i, j } of dtmTiles(part.rects, region.ownTerrain ? undefined : region.bounds)) {
   const url = dtmCropUrl(dtmCropBox(i, j))
   const res = await request(url)
   if (!res.ok) {
