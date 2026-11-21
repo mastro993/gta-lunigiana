@@ -166,6 +166,42 @@ export interface Corridor {
 }
 
 /**
+ * Into `out`, the columns of the lattice's row `j` that lie within `reach` of `s`, a node to spare
+ * either side, cut to its box's columns `i0` … `i1`; `out[0]` past `out[1]` where none does. A row
+ * of a long diagonal deck's box reaches far past the deck: sized to the boxes, the fields of
+ * Lunigiana's decks held 50.5 million nodes, 12.2 million of them within reach.
+ */
+const bandOf = (
+  s: Segment,
+  reach: number,
+  j: number,
+  i0: number,
+  i1: number,
+  out: Array<number>,
+): void => {
+  // The stretch of the segment within reach of the row (a centimetre to spare), and its x there.
+  const y = j * RES,
+    slack = reach + 0.01
+  let a0 = 0,
+    a1 = s.len
+  if (s.uy !== 0) {
+    const p = (y - slack - s.ay) / s.uy,
+      q = (y + slack - s.ay) / s.uy
+    a0 = Math.max(0, Math.min(p, q))
+    a1 = Math.min(s.len, Math.max(p, q))
+  } else if (Math.abs(y - s.ay) > slack) a1 = -1
+  if (a0 > a1) {
+    out[0] = i0
+    out[1] = i0 - 1
+    return
+  }
+  const xa = s.ax + s.ux * a0,
+    xb = s.ax + s.ux * a1
+  out[0] = Math.max(i0, Math.floor((Math.min(xa, xb) - reach) / RES) - 1)
+  out[1] = Math.min(i1, Math.ceil((Math.max(xa, xb) + reach) / RES) + 1)
+}
+
+/**
  * Two fields at the lattice's nodes round the decks of `cluster`, each under 0 in its region: the
  * least over their segments of the most of how far past its walls (`side` m off its line, round
  * its ends too), how far under `room` m under its top (`low`, the low space) or under ON_DECK
@@ -183,7 +219,7 @@ export const fieldsOf = (
   ground: (x: number, y: number) => number,
 ): { readonly low: Field; readonly onLevel: Field } => {
   // Each segment's box of nodes, as far as its walls and 2 RES reach, and each row's columns over
-  // the boxes that cross it.
+  // the bands of the segments that cross it.
   const boxes: Array<readonly [number, Segment, number, number, number, number]> = []
   let j0 = Infinity,
     j1 = -Infinity
@@ -208,10 +244,13 @@ export const fieldsOf = (
   const rows = boxes.length === 0 ? 0 : j1 - j0 + 1,
     lo = new Int32Array(rows).fill(0x7fffffff),
     hi = new Int32Array(rows).fill(-0x80000000)
-  for (const [, , i0, i1, b0, b1] of boxes)
+  const band = [0, 0]
+  for (const [di, s, i0, i1, b0, b1] of boxes)
     for (let j = b0; j <= b1; j++) {
-      lo[j - j0] = Math.min(lo[j - j0]!, i0)
-      hi[j - j0] = Math.max(hi[j - j0]!, i1)
+      bandOf(s, side[di]! + 2 * RES, j, i0, i1, band)
+      if (band[0]! > band[1]!) continue
+      lo[j - j0] = Math.min(lo[j - j0]!, band[0]!)
+      hi[j - j0] = Math.max(hi[j - j0]!, band[1]!)
     }
   const start = new Int32Array(rows + 1)
   for (let r = 0; r < rows; r++) start[r + 1] = start[r]! + Math.max(0, hi[r]! - lo[r]! + 1)
@@ -221,8 +260,9 @@ export const fieldsOf = (
     grounds = new Float64Array(nodes).fill(Number.NaN)
   for (const [di, s, i0, i1, b0, b1] of boxes) {
     const reach = side[di]! + 2 * RES
-    for (let j = b0; j <= b1; j++)
-      for (let i = i0; i <= i1; i++) {
+    for (let j = b0; j <= b1; j++) {
+      bandOf(s, reach, j, i0, i1, band)
+      for (let i = band[0]!; i <= band[1]!; i++) {
         const x = i * RES,
           y = j * RES,
           off = offSegment(s, x, y)
@@ -241,6 +281,7 @@ export const fieldsOf = (
         if (Number.isNaN(low[k]!) || f < low[k]!) low[k] = f
         if (Number.isNaN(onLevel[k]!) || g < onLevel[k]!) onLevel[k] = g
       }
+    }
   }
   return {
     low: { j0, lo, start, values: low },
