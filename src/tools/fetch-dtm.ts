@@ -435,16 +435,14 @@ export const writeTiles = (
         added++
       }
     console.log(`tile ${i}_${j}: ${added} cells added`)
+    // A file this fetch adds no cell to stays as it is: writing it would only put its sources'
+    // names in today's order (`inSources`), so a part that grows the box rewrote, and the lock
+    // re-pinned, every file of the earlier parts' it reached (issue #20: 113 files, for "sea").
+    if (added === 0 && held.has(`${i}_${j}`)) continue
     const file = tilePath(dir, i, j),
       before = held.has(`${i}_${j}`) ? prior(file) : undefined
-    // A file this fetch adds no cell to keeps its source alone: its bytes change only where its
-    // sources' names are put in today's order (`inSources`), and none of its cells is this fetch's.
     const named =
-      before === undefined
-        ? source
-        : added === 0
-          ? before
-          : `${before}; then, for the ${added} cells it lacked: ${source}`
+      before === undefined ? source : `${before}; then, for the ${added} cells it lacked: ${source}`
     put(file, encodeTile({ ...t, names: SOURCES, dm, codes }), named)
   }
 }

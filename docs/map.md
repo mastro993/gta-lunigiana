@@ -3499,7 +3499,9 @@ change an input.
   Liguria's crops among a terrain's sources when its chain takes them. A tile's file that held cells
   keeps the source its entry recorded for them, and a fetch that adds cells to it writes its own
   after it (`…; then, for the 15675 cells it lacked: …`, `writeTiles`), so a file never drops the
-  source of a cell it still holds; a fetch that adds it no cell leaves that source alone. An entry
+  source of a cell it still holds; a fetch that adds it no cell leaves the file as it is, rather
+  than rewrite it with its sources' names in today's order (Sarzana's part, whose box reached 113 of
+  the earlier parts' files, would have re-pinned them all for the chain's new `sea`). An entry
   that already holds the file's bytes, pinned or fetched, stays as it is; any other file becomes
   fetched. The entries pinned on 2026-10-30 say when the file entered git (`in git since 2026-10-20
   (66ae295)`) instead of a fetch date.

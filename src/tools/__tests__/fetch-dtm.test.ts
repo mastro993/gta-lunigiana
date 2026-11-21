@@ -103,7 +103,7 @@ test("writeTiles keeps the cells a file holds and adds the means of those it nee
   assert.equal(t.codes.filter((c) => c !== NONE).length, 4)
 })
 
-test("writeTiles records a file it completes with the source of the cells it held, then its own", () => {
+test("writeTiles records a file it completes with the source of the cells it held, then its own, and leaves one it adds no cell to as it is", () => {
   // Four cells by the corner tiles 0_0, 1_0 and 0_1 share, in each one's need: 0_0's file holds one
   // of them, 0_1's all four, and 1_0 has no file.
   const [g00, g10, g01] = [tileGrid(0, 0), tileGrid(1, 0), tileGrid(0, 1)]
@@ -139,6 +139,5 @@ test("writeTiles records a file it completes with the source of the cells it hel
   assert.deepEqual(Object.fromEntries(sources), {
     "dtm/0_0.bin": "A; then, for the 3 cells it lacked: B",
     "dtm/1_0.bin": "B",
-    "dtm/0_1.bin": "A",
   })
 })
