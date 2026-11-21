@@ -13,6 +13,7 @@
 // cut into tiles, baked and written (build-output.ts), and the full map's overview painted from
 // its vectors into `<file>/overview.png` beside the tiles (overview.ts).
 import { join } from "node:path"
+import { setFlagsFromString } from "node:v8"
 
 import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
@@ -32,6 +33,10 @@ if (REGION.ownBuildings)
   throw new Error(
     `--region ${REGION.key} has buildings alone and builds no map: pontremoli.map-test.ts reads them`,
   )
+// The JS heap grows by a fifth of what a full collection leaves before the next one, not by V8's
+// own factor (up to fourfold): the garbage of a stage's short-lived indexes and fields took the
+// heap, and the resident set with it, 0.6-0.9 GB past what was live (docs/map.md, "Pipeline").
+setFlagsFromString("--heap-growing-percent=20")
 const t0 = performance.now()
 // Each stage's end: seconds from the start and the process's resident memory then.
 const lap = (label: string) =>
