@@ -115,9 +115,13 @@ const zAlong = (s: Float64Array, z: ArrayLike<number>, at: number): number => {
 
 /**
  * The bed of `water` under its centreline per vertex (m a.s.l.): the terrain drawn there, `depth`/2
- * under the culvert's dip under an at-grade road, and under the track no higher than that nor `depth`
- * under the rail bed. It reads the terrain along the whole water, so the build bakes it into the map
- * (`Water.floor`), which `channelOf` reads; `bake.map-test.ts` checks it is current.
+ * under the culvert's dip under an at-grade road or under ground standing more than `depth`/2 over
+ * the water's surface (a road's fill over its channel, which the build's carve never leaves: its
+ * gravel stands at most `depth`/4 over the surface), and under the track no higher than that nor
+ * `depth` under the rail bed. It reads the terrain along the whole water, so the build bakes it
+ * into the map (`Water.floor`), which `channelOf` reads; `bake.map-test.ts` checks it is current.
+ * A stream beside a road on the plain below Arcola (373093516) ran under the road's fill, its bed
+ * that fill 1.2–2.5 m over its surface, and a spate stood on the verge of the bridge 373320292.
  */
 export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
   const { pts, z } = water,
@@ -127,7 +131,7 @@ export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
     const x = pts[2 * i]!,
       y = pts[2 * i + 1]!,
       under = terrainZ(x, y)
-    if (atGrade(x, y) > under + ON_ROAD) return zi - water.depth / 2
+    if (atGrade(x, y) > under + ON_ROAD || under > zi + water.depth / 2) return zi - water.depth / 2
     const rail = railBedNear(x, y, nearTrack)
     return rail === undefined ? under : Math.min(under, zi - water.depth / 2, rail - water.depth)
   })
