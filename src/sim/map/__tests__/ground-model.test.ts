@@ -5,7 +5,7 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import { FLAT_GROUND } from "../../sky/local.ts"
-import { groundBuckets } from "../ground-model.ts"
+import { type GroundRoad, groundBuckets } from "../ground-buckets.ts"
 import { ON_DECK, ROAD_LIFT } from "../kinds.ts"
 import { LIFT, road, scene } from "./ground-scenes.ts"
 
@@ -111,7 +111,7 @@ test("a road at grade meeting a deck's end reaches no farther under the deck: pa
 // service road 100468086 climbing beside it to its bridge over the plaza at (−18205, −1690): the
 // ground there blended the ramp with the plaza 2.4 m under it, and a car on the ramp drove under its
 // own bridge.
-test("past a joint with another road at grade, a road's surface reaches no farther than the narrower one's: a widening starts at its joint", () => {
+test("past a joint in line with a narrower road at grade, a road's surface reaches behind it no farther than the narrower one's: a widening starts at its joint", () => {
   // A road 10 m wide along y = 0 to x = 0, and on from there one 24 m wide, over terrain at 99 m.
   const narrow = road({ w: 10, from: [-50, 0], to: [0, 0], z: [100, 100] }),
     wide = road({ w: 24, from: [0, 0], to: [50, 0], z: [100, 100] })
@@ -121,9 +121,37 @@ test("past a joint with another road at grade, a road's surface reaches no farth
   assert.equal(drawnZ(-2, 10, 99), 99, "and no ribbon drawn there")
   assert.ok(road100(atGrade(2, 10)), "ahead of it, the wide road's carriageway")
   assert.ok(road100(atGrade(-2, 4)), "within the narrow road's: both")
-  // Where a third road meets them it is a junction, and the wide road keeps its round end there.
-  const side = road({ w: 4, from: [0, 0], to: [0, -40], z: [100, 100] })
-  assert.ok(road100(scene({ terrain: () => 99, roads: [narrow, wide, side] }).atGrade(-2, 10)))
+  // Its first segment 1.7 m long, shorter than the halves' difference (7 m), the next one's round
+  // end reaches no farther behind the joint either (205932305, 12 m wide, at (−14524.5, −4924.6)).
+  const kinked = { ...wide, pts: [0, 0, 1.7, 0, 50, 0], z: [100, 100, 100] }
+  assert.equal(scene({ terrain: () => 99, roads: [narrow, kinked] }).atGrade(-2, 10), 99, "kinked")
+  // Where it keeps its round end: a third road ending there or running on through it (a junction),
+  // the narrower one a bridge's deck, or a turn of 30° or more (its round end fills the corner's outside).
+  const keeps = (roads: ReadonlyArray<Omit<GroundRoad, "index">>, why: string) =>
+    assert.ok(road100(scene({ terrain: () => 99, roads }).atGrade(-2, 10)), why)
+  keeps([narrow, wide, road({ w: 4, from: [0, 0], to: [0, -40], z: [100, 100] })], "a junction")
+  keeps(
+    [
+      narrow,
+      wide,
+      {
+        ...road({ w: 4, from: [-30, -40], to: [30, -40], z: [100, 100] }),
+        pts: [-30, -40, 0, 0, 30, -40],
+        z: [100, 100, 100],
+      },
+    ],
+    "a road through the joint",
+  )
+  keeps([{ ...narrow, bridge: true }, wide], "a deck's end")
+  keeps([road({ w: 10, from: [-40.96, -28.68], to: [0, 0], z: [100, 100] }), wide], "a turn of 35°")
+  assert.equal(
+    scene({
+      terrain: () => 99,
+      roads: [road({ w: 10, from: [-49.2, -8.7], to: [0, 0], z: [100, 100] }), wide],
+    }).atGrade(-2, 10),
+    99,
+    "a turn of 10°: in line",
+  )
 })
 
 // Regression (#20): the SS1's viaduct forks at (−15552, −6175) into its own deck 86257908, climbing

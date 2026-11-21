@@ -3875,7 +3875,7 @@ deck only from its level, along the road at its ends.
   reads it (`atGrade`: the terrain, a station platform's top, or a road at grade over it, or a deck
   within `ON_DECK` of the terrain, at its ends), stands within that headroom of the deck's top.
   Where a road at grade meets a deck's end, its surface stops there under the deck, inside the
-  width of any deck segment (`underCut` in `ground-model.ts`, issue #19); beside the deck it keeps
+  width of any deck segment (`underCut` in `ground-buckets.ts`, issue #19); beside the deck it keeps
   its rounded end, as the track 173044034 does at its 78° joint with the bridge 697036175. Before,
   an approach's carriageway floated at the deck's level past its end, over far lower ground. The
   build reads it through the game's ground model (`src/tools/build-ground.ts`, issue #113): its own
