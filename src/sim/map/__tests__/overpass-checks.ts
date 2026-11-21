@@ -3,9 +3,9 @@
 // it and levels.map-test.ts find ways by.
 import { Ops } from "@typeonce/ritmo-math"
 
-import { DECK, passesOver, UNDERPASS } from "../../../tools/road-levels.ts"
+import { DECK, passesOver } from "../../../tools/road-levels.ts"
 import type { Road } from "../index.ts"
-import { isDrivable } from "../kinds.ts"
+import { isDrivable, UNDERPASS } from "../kinds.ts"
 
 /** The map's elevations are rounded to 0.1 m, so a gap can read up to this much short of the rule. */
 const ROUNDING = 0.1

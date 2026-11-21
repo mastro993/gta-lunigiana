@@ -4,11 +4,11 @@
 // here.
 import { isDrivable } from "../sim/map/kinds.ts"
 import { gridGround, levelOn } from "./build-ground.ts"
-import { floorsOf } from "./build-output.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { lifted } from "./chains.ts"
 import { deckWalls } from "./deck-walls.ts"
+import { floorsOf } from "./floors.ts"
 import { flatLine, r1, toLocal } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { parapets } from "./parapets.ts"
@@ -67,12 +67,13 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     level = levelOn(ground)
   const decks = parapets(roads, level),
     under = deckWalls(ground, roads, roadLines)
-  // The buildings' floors, which the shipped map carries, and the tunnels' levels: a bore opens a
-  // house's walls only where it passes the house at its level.
+  // The buildings' floors, which the shipped map carries, and the tunnels' levels on the ground: a
+  // bore opens a house's walls only where it passes the house at its level.
   const floors = floorsOf(grid, terrain.floors, buildings)
   const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under, {
     floors,
-    lines: roadLines,
+    level,
+    terrain: ground.terrainZ,
   })
   lap("walls")
   const trees = scatterTrees(

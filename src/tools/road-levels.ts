@@ -12,14 +12,12 @@
 // bounds from one natural level. Each bound holds across the other way's carriageway, from its
 // level abeam. And two carriageways of one road that overlap in plan keep on one level there
 // (`TWINS`), a deck or a bore of one at both its ends.
-import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
+import { isDrivable, ONE_LEVEL, UNDERPASS } from "../sim/map/kinds.ts"
 import { type Linear, lifted } from "./chains.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
 import { type Bound, ROAD_PASSES } from "./profiles.ts"
 
-/** Clear height of an underpass whose way has no `maxheight` tag, m. */
-export const UNDERPASS = 4
 /**
  * Clear height under a path's or steps' bridge, or in its tunnel, where the way under it is a path
  * or steps with no `maxheight` tag, m: a pedestrian underpass's least headroom, over a person's

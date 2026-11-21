@@ -7,7 +7,8 @@
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { r1, segIndex } from "./geometry.ts"
-import { opened, pushPolyline } from "./walls.ts"
+import { pushPolyline } from "./wall-pieces.ts"
+import { opened } from "./walls.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
 export const PARAPET = 0.25

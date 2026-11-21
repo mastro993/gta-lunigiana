@@ -1,13 +1,14 @@
-import type { Linear } from "./chains.ts"
 // Where the rail and the roads meet in height: a road under a rail bridge (or in a tunnel under the
 // rail) keeps its clearance under it, a road bridge over the rail clears a train, and a rail bridge
 // stays over the river it crosses. The profiles pin these as bounds. At a level crossing the rail
 // keeps its own grade and the road, profiled after it, meets it there (a rail pinned to the road's
 // level made a V of up to 5% in its grade).
+import { UNDERPASS } from "../sim/map/kinds.ts"
+import type { Linear } from "./chains.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, type V } from "./geometry.ts"
 import type { Bound } from "./profiles.ts"
-import { DECK, naturalAt, UNDERPASS } from "./road-levels.ts"
+import { DECK, naturalAt } from "./road-levels.ts"
 import type { Profile } from "./terrain.ts"
 
 /** What the bounds are read from: the rail, the roads, the water with its surface profiles, the uncarved ground, and each profiled line's z at arc length s. */

@@ -27,6 +27,7 @@ import {
   extractWater,
 } from "./features.ts"
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
+import { clipBuildings } from "./house-walls.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
@@ -36,7 +37,7 @@ import { seaFloor } from "./sea-floor.ts"
 import { extractShore, holedSea, offBeaches, splitPiers } from "./shore.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readIsobaths, readSpiagge, readUcs } from "./ucs.ts"
-import { clipBuildings, openBarriers } from "./walls.ts"
+import { openBarriers } from "./walls.ts"
 import { inAreas } from "./water-areas.ts"
 
 /** Whether two water areas draw the same water: either's centroid lies in the other's outer ring. */
