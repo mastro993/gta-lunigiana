@@ -6,6 +6,7 @@ import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
 import { makeProfiler, PATH_PASS, RAIL_PASS, ROAD_PASSES } from "../profiles.ts"
+import { HEADING_SPAN, MAX_TURN } from "../rail-graph.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
@@ -122,6 +123,43 @@ test("profile runs a tunnel the outline cuts, in two pieces, level from its one 
   )
   for (const p of pieces)
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
+test("chainsOf with `through` runs a track on through its switches, the track that diverges alone ending there", () => {
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-100, 0), v(0, 0, "s")] },
+    { id: 2, pts: [v(0, 0, "s"), v(100, 0, "t")] },
+    { id: 3, pts: [v(100, 0, "t"), v(200, 0)] },
+    // Diverging at 5.7° from the switch, and at 30° (a crossing's way, past no turn) from "t".
+    { id: 4, pts: [v(0, 0, "s"), v(50, 5), v(150, 15)] },
+    { id: 5, pts: [v(100, 0, "t"), v(150, -29)] },
+  ]
+  const ids = (through?: { readonly turn: number; readonly span: number }) =>
+    chainsOf(pieces, through)
+      .map((c) => c.map((m) => m.item.id).sort((a, b) => a - b))
+      .sort((a, b) => a[0]! - b[0]!)
+  assert.deepEqual(ids(), [[1], [2], [3], [4], [5]])
+  assert.deepEqual(ids({ turn: MAX_TURN, span: HEADING_SPAN }), [[1, 2, 3], [4], [5]])
+})
+
+// Regression: the rail's chains ended at every switch, and each switch took its level from the
+// first chain fitted to it, its window cut there: at Vezzano Ligure's west junction the free ends
+// of the four tracks coming up from the east stood 1.7–3.8 m under the ground, and the crossovers
+// between switches set by different chains changed grade 4–7.5% over 20 m (`railway.map-test.ts`).
+test("profile takes a switch's level from the track running through it, on a climb as on the flat", () => {
+  // Ground climbing 2% eastward; the through track runs (−800, 0) to (300, 0) through the switch at
+  // x 0, and a siding 500 m long diverges from it, so that the line west of the switch is the
+  // longest chain when chains end at switches.
+  const ground = (x: number) => 100 + 0.02 * x
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-800, 0), v(0, 0, "s")] },
+    { id: 2, pts: [v(0, 0, "s"), v(300, 0)] },
+    { id: 3, pts: [v(0, 0, "s"), v(40, 4), v(490, 60)] },
+  ]
+  const { profile, grown, nodeZ } = makeProfiler((x) => ground(x))
+  for (const ch of grown(chainsOf(pieces, { turn: MAX_TURN, span: HEADING_SPAN })))
+    profile(ch, { w: 4, ...RAIL_PASS })
+  assert.ok(Math.abs(nodeZ.get("s")! - 100) < 0.05, `the switch at ${nodeZ.get("s")!.toFixed(2)}`)
 })
 
 // Regression: north of Aulla a switch of the Pontremolese's inside a tunnel took the hill's 114.9 m over the bore and humped

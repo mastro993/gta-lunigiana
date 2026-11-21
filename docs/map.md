@@ -2714,9 +2714,10 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   rail's bridge of two pieces in a row, one deck, as a road's (since issue #19): kept a deck a
   piece, the Pontremolese's second track's joint between 1045531416 (175 m) and 92904328 (391 m)
   stood at 79.8 m, 5.6 m under the line between the deck's ends, a 4.49% grade change over 20 m; it
-  now stands at 87.7 m, and no line passes 3.06%. With it Monzone's bridges over the Lucido
-  (140780341/47, 140780342/32) rose 0.9–1.1 m, the line through the station now keeps within about
-  0.4 m of the LiDAR ground, where it sagged up to 1.1 m under it, and the Lucido bridge
+  now stands at 87.7 m, and no line's grade changes more than 3.48% over 20 m (the Genova–Pisa's
+  lines 3 and 5 at (−17447, −4290)). With it Monzone's bridges over the Lucido (140780341/47,
+  140780342/32) rose 0.9–1.1 m, the line through the station now keeps within about 0.4 m of the
+  LiDAR ground, where it sagged up to 1.1 m under it, and the Lucido bridge
   83729863/140780336/140780348 at (−1600, 2700) rose up to 2.3 m. A bridge and a tunnel joined end
   to end are straight too, before the fit, from the outer end of the one to the outer end of the
   other (each deck still ships straight between its own ends, at the fit's levels): the ground at
@@ -2750,6 +2751,34 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
   between two levels got a 93% straight line that way).
+- The rail's chains run on through its switches (`chainsOf` with `through`): at a node where three
+  or more tracks end, the two leaving it most nearly opposite, turning 60° or less as a line's walk
+  does (`MAX_TURN`, headings over `HEADING_SPAN`'s 5 m, `rail-graph.ts`), are one track, so a switch
+  is a sample inside the fit of the track running through it, and only the track that diverges ends
+  there, pinned to it when fitted after it. Ended at every switch, each switch took its level from
+  the first chain fitted to it, its smoothing window cut there: on a climb a free end stands half
+  the window's climb under the ground (1.0 m on a 2% climb, `profiles.test.ts`). At Vezzano Ligure's
+  west junction (−18900, −3500) the four tracks coming up from the east, fitted first, ended 1.7–3.8
+  m under the ground (111646538 at 22.6 m on 25.0 m), the crossover 423877054 from that switch
+  climbed 5.5% to the next track's, and the tracks fitted on west from them, pinned there, bent back
+  up to the formation's level: with the Vezzano mouths above, 10 places on lines 2, 4, 5 and 6
+  changed grade 4% or more over 20 m, up to 7.47% (`railway.map-test.ts`), and the ATR 220's cars
+  stood up to 0.075 m off the rail head on lines 2, 5 and 6's sharpest curves, Vezzano Ligure's
+  west-throat crossovers ((−19650, −4234), (−19607, −4148)) and (−18715, −3262) (`consist.test.ts`).
+  The junction's switches now stand at 24.8–28.2 m along the formation's climb (111646538's at 24.8
+  m), no line's grade changes more than 3.48% over 20 m, and the cars stand within 0.030 m of the
+  rail head. A track that diverges and is fitted before the track it leaves still ends free at its
+  switch (15 switch ends on Lunigiana: 11 in Santo Stefano di Magra's yard, and by Aulla's,
+  Sarzana's and Vezzano Ligure's stations and at (−17618, −3896)); a smoothing that read on past a
+  chain's end over the natural profiles of the tracks running on, its weight shared among them,
+  moved no level by 0.05 m once the tracks ran through (measured on the rail pass alone), so the
+  pass has none. On Lunigiana the rule moved 12,126 nodes (up to 2.2 m, 0.34 m RMS), 1,216 of them
+  in the earlier parts, up to 0.8 m: 573 round Aulla's station tracks, 268 round Pieve San Lorenzo's
+  sidings, 269 along the Genova–Pisa by the part's east edge and 106 north of Aulla; 378 rail
+  pieces, 84 roads, 21 buildings and 3 waters by them, 7 platforms, 20 parked spots, 53 lamps and 15
+  land-cover cells by Vezzano Ligure's station. On Cesena it moved 843 nodes round its station, up
+  to 0.6 m (0.10 m RMS), 21 rail pieces, and the Sottopasso Ravennate, another road and a building
+  by 0.1 m; the L and the coast not at all.
 - A junction a road's fit sets stays within reach of each junction already set that a road not
   yet fitted leads it to (`junction-reach.ts`): that road's steepest grade (1.5× its class limit)
   over the way there, along it and on through joints no other road meets, or the ground's own
@@ -3039,49 +3068,42 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was
   written into: 823 vertices, 19.0 KB of the JSON line (223 vertices before the CTR).
 - **Twin tracks** (`rail-twins.ts`, issue #19): two tracks side by side stand on one formation. The
-  rail is profiled a chain at a time and a switch ends a chain, so each track of a double line was
-  fitted apart from the other: north of Aulla the Pontremolese's two, 3.9–5.6 m apart, stood 1.5 m
-  apart in level at their twin tunnels' south portals and 2.8 m at the north ones. A track fitted
-  after a twin of its kind (both bridges, both tunnels or both at grade) keeps within 0.1 m of the
-  twin's level where they stand on one formation: no gap over 6 m (`SIDE`, `TWIN`) between the
-  tracks of their kind lying from one to the other (a deck or a bore between two tracks at grade is
-  no track of their formation; on Lunigiana's rail the kind filter changes no profile), whatever
-  their headings (a switch's diverging track, a crossing at grade); past that the allowance grows by 2/3 m a metre of the widest gap (`PART`, a
-  2:3 bank between their formations) between tracks within 15° of parallel, up to 40 m apart
-  (`REACH`, a yard's width), past which they bind each other no more. Its points 2 m apart along it
-  take the bounds, each holding at its own sample (`Bound.here`), on a deck or not. Bound only by a
-  twin within 6 m and 15° of parallel, the outer two of Vezzano Ligure's four tracks, 15–17 m apart
-  with 3.4–6 m between neighbours, were fitted each from its own ground, 2.6 m apart, and the two
-  between could keep to neither; the tracks of Santo Stefano di Magra's yard throat, leaving their
-  switches at over 15°, stood 0.4–0.7 m apart within 6 m: 54 pairs of tracks stood over 0.3 m apart
-  on Sarzana's part's first build (Via Termo's hump above among their causes), 3 now, a known limit
-  (`rail.map-test.ts` fails on them): the Pontremolese's two tracks 206182846 and 111752500 0.30 m
-  apart at (−18975, −3599) and 111646538 and the crossover 423877054 0.31 m apart at (−18903, −3506),
-  by the triangle's west junction, and the Pontremolese's down track and the link's up track
-  (1045531422, 1045531424), both on decks, 1.97 m apart where they part at the triangle's north apex,
-  (−17909, −2698): the link, fitted first, falls from the switch toward the Genova–Pisa as the
-  Pontremolese climbs toward Vezzano, and a deck's profile is the straight line between its ends,
-  so the bounds its twin puts on its samples between them hold in the fit but not in the deck
-  shipped. The junction's chains are fitted one at a time, each switch's level set by the first
-  chain through it; at the triangle's west junction the free end of 111646538's chain, smoothed over
-  the 100 m behind it alone on ground climbing 3% (its window cut at the switch), took 22.6 m, 2.4 m
-  under the ground there, and the crossover 423877054 from it climbs 5.5% to the next track's switch
-  (24.4 m): the line's grade changes 4.0–7.5% over 20 m there and at five more switches of the
-  triangle and Vezzano Ligure's throats (`railway.map-test.ts`), and the ATR 220's cars stand up to
-  0.109 m off the rail head on lines 2, 5 and 6's sharpest curves, Vezzano Ligure's west-throat
-  crossovers ((−19650, −4234), (−19607, −4148)) and (−18715, −3262) (`consist.test.ts`). Measured
-  offline on the rail pass alone (2026-11-21) against today's 14 places where a line's grade changes
-  4% or more over 20 m (up to 7.5%) and 3 twin pairs, four general fits each mend some and break
-  others, so none is taken: smoothing a cut window's end along its least-squares line leaves 12
-  places (up to 6.8%) and 15 pairs (Santo Stefano di Magra's yard 0.3–0.8 m apart); chaining the
-  track through each switch's straight way 5 (up to 6.6%) and 12; the smoothing reading the ground
-  on past a switch along the track that runs on 23 (up to 10.8%, Aulla's among them) and 14; and
-  binding tracks up to 8 m apart as one formation 21 (up to 9.7%) and 24. A fit of each formation's
-  switches together is open. The first rule moved 43 of
+  rail is profiled a chain at a time, each track of a double line its own chain, so each was fitted
+  apart from the other: north of Aulla the Pontremolese's two, 3.9–5.6 m apart, stood 1.5 m apart in
+  level at their twin tunnels' south portals and 2.8 m at the north ones. A track fitted after a
+  twin of its kind (both bridges, both tunnels or both at grade) keeps within 0.1 m of the twin's
+  level where they stand on one formation: no gap over 6 m (`SIDE`, `TWIN`) between the tracks of
+  their kind lying from one to the other (a deck or a bore between two tracks at grade is no track
+  of their formation; on Lunigiana's rail the kind filter changes no profile), whatever their
+  headings (a switch's diverging track, a crossing at grade); past that the allowance grows by 2/3 m
+  a metre of the widest gap (`PART`, a 2:3 bank between their formations) between tracks within 15°
+  of parallel, up to 40 m apart (`REACH`, a yard's width), past which they bind each other no more.
+  Its points 2 m apart along it take the bounds, each holding at its own sample (`Bound.here`), on a
+  deck or not. Bound only by a twin within 6 m and 15° of parallel, the outer two of Vezzano
+  Ligure's four tracks, 15–17 m apart with 3.4–6 m between neighbours, were fitted each from its own
+  ground, 2.6 m apart, and the two between could keep to neither; the tracks of Santo Stefano di
+  Magra's yard throat, leaving their switches at over 15°, stood 0.4–0.7 m apart within 6 m: 54
+  pairs of tracks stood over 0.3 m apart on Sarzana's part's first build (Via Termo's hump above
+  among their causes), 3 before the rail ran on through its switches (the two at Vezzano Ligure's
+  west junction above, 0.30–0.31 m), 1 now, a known limit (`rail.map-test.ts` fails on it): at the
+  triangle's north apex the Pontremolese's up track and the link's leave one switch (687047798,
+  (−17850, −2583)) side by side on decks, 1045531422 and 1045531424, and stand 1.00 m apart where
+  they part, (−17909, −2698). The Pontremolese climbs from there to fly over toward Vezzano Ligure
+  (its next deck, 86258947, is OSM's layer 2) and the link falls to the Genova–Pisa, each on one
+  straight deck from the switch's approach (442 m at +0.6%, 814 m at −0.5%), so the bounds the track
+  fitted first puts on the other's samples hold in the fit but not in the deck shipped (1.97 m
+  before the mouths' and the joints' rules above). Shipping each deck straight between its OSM
+  joints instead (1045531422 and 1045531424 end 97–103 m from the switch) left them 0.42 m apart,
+  set the link's other track, one 608 m deck (237201708), 0.56–0.61 m off its twin, and stood line
+  1's cars 0.063 m off the rail head at the Magra bridge's west end: the decks would need a vertical
+  curve inside their length, which the profiles do not draw. Measured offline on the rail pass alone
+  (2026-11-21), the earlier fits round the switches each mended some places and broke others:
+  smoothing a cut window's end along its least-squares line, the smoothing reading the raw ground on
+  past a switch, and binding tracks up to 8 m apart as one formation. The first rule moved 43 of
   Lunigiana's rail pieces and 452 terrain nodes, by up to 2.4 m, with the walls and a parked spot
   beside them, along the Pontremolese by Aulla and the sidings at x 4900–5370, and on Cesena 18
-  pieces, 863 nodes (up to 0.5 m), a platform and 28 lamps round its station and two underpass
-  roads by 0.1 m; the formation rule moves 10 of Cesena's rail pieces and 311 terrain nodes round its
+  pieces, 863 nodes (up to 0.5 m), a platform and 28 lamps round its station and two underpass roads
+  by 0.1 m; the formation rule moves 10 of Cesena's rail pieces and 311 terrain nodes round its
   station, by up to 0.2 m (0.10 m RMS), and its "Sottopasso Ravennate" under them by up to 0.4 m.
 - Overpasses (`road-levels.ts`): the rail bridge's rule holds under every road bridge too, so local
   roads pass under a motorway's overpasses. A drivable road under a profiled road's bridge, or in a
