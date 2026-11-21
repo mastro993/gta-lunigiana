@@ -1,7 +1,7 @@
 // A chain's bridges and tunnels on its profile (profiles.ts): the decks and bores it is laid out in,
-// and the levels their ends take before the fit.
+// the levels their ends take before the fit, and the line a deck ships after it.
 import type { V } from "./geometry.ts"
-import type { Profile } from "./terrain.ts"
+import type { Pin, Profile } from "./terrain.ts"
 
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4
@@ -156,4 +156,62 @@ export const levelLifted = (
     for (let k = k0 + 1; k < k1; k++)
       p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
   }
+}
+
+/** A sample a deck's line bends at (its ends too), and its level there. */
+export type Knot = Pick<Pin, "k" | "z">
+
+/** A `here` bound inside a straight deck (`Bound.here` in profiles.ts), by the deck's first piece. */
+export interface Here {
+  readonly deck: number
+  readonly pin: Pin
+}
+
+/**
+ * The knots each deck of `laid` bends at after the fit, by its first piece: its ends and its bends,
+ * for the decks whose straight line between their ends breaks one of `heres` (a twin's level,
+ * rail-twins.ts) by more than `tol`. A deck bends at the bound its line breaks most, at the bound's
+ * level, and so on either side until no line breaks one: the fewest straight spans that keep to the
+ * twin. Shipped straight, the Pontremolese's up track (1045531422) and the link's (1045531424),
+ * leaving one switch at the triangle's north apex side by side on decks 442 and 814 m long, one
+ * climbing to fly over and the other falling, stood 1.00 m apart where they part; shipped as
+ * fitted, the link held to the climbing track and then fell at the grade limit, its grade changing
+ * 4.18% over 20 m there.
+ */
+export const deckKnots = (
+  { p, deckOf, deckEnds }: Laid,
+  heres: ReadonlyArray<Here>,
+  tol: number,
+): Map<number, ReadonlyArray<Knot>> => {
+  /** The bends of a deck's line between knots `a` and `b` (exclusive) that keep it to `heres`. */
+  const bends = (a: Knot, b: Knot, deck: number): Array<Knot> => {
+    let worst = tol,
+      at: Knot | undefined
+    for (const h of heres) {
+      if (h.deck !== deck || h.pin.k <= a.k || h.pin.k >= b.k) continue
+      const { k, z, kind } = h.pin,
+        line = a.z + ((b.z - a.z) * (p.s[k]! - p.s[a.k]!)) / (p.s[b.k]! - p.s[a.k]!),
+        off = kind === "max" ? line - z : kind === "min" ? z - line : Math.abs(line - z)
+      if (off > worst) [worst, at] = [off, { k, z }]
+    }
+    return at === undefined ? [] : [...bends(a, at, deck), at, ...bends(at, b, deck)]
+  }
+  const knots = new Map<number, ReadonlyArray<Knot>>()
+  for (const deck of new Set(heres.map((h) => h.deck))) {
+    const [k0, k1] = deckEnds(deckOf(deck)).map((v) => p.vertexSample[v]!) as [number, number]
+    const a = { k: k0, z: p.z[k0]! },
+      b = { k: k1, z: p.z[k1]! },
+      inner = bends(a, b, deck)
+    if (inner.length > 0) knots.set(deck, [a, ...inner, b])
+  }
+  return knots
+}
+
+/** A bent deck's level at sample `k` of profile `p`, on the straight span between its knots round it. */
+export const onKnots = (p: Profile, on: ReadonlyArray<Knot>, k: number): number => {
+  let m = 1
+  while (m < on.length - 1 && on[m]!.k < k) m++
+  const a = on[m - 1]!,
+    b = on[m]!
+  return a.z + ((b.z - a.z) * (p.s[k]! - p.s[a.k]!)) / (p.s[b.k]! - p.s[a.k]!)
 }

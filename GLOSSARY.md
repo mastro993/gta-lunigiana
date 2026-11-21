@@ -111,6 +111,10 @@ _Avoid_: Dual road, double road, parallel roads
 A track running beside another of its kind (both on bridges, both in tunnels or both at grade) on one formation, no gap over 6 m between the tracks lying from one to the other, whatever their headings (farther apart, within 15° of parallel and parting by a 2:3 bank): the one fitted later keeps to the other's level.
 _Avoid_: Double track, parallel line
 
+**Knot**:
+A sample of a deck's profile where its shipped line bends to keep to its twin track, or one of the deck's ends: the deck runs straight from knot to knot.
+_Avoid_: Vertex (OSM's), bend (any change of grade)
+
 **Ground model**:
 The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
 

@@ -439,6 +439,44 @@ test("profile lays a bridge of two pieces as one deck, straight from end to end,
   assert.ok(Math.abs(rail - 100) < 1e-6, `the rail's joint at ${rail}`)
 })
 
+// Regression: at the triangle's north apex by Santo Stefano di Magra the Pontremolese's up track and
+// the link's leave one switch side by side on decks 442 and 814 m long (1045531422, 1045531424), one
+// climbing 0.6% to fly over and the other falling 0.5%: each deck shipped straight between its ends,
+// the bounds of its twin held in the fit and not in the deck shipped, and the two stood 1.00 m apart
+// where they part (`rail.map-test.ts`); shipped as fitted, the deck held to its twin and then fell at
+// the grade limit, its grade changing 4.18% over 20 m there.
+test("profile bends a deck at the twin bound its straight line breaks most, in straight spans, and keeps it straight where none breaks", () => {
+  // Flat ground at 100 m and a 400 m deck over it, its twin climbing 1% over its first 100 m beside it.
+  const deck = { id: 2, bridge: true as const, pts: [v(0, 0, "a"), v(400, 0, "b")] }
+  const chain = [
+    { id: 1, pts: [v(-300, 0), v(0, 0, "a")] },
+    deck,
+    { id: 3, pts: [v(400, 0, "b"), v(700, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const twin = (x: number) => 100 + 0.01 * x
+  const bounds = (reach: number) =>
+    Array.from({ length: reach / 2 + 1 }, (_, n) => 2 * n).flatMap((x) => [
+      { x, y: 0, z: twin(x) - 0.1, kind: "min" as const, on: deck, here: true as const },
+      { x, y: 0, z: twin(x) + 0.1, kind: "max" as const, on: deck, here: true as const },
+    ])
+  const { profile, denseOf, zAt } = makeProfiler(() => 100)
+  profile(chain, { w: 4, ...RAIL_PASS, tol: 0.03 }, bounds(100))
+  for (const x of [20, 50, 80, 100])
+    assert.ok(
+      Math.abs(zAt(deck, x) - twin(x)) <= 0.1 + 0.03 + 1e-9,
+      `the deck at x ${x}: ${zAt(deck, x).toFixed(2)}, its twin at ${twin(x).toFixed(2)}`,
+    )
+  // One bend, at the twin's last bound, then straight to the deck's far end.
+  assert.equal(denseOf.get(deck)!.pts.length, 3)
+  // A twin bound the straight deck keeps leaves it straight.
+  const flat = makeProfiler(() => 100)
+  flat.profile(chain, { w: 4, ...RAIL_PASS, tol: 0.03 }, [
+    { x: 50, y: 0, z: 99.95, kind: "min", on: deck, here: true },
+    { x: 50, y: 0, z: 100.05, kind: "max", on: deck, here: true },
+  ])
+  assert.equal(flat.denseOf.get(deck)!.pts.length, 2)
+})
+
 // Regression: Pieve San Lorenzo's underpass (road 756577583) under the station's tracks opened under
 // neither mouth: Via della Stazione, a tertiary road crossing over it 4.5 m from the south mouth,
 // held that mouth's cell 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the

@@ -6,7 +6,7 @@ import { lifted, type Linear, type Link } from "./chains.ts"
 import { along, arcLengths, type V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
 import { type Graded, junctionReach } from "./junction-reach.ts"
-import { laidOut, levelLifted } from "./lifted-runs.ts"
+import { deckKnots, type Here, laidOut, levelLifted, onKnots } from "./lifted-runs.ts"
 import {
   fitProfile,
   keepSamples,
@@ -111,7 +111,8 @@ export const beatsRail = (cls: string): boolean =>
  * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
  * and whether each junction the fit sets keeps within reach of the junctions already set that a
  * road not yet fitted leads it to (`junctionReach`): the roads'. Consecutive bridge (or tunnel)
- * pieces make one deck, straight from end to end, the rail's as the roads'. The rail keeps its own
+ * pieces make one deck, straight from end to end, the rail's as the roads', but where it keeps to a
+ * twin track (`deckKnots` in lifted-runs.ts). The rail keeps its own
  * grade at a level crossing: the road meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
  * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
  * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
@@ -319,6 +320,8 @@ export const makeProfiler = (
     // A bound at a deck's end holds there alone: the straight deck keeps it, and carried to the other
     // end along the slope before the fit it held that end too (the A15's road-levels twin bounds at a
     // deck's ends, each from its twin's level there, would have bound each end twice).
+    /** The `here` bounds inside a straight deck, by the deck's first piece: what `bent` reads. */
+    const heres: Array<Here> = []
     for (const b of bounds) {
       // The samples it may take: its own piece's, from its first vertex to its last.
       const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
@@ -344,9 +347,14 @@ export const makeProfiler = (
         if (b.kind === undefined) pins.push({ k, z })
         else keep(k, z, b.kind)
       }
+      if (b.here === true && isLifted(i) && spec.ramps !== true)
+        heres.push({ deck: deckOf(i)[0], pin: { k: best, z: b.z, kind: b.kind } })
     }
     pins.push(...strictest.values())
     fitProfile(p, spec.grade, pins, spec.relax)
+    // A deck ships straight between its ends, but bent where that line breaks a `here` bound inside
+    // it (`deckKnots`).
+    const knots = deckKnots(laid, heres, spec.tol ?? 0)
     // With `ramps`, a bridge's deck spans between its humps: each sample of it as high as the lower
     // of the highest before it and the highest after it on the deck, a fill that keeps the fit's
     // grades, so a footbridge over two ways bridges between them rather than dipping to the ground.
@@ -425,7 +433,8 @@ export const makeProfiler = (
       }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!),
-        straight = isLifted(i) && spec.ramps !== true
+        straight = isLifted(i) && spec.ramps !== true,
+        bent = straight ? knots.get(deckOf(i)[0]) : undefined
       if (straight) {
         const [v0, v1] = deckEnds(deckOf(i)),
           s = arcLengths(pts.slice(v0, v1 + 1)),
@@ -433,19 +442,28 @@ export const makeProfiler = (
           z1 = p.z[p.vertexSample[v1]!]!
         for (let j = 0; j < z.length; j++) {
           const v = first[i]! + j
-          if (v > v0 && v < v1) z[j] = z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+          if (v > v0 && v < v1)
+            z[j] =
+              bent === undefined
+                ? z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+                : onKnots(p, bent, p.vertexSample[v]!)
         }
       }
       r.forEach((v, j) => {
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)
       })
       const vks = r.map((_, j) => p.vertexSample[first[i]! + j]!)
-      const ks = straight ? vks : keepSamples(p, vks, spec.tol)
-      const vertexAt = new Map(vks.map((k, j) => [k, j]))
+      // A straight deck ships its vertices, a bent one its knots too, the rest their bends.
+      const bends = (bent ?? []).filter((q) => q.k > vks[0]! && q.k < vks.at(-1)!)
+      const ks = straight
+        ? [...new Set([...vks, ...bends.map((q) => q.k)])].sort((a, b) => a - b)
+        : keepSamples(p, vks, spec.tol)
+      const vertexAt = new Map(vks.map((k, j) => [k, j])),
+        knotAt = new Map(bends.map((q) => [q.k, q.z]))
       const dense = ks.map((k) =>
         vertexAt.has(k)
           ? { v: r[vertexAt.get(k)!]!, z: z[vertexAt.get(k)!]! }
-          : { v: { x: p.x[k]!, y: p.y[k]! }, z: p.z[k]! },
+          : { v: { x: p.x[k]!, y: p.y[k]! }, z: knotAt.get(k) ?? p.z[k]! },
       )
       if (chain[i]!.rev) dense.reverse()
       denseOf.set(chain[i]!.item, { pts: dense.map((d) => d.v), z: dense.map((d) => d.z) })
