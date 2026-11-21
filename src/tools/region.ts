@@ -11,8 +11,9 @@
 //   a part's Regione Liguria sources are its own anyway (`ligDir`, issue #12).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
-//   is parts `lucido`, `fivizzano`, `fosdinovo`, `aulla` and `sarzana`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
-//   `footprint-check`), `fetch-rt`, `fetch-lig` and `fetch-osm` take parts from here, and each part
+//   is parts `lucido`, `fivizzano`, `fosdinovo`, `aulla` and `sarzana`. The part tools (`rt-index`,
+//   `pick-sheets`, `pick-lidar`, `coverage`, `footprint-check`), `fetch-rt`, `fetch-lig` and
+//   `fetch-osm` take parts from here, and each part
 //   has an OSM extract of its own (`osmFile`), which the build merges with its region's others'.
 
 // The game loads this module (through geometry.ts), so it imports no Node built-in

@@ -273,14 +273,16 @@ const shortfalls = (
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [],
-  // Sarzana's part's crossings no rule of the passes clears (issue #20; the user's choice, after
-  // three rounds of fixes, to list them as known limits: docs/map.md, Known data limitations): the
-  // A15's piece 1514016673, mapped at grade between its viaducts, holds the cell 2.3 m from its
-  // steps, which drop 5.4 m in the 2.9 m past the carriageway's edge, more than the 4 m grid holds;
-  // three ends pinned at the ground by a road fitted first, before the deck's or bore's clearance;
-  // the Canale Lunense's bank path under a bridge level with the bank, which would dip into the
-  // canal; two micro-mapped knots of paths, stubs and bores no fit can part; and the footbridge
-  // 93746169 leaving Via Aurelia at its level over the path inside the primary's carriageway.
+  // The crossings no rule of the passes clears since Sarzana's part, all in it but the knot by
+  // Aulla (issue #20; the user's choice, after three rounds of fixes, to list them as known limits:
+  // docs/map.md, Known data limitations): the A15's piece 1514016673, mapped at grade between its
+  // viaducts, holds the cell 2.3 m from its steps, which drop 5.4 m in the 2.9 m past the
+  // carriageway's edge, more than the 4 m grid holds; three ends pinned at the ground by a road
+  // fitted first, before the deck's or bore's clearance; the Canale Lunense's bank path under a
+  // bridge level with the bank, which would dip into the canal; two micro-mapped knots of paths,
+  // stubs and bores no fit can part, by Vezzano Ligure's station and, in Aulla's part, at (−16497,
+  // 5329); and the footbridge 93746169 leaving Via Aurelia at its level over the path inside the
+  // primary's carriageway.
   lunigiana: [
     [374756512, 374756566],
     [99473194, 300940651],

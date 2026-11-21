@@ -975,9 +975,11 @@ test("road names, classes, styles, area kinds and districts", () => {
   const covered = settled.filter((c) =>
     MAP.districts.some((d) => hypot(c.x - d.x, c.y - d.y) <= d.r),
   ).length
-  // Most are inside a district disc: 86.8% (lucido's 90.0%, Fivizzano's part's 88.7%, Fosdinovo's
-  // 80.5%, where 24 of its 38 discs stand at the 400 m cap and Ceserano's node is 506 m off its
-  // church).
+  // Most are inside a district disc: 84.2% (41,083 of 48,807 on 2026-11-21), 90.7% outside
+  // Sarzana's part's rectangle, 75.3% inside it, whose plain sprawls between discs at the 600 m
+  // cap (issue #20). Before Sarzana's part, every building counted and the cap at 400 m, 83.5%
+  // (lucido's 90.0%, Fivizzano's part's 88.7%, Fosdinovo's 80.5%, where 24 of its 38 discs stood at
+  // the cap and Ceserano's node is 506 m off its church).
   assert.ok(
     covered >= 0.8 * settled.length,
     `${covered}/${settled.length} settled buildings inside a district disc`,

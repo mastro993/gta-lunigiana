@@ -35,7 +35,7 @@ test("gridTiles gives each tile its 501 × 501 nodes cut to the grid, neighbours
 
 test("cellTile names the tile whose window holds all four nodes of the cell read at a point", () => {
   // Every tile of the box has a window, listed or not: a point in a notch is read in a tile off the
-  // list (a corner of Lunigiana's box is one, found from the list: its north-west and south-east today).
+  // list (a corner of Lunigiana's box is one, found from the list: its south-east today).
   const { i0, i1, j0, j1 } = tileRange(BOUNDS),
     box: Array<{ i: number; j: number }> = []
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.push({ i, j })
