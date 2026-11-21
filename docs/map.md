@@ -3090,7 +3090,10 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   by Gassano (13636.9), and in Aulla's part the SP72 by Rometta (17024), the SP18 (19874.1), Via
   Filippo Turati (21039.2), Via Guido Rossa (22327.2), the SP57 Ponzanello (22852.6) and the track
   140771695 (23367.7); Pieve San Lorenzo's foot crossing lies on the loop alone, so it names no
-  line (`line` and `s` −1).
+  line (`line` and `s` −1). A vertex where one road alone ends on the track makes none: nothing
+  crosses there (the graph drops such a road's tip off the running track), and the box the driveway
+  1455968336 made, ending on the Pontremolese at Santo Stefano di Magra, laid its far stop line on
+  past the road's end 0.65 m from the second track. Sarzana's part brings no level crossing.
 - **Clearance** (`rail-clear.ts`): outside the crossing boxes (within 15 m of a box's nodes, on its
   road or within its verges: the crossing road's lanes and verges come within 2.8 m of the track up
   to 12.4 m away, Viale 20 Settembre crossing at a slant) and the platforms, no walk verge or

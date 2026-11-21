@@ -97,6 +97,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     y: r1(v.y),
     piece,
     vertex,
+    end: roads[road]!.pts[0]!.id === v.id || roads[road]!.pts.at(-1)!.id === v.id,
   }))
   const levelCrossings = crossingBoxes(crossingNodes, lines, shipped)
   const { verges, report: clearReport } = clearVerges({

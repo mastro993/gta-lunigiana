@@ -106,17 +106,29 @@ export interface LevelNode {
   readonly y: number
   readonly piece: number
   readonly vertex: number
+  readonly end: boolean
 }
 
-/** The level-crossing boxes: the nodes on one road within BOX_GROUP m of each other, each node in the first road's box only. */
+/**
+ * The level-crossing boxes: the nodes on one road within BOX_GROUP m of each other, each node in the
+ * first road's box only, but a node where one road alone ends: it crosses nothing (the graph drops
+ * such a tip on the running track, and a box's far stop line, laid on past the road's end, stood on
+ * the next track: the driveway 1455968336 ending on the Pontremolese at Santo Stefano di Magra).
+ */
 export const crossingBoxes = (
   nodes: ReadonlyArray<LevelNode>,
   lines: ReadonlyArray<LineOut>,
   rail: ReadonlyArray<Piece>,
 ): Array<LevelCrossing> => {
-  const firstRoad = new Map<number, number>()
-  for (const n of nodes) firstRoad.set(n.node, Math.min(n.road, firstRoad.get(n.node) ?? n.road))
-  const kept = nodes.filter((n) => firstRoad.get(n.node) === n.road)
+  const firstRoad = new Map<number, number>(),
+    roadsAt = new Map<number, Set<number>>()
+  for (const n of nodes) {
+    firstRoad.set(n.node, Math.min(n.road, firstRoad.get(n.node) ?? n.road))
+    roadsAt.set(n.node, (roadsAt.get(n.node) ?? new Set()).add(n.road))
+  }
+  const kept = nodes.filter(
+    (n) => firstRoad.get(n.node) === n.road && !(n.end && roadsAt.get(n.node)!.size === 1),
+  )
   const groups: Array<Array<LevelNode>> = []
   for (const n of kept) {
     const g = groups.find(

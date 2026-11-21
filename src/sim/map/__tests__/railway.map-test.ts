@@ -298,8 +298,16 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       .length,
     2,
   )
-  // Every vertex an at-grade road shares with at-grade rail is in a box.
+  // Every vertex an at-grade road shares with at-grade rail is in a box, but where one road alone ends on it, crossing nothing
+  // (the driveway 1455968336 on the Pontremolese at Santo Stefano di Magra).
   const boxed = new Set(railway.crossings.flatMap((c) => c.nodes))
+  const roadsAt = new Map<string, Array<{ readonly end: boolean }>>()
+  for (const road of WHOLE.roads)
+    for (let k = 0; k < road.pts.length; k += 2) {
+      const key = `${road.pts[k]},${road.pts[k + 1]}`
+      roadsAt.set(key, [...(roadsAt.get(key) ?? []), { end: k === 0 || k === road.pts.length - 2 }])
+    }
+  const endNodes = new Set<number>()
   for (const r of MAP.rail) {
     if (r.bridge === true || r.tunnel === true) continue
     for (const road of WHOLE.roads) {
@@ -307,10 +315,20 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       for (let k = 0; k < road.pts.length; k += 2) {
         if (vertexOf(r.pts, road.pts[k]!, road.pts[k + 1]!) < 0) continue
         const n = graph.nodes.findIndex((g) => g.x === road.pts[k] && g.y === road.pts[k + 1])
+        const at = roadsAt.get(`${road.pts[k]},${road.pts[k + 1]}`)!
+        if (at.length === 1 && at[0]!.end) {
+          assert.ok(
+            !boxed.has(n),
+            `road ${road.id} ending on rail ${r.id} at node ${n} makes no box`,
+          )
+          endNodes.add(n)
+          continue
+        }
         assert.ok(boxed.has(n), `rail ${r.id} × road ${road.id} at node ${n} is in a box`)
       }
     }
   }
+  assert.equal(endNodes.size, 1, "one road ends on the track")
 })
 
 test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the carriageways, their top over the rail head", () => {
