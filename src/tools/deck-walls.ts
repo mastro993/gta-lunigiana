@@ -27,6 +27,7 @@ import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
 import {
   along,
   clustersOf,
+  CORRIDOR,
   type Corridor,
   type Deck,
   decksOf,
@@ -42,6 +43,7 @@ import {
   type Segment,
   segmentsOf,
   valueAt,
+  walkSide,
 } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
 import { grownBox, nearBoxes, r1, ringBox, segIndex } from "./geometry.ts"
@@ -60,8 +62,6 @@ const UNDER_TOP = ONE_LEVEL + ON_DECK
 const OUTSIDE = [0.25, 0.5] as const
 /** The most the ground outside one wall may span below a deck's level, m: a wall meets the grounds within ONE_LEVEL of its level, half a metre in from either end of that. */
 const SPAN = 2 * ONE_LEVEL - 1
-/** A corridor reaches this far past where the bodies on its road go, m: its walls stand off them. */
-const CORRIDOR = 0.25
 /** How far past a deck's end, along it, a road meeting the end opens the walk walls round it, m (`open`). */
 const ONTO = 2
 /** How far past its carriageway a car on a road reaches, m. */
@@ -105,7 +105,7 @@ interface Kind {
 /** Walk walls: under PERSON_HEIGHT of headroom, round where someone on foot is on the deck (its slab, its walkers' reach). */
 const WALK: Kind = {
   room: DECK_SLAB.depth + PERSON_HEIGHT,
-  side: (d) => Math.max(d.w / 2 + DECK_SLAB.margin, footReach(d.cls, d.w)),
+  side: walkSide,
   reach: (r) => footReach(r.cls, r.w),
   uses: () => true,
   onto: (r) => footReach(r.cls, r.w) + PERSON_RADIUS,

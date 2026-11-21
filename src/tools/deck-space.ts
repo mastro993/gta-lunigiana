@@ -2,12 +2,26 @@
 // from: the decks' and roads' lines as shipped, the decks whose walls would touch, and, on a
 // lattice RES m apart, the fields under 0 where the ground at the terrain's level (`atGrade`)
 // stands within a headroom of a deck's top (the low space) or within ON_DECK of it (on its level).
-import { isRoadClass, ON_DECK, ONE_LEVEL, ROAD_LIFT } from "../sim/map/kinds.ts"
+import {
+  DECK_SLAB,
+  footReach,
+  isRoadClass,
+  ON_DECK,
+  ONE_LEVEL,
+  ROAD_LIFT,
+} from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { segIndex } from "./geometry.ts"
 
 /** The lattice the low space is read on, m. */
 export const RES = 0.25
+
+/** A corridor reaches this far past where the bodies on its road go, m: its walls stand off them. */
+export const CORRIDOR = 0.25
+
+/** How far off a deck's centreline someone on foot is on it, m: its slab, or its walkers' reach. */
+export const walkSide = (deck: { readonly cls: string; readonly w: number }): number =>
+  Math.max(deck.w / 2 + DECK_SLAB.margin, footReach(deck.cls, deck.w))
 
 /** A road's line as shipped: its flat polyline and its profile per vertex. */
 export interface Line {
