@@ -29,6 +29,7 @@ import {
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
+import { platformLines } from "./platform-lines.ts"
 import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
 import { underRail } from "./rail-crossings.ts"
 import { routeEnds, trainRoutes } from "./rail-routes.ts"
@@ -164,6 +165,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     ...osmAreas
       .filter((a) => a.kind === "platform")
       .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings, leftTo: ctr2019.mapped })),
+    // And those OSM draws as lines, a band about each (`platformLines`): Sarzana's and Arcola's.
+    ...platformLines(
+      osm,
+      osmAreas.flatMap((a) => (a.kind === "platform" ? [a.rings] : [])),
+    ).map((rings, i) => ({
+      src: `OSM platform line ${i}`,
+      rings,
+      leftTo: ctr2019.mapped,
+    })),
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its

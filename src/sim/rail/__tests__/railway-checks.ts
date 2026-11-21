@@ -8,6 +8,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { segDist2 } from "../../collide.ts"
 import { terrainZ } from "../../map/ground.ts"
 import { graph, type LevelCrossing, MAP, outlineDistance, RAIL_LIFT } from "../../map/index.ts"
+import { PLATFORM_EDGE } from "../../map/kinds.ts"
 import { endNode, laneOf, lanePoint } from "../../route.ts"
 import { strikeIn } from "../barriers.ts"
 import { approachesOf, APPROACHES, CROSSINGS, linesAtGrade } from "../crossings.ts"
@@ -219,19 +220,34 @@ export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
   for (const station of stations.map((s) => MAP.railway.stations[s]!)) {
     const mid = (station.s0 + station.s1) / 2,
       at = pointAt(LINES[station.line]!, mid)
-    const platforms = MAP.railway.platforms.filter(
-      (p) => p.name === station.name && p.walkway !== true,
+    const platforms = MAP.railway.platforms.flatMap((p, i) =>
+      p.name === station.name && p.walkway !== true
+        ? [{ ...p, ring: MAP.derived.platforms[i]![0]! }]
+        : [],
     )
     assert.ok(platforms.length > 0)
     // A platform's axis is the running track beside it: the line runs along one at the station's middle (of a station with
-    // platforms by several tracks, Aulla Lunigiana's, the one by its own).
-    let near = Number.MAX_VALUE
-    for (const { axis } of platforms)
+    // platforms by several tracks, Aulla Lunigiana's, the one by its own), or along an island's other edge, a train's step
+    // from it (PLATFORM_EDGE), its axis on the track across it (Vezzano Ligure's and Sarzana's, between two lines' tracks).
+    let near = Number.MAX_VALUE,
+      edge = Number.MAX_VALUE
+    for (const { axis, ring } of platforms) {
       for (let k = 0; k + 3 < axis.length; k += 2) {
         const [ax, ay, bx, by] = axis.slice(k, k + 4) as [number, number, number, number]
         near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
       }
-    assert.ok(near < 0.05, `${station.name}'s platform beside the line at its middle (${near} m)`)
+      for (let k = 0; k < ring.length; k += 2) {
+        const j = (k + 2) % ring.length
+        edge = Math.min(
+          edge,
+          Math.sqrt(segDist2(at.x, at.y, ring[k]!, ring[k + 1]!, ring[j]!, ring[j + 1]!).d2),
+        )
+      }
+    }
+    assert.ok(
+      near < 0.05 || edge <= PLATFORM_EDGE,
+      `${station.name}'s platform beside the line at its middle (${near} m, its edge ${edge} m)`,
+    )
   }
 }
 

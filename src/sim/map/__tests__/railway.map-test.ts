@@ -194,7 +194,9 @@ test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's
 
 test("railway: each line calls at each station along its platforms, on their side", () => {
   // OSM's seven from Pieve San Lorenzo to Aulla on the Lucca–Aulla line (Fivizzano-Gassano a halt), the last its terminus; the
-  // Pontremolese's two tracks call at Aulla Lunigiana too.
+  // Pontremolese's lines call at Aulla Lunigiana and Santo Stefano di Magra, then Sarzana (by the link) or Vezzano Ligure, the
+  // Genova–Pisa's at Sarzana and Vezzano Ligure, and the westbound track's at Arcola's halt, whose platform 1 OSM draws beside
+  // it (its platform 2 is too small once clipped: `MIN_AREA`).
   assert.deepEqual(
     railway.stations.map((st) => [st.name, st.line]),
     [
@@ -206,7 +208,23 @@ test("railway: each line calls at each station along its platforms, on their sid
       ["Fivizzano-Rometta-Soliera", 0],
       ["Aulla Lunigiana", 0],
       ["Aulla Lunigiana", 1],
+      ["Santo Stefano di Magra", 1],
+      ["Sarzana", 1],
       ["Aulla Lunigiana", 2],
+      ["Santo Stefano di Magra", 2],
+      ["Vezzano Ligure", 2],
+      ["Sarzana", 3],
+      ["Arcola", 3],
+      ["Santo Stefano di Magra", 3],
+      ["Aulla Lunigiana", 3],
+      ["Vezzano Ligure", 4],
+      ["Santo Stefano di Magra", 4],
+      ["Aulla Lunigiana", 4],
+      ["Sarzana", 5],
+      ["Arcola", 5],
+      ["Vezzano Ligure", 5],
+      ["Vezzano Ligure", 6],
+      ["Sarzana", 6],
     ],
   )
   const ringNear = (ring: ReadonlyArray<number>, x: number, y: number) => {

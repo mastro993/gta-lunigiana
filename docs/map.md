@@ -3073,7 +3073,12 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 - **Platforms** (`platforms.ts`): each CTR `0141` polygon (OSM's platform areas where the 2019
   sheets map no ground: `railway=platform`, or `public_transport=platform` with no `bus` or
   `highway` tag, as OSM tags Aulla Lunigiana's three; each cut where a 2019 sheet maps the ground,
-  `leftTo`, rather than dropped whole by its first vertex) is rasterised at 0.05 m and keeps the
+  `leftTo`, rather than dropped whole by its first vertex; and a band 3 m either side of each
+  platform OSM draws as a line, `platformLines` in `platform-lines.ts`, its `width` tag where it
+  has one, but a line whose middle lies in a platform OSM maps as an area too, as along Aulla
+  Lunigiana's: OSM draws all of Sarzana's platforms as lines but its island's 60 m shelter roof,
+  and Arcola's two, and the build called Sarzana's trains along that roof alone, a station 59.5 m
+  long) is rasterised at 0.05 m and keeps the
   cells 1.60 m or more from every track centreline out of the tunnels (the ATR 220 is 2.883 m wide),
   0.5 m or more past the edge of every at-grade carriageway, outside the CTR's level-crossing areas,
   and no more than 1 m under the platform's top (Gragnola's polygon wraps the station building,
