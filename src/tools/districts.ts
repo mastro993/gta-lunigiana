@@ -123,9 +123,20 @@ const LANDMARKS: ReadonlyArray<District> = [
 
 /**
  * Populated places only: a `locality` (a named hillside, a field) would claim the village's
- * buildings around it. Fivizzano and Aulla, OSM's towns in Lunigiana's play area, are two.
+ * buildings around it. Fivizzano, Aulla, Sarzana, Arcola and Santo Stefano di Magra are OSM's towns
+ * in Lunigiana's play area. A town's neighbourhoods, suburbs and quarters are villages here: OSM
+ * tags Albiano Magra (1,907 people) and Sarzana's quarters so, and without them the HUD named
+ * Albiano after Santo Stefano di Magra across the Magra and Sarzana's east after Caniparola, a
+ * village of Fosdinovo's (issue #20).
  */
-const PLACES: ReadonlySet<string> = new Set(["town", "village", "hamlet"])
+const PLACES: ReadonlySet<string> = new Set([
+  "town",
+  "village",
+  "hamlet",
+  "suburb",
+  "quarter",
+  "neighbourhood",
+])
 /** A building farther than this (m) from every village and hamlet node is no village's. */
 const REACH = 600
 /**
@@ -136,8 +147,12 @@ const REACH = 600
 const TOWN_REACH = 1200
 /** Share of a place's buildings its disc covers; the rest are outliers. */
 const FIT = 0.9
-/** A disc's radius (m); a town's reaches past `max`, as far as its buildings (issue #19). */
-const RADIUS = { min: 80, max: 400 }
+/**
+ * A disc's radius (m); a town's reaches past `max`, as far as its buildings (issue #19). At 400 m
+ * the cap held 53 of Sarzana's part's 62 discs, and the plain's sprawl between them fell to the
+ * nearest rim (the user's choice of 600 m, issue #20).
+ */
+const RADIUS = { min: 80, max: 600 }
 
 /**
  * MONZONE, then a disc per OSM place outside it, in node id order, then LANDMARKS, those two lists

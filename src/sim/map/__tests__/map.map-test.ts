@@ -916,9 +916,12 @@ test("road names, classes, styles, area kinds and districts", () => {
   // A settlement's buildings, found by geometry rather than by OSM's place nodes (the discs' own
   // centres, so a village OSM leaves without a node, or tags `locality`, still counts against
   // them): those with 10 or more others within 150 m. The rest are farmhouses, mountain huts and
-  // quarry sheds: 9% of lucido's and Fivizzano's part's buildings, 18% of Fosdinovo's.
-  const near = bucketed(centres, (c) => [c.x, c.y], 0)
-  const settled = centres.filter(
+  // quarry sheds: 9% of lucido's and Fivizzano's part's buildings, 18% of Fosdinovo's. Sheds count
+  // neither way: they stand in the fields round a village as among its houses, and the NC5's minor
+  // buildings, every one a shed, are a third of Sarzana's part's (issue #20).
+  const homes = centres.filter((_, k) => WHOLE.buildings[k]!.kind !== "shed")
+  const near = bucketed(homes, (c) => [c.x, c.y], 0)
+  const settled = homes.filter(
     (c) =>
       near(c.x - 150, c.y - 150, c.x + 150, c.y + 150).filter(
         (o) => hypot(o.x - c.x, o.y - c.y) <= 150,
