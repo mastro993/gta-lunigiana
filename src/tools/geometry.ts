@@ -296,14 +296,50 @@ interface Buffered<T> {
   readonly data: T
 }
 
-/** Segments with a buffer radius each, bucketed on a square grid for "is this point within r of a segment" queries. */
+/** `a` with room for `n` values, its values kept: itself, or a copy twice as long or more. */
+const roomF64 = (a: Float64Array<ArrayBuffer>, n: number): Float64Array<ArrayBuffer> => {
+  if (n <= a.length) return a
+  const b = new Float64Array(Math.max(n, 2 * a.length))
+  b.set(a)
+  return b
+}
+/** `roomF64` for an Int32Array. */
+const roomI32 = (a: Int32Array<ArrayBuffer>, n: number): Int32Array<ArrayBuffer> => {
+  if (n <= a.length) return a
+  const b = new Int32Array(Math.max(n, 2 * a.length))
+  b.set(a)
+  return b
+}
+
+/**
+ * Segments with a buffer radius each, bucketed on a square grid for "is this point within r of a
+ * segment" queries. Each segment's ends and radius lie in one Float64Array and each bucket's
+ * segments in a chain of entries in Int32Arrays, in the order added: an object a segment and an
+ * array a bucket took about 300 MB of the walls' indexes of Lunigiana's roads and water. The query
+ * hands `visit` one object it fills for each segment: read it there, never keep it.
+ */
 export const segIndex = <T>(bucket = 16) => {
-  const cells = new Map<number, Array<number>>()
-  const segs: Array<Buffered<T>> = []
+  // Segment k's ends and radius at 5k, and its data.
+  let geo = new Float64Array(5 * 64)
+  const data: Array<T> = []
+  // Each bucket's number by its key, and its first and last entry.
+  const numbers = new Map<number, number>()
+  let first = new Int32Array(64),
+    last = new Int32Array(64)
+  // Each entry's segment and the next entry of its bucket (-1 after the last).
+  let segOf = new Int32Array(256),
+    after = new Int32Array(256),
+    entries = 0
   const key = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096)
-  const add = (ax: number, ay: number, bx: number, by: number, r: number, data: T) => {
-    const k = segs.length
-    segs.push({ ax, ay, bx, by, r, data })
+  const add = (ax: number, ay: number, bx: number, by: number, r: number, item: T) => {
+    const k = data.length
+    geo = roomF64(geo, 5 * k + 5)
+    geo[5 * k] = ax
+    geo[5 * k + 1] = ay
+    geo[5 * k + 2] = bx
+    geo[5 * k + 3] = by
+    geo[5 * k + 4] = r
+    data.push(item)
     for (
       let i = Math.floor((Math.min(ax, bx) - r) / bucket);
       i <= Math.floor((Math.max(ax, bx) + r) / bucket);
@@ -314,27 +350,67 @@ export const segIndex = <T>(bucket = 16) => {
         j <= Math.floor((Math.max(ay, by) + r) / bucket);
         j++
       ) {
-        const c = cells.get(key(i, j))
-        if (c === undefined) cells.set(key(i, j), [k])
-        else c.push(k)
+        segOf = roomI32(segOf, entries + 1)
+        after = roomI32(after, entries + 1)
+        segOf[entries] = k
+        after[entries] = -1
+        const q = key(i, j),
+          b = numbers.get(q)
+        if (b === undefined) {
+          const n = numbers.size
+          numbers.set(q, n)
+          first = roomI32(first, n + 1)
+          last = roomI32(last, n + 1)
+          first[n] = entries
+          last[n] = entries
+        } else {
+          after[last[b]!] = entries
+          last[b] = entries
+        }
+        entries++
       }
   }
-  const addLine = (pts: ReadonlyArray<V> | ReadonlyArray<number>, r: number, data: T) => {
-    const xy =
-      typeof pts[0] === "number"
-        ? (pts as ReadonlyArray<number>)
-        : (pts as ReadonlyArray<V>).flatMap((p) => [p.x, p.y])
-    for (let i = 0; i + 3 < xy.length; i += 2)
-      add(xy[i]!, xy[i + 1]!, xy[i + 2]!, xy[i + 3]!, r, data)
+  const addLine = (pts: ReadonlyArray<V> | ReadonlyArray<number>, r: number, item: T) => {
+    if (typeof pts[0] === "number") {
+      const xy = pts as ReadonlyArray<number>
+      for (let i = 0; i + 3 < xy.length; i += 2)
+        add(xy[i]!, xy[i + 1]!, xy[i + 2]!, xy[i + 3]!, r, item)
+    } else {
+      const vs = pts as ReadonlyArray<V>
+      for (let i = 0; i + 1 < vs.length; i++)
+        add(vs[i]!.x, vs[i]!.y, vs[i + 1]!.x, vs[i + 1]!.y, r, item)
+    }
   }
+  /** What `within` hands its visitor, filled for each segment. */
+  const seg = { ax: 0, ay: 0, bx: 0, by: 0, r: 0, data: undefined as T }
   /** Calls `visit` for each segment whose buffer contains (x,y), with the squared distance and projection t. */
   const within = (x: number, y: number, visit: (s: Buffered<T>, d2: number, t: number) => void) => {
-    const c = cells.get(key(Math.floor(x / bucket), Math.floor(y / bucket)))
-    if (c === undefined) return
-    for (const k of c) {
-      const s = segs[k]!
-      const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
-      if (d2 < s.r * s.r) visit(s, d2, t)
+    const b = numbers.get(key(Math.floor(x / bucket), Math.floor(y / bucket)))
+    if (b === undefined) return
+    for (let e = first[b]!; e >= 0; e = after[e]!) {
+      const k = segOf[e]!,
+        ax = geo[5 * k]!,
+        ay = geo[5 * k + 1]!,
+        bx = geo[5 * k + 2]!,
+        by = geo[5 * k + 3]!,
+        r = geo[5 * k + 4]!
+      // `segDist2`'s arithmetic, the same bits, with no object a segment.
+      const ex = bx - ax,
+        ey = by - ay,
+        l2 = ex * ex + ey * ey,
+        t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / l2)) : 0,
+        dx = ax + ex * t - x,
+        dy = ay + ey * t - y,
+        d2 = dx * dx + dy * dy
+      if (d2 < r * r) {
+        seg.ax = ax
+        seg.ay = ay
+        seg.bx = bx
+        seg.by = by
+        seg.r = r
+        seg.data = data[k] as T
+        visit(seg, d2, t)
+      }
     }
   }
   const covers = (x: number, y: number, pred?: (data: T) => boolean): boolean => {

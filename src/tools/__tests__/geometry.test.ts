@@ -9,6 +9,7 @@ import {
   fromLocal,
   gaussBoagaBox,
   hash01,
+  segDist2,
   segIndex,
   staticPoints,
   staticSegs,
@@ -54,6 +55,59 @@ test("gaussBoagaBox is the EPSG:3003 box round the corners, widened by pad on ev
   ])
   // The box holds the 7.8 by 10 km rectangle with room to spare: the frames turn against each other.
   assert.ok(box[2]! - box[0]! > 7800 && box[3]! - box[1]! > 10_000)
+})
+
+test("segIndex visits every segment whose buffer holds the point, in the order added, at segDist2's distance", () => {
+  // 600 segments up to 40 m long, radii 0.5-12 m, over a 300 m square round the origin, short and
+  // degenerate ones among them, added one by one and as lines of points and of numbers, asked at
+  // 3000 points over it and past its edges, against a scan of them all.
+  const segs: Array<readonly [number, number, number, number, number]> = []
+  const index = segIndex<number>(),
+    wide = segIndex<number>(32)
+  for (let k = 0; k < 600; k++) {
+    const ax = 300 * hash01(k, 1) - 150,
+      ay = 300 * hash01(k, 2) - 150,
+      len = k % 13 === 0 ? 0 : 40 * hash01(k, 3),
+      angle = 2 * Math.PI * hash01(k, 4),
+      r = 0.5 + 11.5 * hash01(k, 7),
+      bx = ax + len * Math.cos(angle),
+      by = ay + len * Math.sin(angle)
+    segs.push([ax, ay, bx, by, r])
+    if (k % 3 === 0) index.add(ax, ay, bx, by, r, k)
+    else if (k % 3 === 1)
+      index.addLine(
+        [
+          { x: ax, y: ay },
+          { x: bx, y: by },
+        ],
+        r,
+        k,
+      )
+    else index.addLine([ax, ay, bx, by], r, k)
+    wide.add(ax, ay, bx, by, r, k)
+  }
+  let hits = 0
+  for (let n = 0; n < 3000; n++) {
+    const x = 360 * hash01(n, 5) - 180,
+      y = 360 * hash01(n, 6) - 180
+    const want: Array<ReadonlyArray<number>> = []
+    segs.forEach(([ax, ay, bx, by, r], k) => {
+      const { d2, t } = segDist2(x, y, ax, ay, bx, by)
+      if (d2 < r * r) want.push([k, d2, t, ax, ay, bx, by, r])
+    })
+    for (const ix of [index, wide]) {
+      const got: Array<ReadonlyArray<number>> = []
+      ix.within(x, y, (s, d2, t) => got.push([s.data, d2, t, s.ax, s.ay, s.bx, s.by, s.r]))
+      assert.deepEqual(got, want)
+      assert.equal(
+        ix.covers(x, y, (k) => k % 2 === 0),
+        want.some(([k]) => k! % 2 === 0),
+      )
+    }
+    hits += want.length
+  }
+  assert.ok(hits > 1000, `the points meet segments (${hits})`)
+  segIndex<null>().within(0, 0, () => assert.fail("no segments, no visit"))
 })
 
 test("staticSegs visits the segments segIndex visits, in the same order, at the same distances", () => {
