@@ -2618,7 +2618,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/__tests__/walls.test.ts` (traffic): a driver stops for a car standing across its lane,
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
-    wet road.
+    wet road, each on the first seed from 1 on which its car backs up rather than turns round.
   - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91, at the crossing `viaduct.ts` finds
     for the level tests too): a Panda driven across the SR445's viaduct west of Gragnola over the
     residential road under it, either way, stays on the deck (before, it dropped 8 m onto that

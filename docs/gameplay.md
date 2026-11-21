@@ -700,10 +700,13 @@ the lane helpers in `src/sim/route.ts`.
   queued 4.5 m behind one that backs up (the backing limit), a car alongside one backing up askew
   (the straight wheel), a driver steering back into its lane beside a standing car (the bent cone),
   and the same road wet (slower, easing off sooner, stopping and backing further from the cars
-  around it). `src/sim/__tests__/levels.test.ts` stages the level rule on and under the SR445's
-  viaduct, forward and backing up, through its dip, down the sags onto its deck and onto OSM way
-  237828927's, and over its deck over the railway; `traffic.test.ts` reads `onPathLevel` over
-  made-up ground (a deck, a train's car under it, a dip, a sag onto a rising deck, a bend).
+  around it). Whether a stuck car turns round on its first try is a coin from the shared dice, and
+  whatever Populate draws before it changes how the coin falls, so each scene takes the first seed
+  from 1 on which the car backs up along its lane. `src/sim/__tests__/levels.test.ts` stages the
+  level rule on and under the SR445's viaduct, forward and backing up, through its dip, down the
+  sags onto its deck and onto OSM way 237828927's, and over its deck over the railway;
+  `traffic.test.ts` reads `onPathLevel` over made-up ground (a deck, a train's car under it, a dip,
+  a sag onto a rising deck, a bend).
 - **How it flows.** With the player standing 3 real minutes while traffic fills the roads, on a
   new game (22 October 2026 from 08:00, Balanced handling) with the weather held clear, the share
   of the traffic's time under 1 m/s and the honks were 0.18 and 82 in Monzone's street, 0.13 and
