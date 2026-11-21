@@ -115,21 +115,42 @@ export const clustersOf = (
   return [...groups.values()].sort((a, b) => a[0]! - b[0]!)
 }
 
-/** How far either way of 0 a lattice node's column and row reach, past any map at RES m, and a row's span of keys. */
-const OFF = 1 << 21,
-  ROW = 1 << 22
-/** A lattice node's key, from its column and row. */
-export const key = (i: number, j: number): number => (j + OFF) * ROW + i + OFF
+/**
+ * A field on the lattice's nodes round a cluster's decks: each row from `j0` holds the columns
+ * `lo[r]` on, its values at `start[r]` … `start[r + 1]` of `values`, NaN where the field holds none.
+ * Typed arrays sized once a cluster: a Map a node (and its growth) made most of the garbage that
+ * took Lunigiana's build to its peak at the walls stage's start.
+ */
+export interface Field {
+  readonly j0: number
+  readonly lo: Int32Array
+  readonly start: Int32Array
+  readonly values: Float64Array
+}
+
+/** `field`'s value at node (i, j), undefined where it holds none. */
+export const valueAt = (field: Field, i: number, j: number): number | undefined => {
+  const r = j - field.j0
+  if (r < 0 || r >= field.lo.length) return undefined
+  const c = i - field.lo[r]!,
+    o = field.start[r]! + c
+  if (c < 0 || o >= field.start[r + 1]!) return undefined
+  const v = field.values[o]!
+  return Number.isNaN(v) ? undefined : v
+}
 
 /** A field's value at the lattice node nearest (x, y): outside (1) where it holds none. */
-export const fieldAt = (field: ReadonlyMap<number, number>, x: number, y: number): number =>
-  field.get(key(Math.round(x / RES), Math.round(y / RES))) ?? 1
+export const fieldAt = (field: Field, x: number, y: number): number =>
+  valueAt(field, Math.round(x / RES), Math.round(y / RES)) ?? 1
 
 /** The column and row of each node of `field` under 0. */
-export const nodesUnder = (field: ReadonlyMap<number, number>): Array<readonly [number, number]> =>
-  [...field].flatMap(([k, f]) =>
-    f < 0 ? [[(k % ROW) - OFF, Math.floor(k / ROW) - OFF] as const] : [],
-  )
+export const nodesUnder = (field: Field): Array<readonly [number, number]> => {
+  const out: Array<readonly [number, number]> = []
+  for (let r = 0; r < field.lo.length; r++)
+    for (let o = field.start[r]!; o < field.start[r + 1]!; o++)
+      if (field.values[o]! < 0) out.push([field.lo[r]! + o - field.start[r]!, field.j0 + r])
+  return out
+}
 
 /**
  * A road's corridor through the low space under a deck it passes under, m off its centreline: as far
@@ -160,43 +181,69 @@ export const fieldsOf = (
   room: number,
   corridors: ReadonlyArray<ReturnType<typeof segIndex<Corridor>>>,
   ground: (x: number, y: number) => number,
-): { readonly low: Map<number, number>; readonly onLevel: Map<number, number> } => {
-  const low = new Map<number, number>(),
-    onLevel = new Map<number, number>(),
-    grounds = new Map<number, number>()
+): { readonly low: Field; readonly onLevel: Field } => {
+  // Each segment's box of nodes, as far as its walls and 2 RES reach, and each row's columns over
+  // the boxes that cross it.
+  const boxes: Array<readonly [number, Segment, number, number, number, number]> = []
+  let j0 = Infinity,
+    j1 = -Infinity
   for (const di of cluster) {
     const reach = side[di]! + 2 * RES
     for (const s of decks[di]!.segs) {
       const bx = s.ax + s.ux * s.len,
         by = s.ay + s.uy * s.len
-      const i0 = Math.floor((Math.min(s.ax, bx) - reach) / RES),
-        i1 = Math.ceil((Math.max(s.ax, bx) + reach) / RES),
-        j0 = Math.floor((Math.min(s.ay, by) - reach) / RES),
-        j1 = Math.ceil((Math.max(s.ay, by) + reach) / RES)
-      for (let j = j0; j <= j1; j++)
-        for (let i = i0; i <= i1; i++) {
-          const x = i * RES,
-            y = j * RES,
-            off = offSegment(s, x, y)
-          if (off.d > reach) continue
-          const k = key(i, j)
-          let z = grounds.get(k)
-          if (z === undefined) grounds.set(k, (z = ground(x, y)))
-          let rest = off.d - side[di]!
-          const under = off.z - z >= ONE_LEVEL
-          corridors[di]!.within(x, y, ({ data }, d2) => {
-            const d = Math.sqrt(d2)
-            rest = Math.max(rest, (under ? data.reach : data.hold) - d)
-          })
-          for (const [field, f] of [
-            [low, Math.max(rest, off.z - z - room)],
-            [onLevel, Math.max(rest, off.z - z - ON_DECK)],
-          ] as const) {
-            const was = field.get(k)
-            if (was === undefined || f < was) field.set(k, f)
-          }
-        }
+      const box = [
+        di,
+        s,
+        Math.floor((Math.min(s.ax, bx) - reach) / RES),
+        Math.ceil((Math.max(s.ax, bx) + reach) / RES),
+        Math.floor((Math.min(s.ay, by) - reach) / RES),
+        Math.ceil((Math.max(s.ay, by) + reach) / RES),
+      ] as const
+      boxes.push(box)
+      j0 = Math.min(j0, box[4])
+      j1 = Math.max(j1, box[5])
     }
   }
-  return { low, onLevel }
+  const rows = boxes.length === 0 ? 0 : j1 - j0 + 1,
+    lo = new Int32Array(rows).fill(0x7fffffff),
+    hi = new Int32Array(rows).fill(-0x80000000)
+  for (const [, , i0, i1, b0, b1] of boxes)
+    for (let j = b0; j <= b1; j++) {
+      lo[j - j0] = Math.min(lo[j - j0]!, i0)
+      hi[j - j0] = Math.max(hi[j - j0]!, i1)
+    }
+  const start = new Int32Array(rows + 1)
+  for (let r = 0; r < rows; r++) start[r + 1] = start[r]! + Math.max(0, hi[r]! - lo[r]! + 1)
+  const nodes = start[rows]!
+  const low = new Float64Array(nodes).fill(Number.NaN),
+    onLevel = new Float64Array(nodes).fill(Number.NaN),
+    grounds = new Float64Array(nodes).fill(Number.NaN)
+  for (const [di, s, i0, i1, b0, b1] of boxes) {
+    const reach = side[di]! + 2 * RES
+    for (let j = b0; j <= b1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const x = i * RES,
+          y = j * RES,
+          off = offSegment(s, x, y)
+        if (off.d > reach) continue
+        const k = start[j - j0]! + i - lo[j - j0]!
+        if (Number.isNaN(grounds[k]!)) grounds[k] = ground(x, y)
+        const z = grounds[k]!
+        let rest = off.d - side[di]!
+        const under = off.z - z >= ONE_LEVEL
+        corridors[di]!.within(x, y, ({ data }, d2) => {
+          const d = Math.sqrt(d2)
+          rest = Math.max(rest, (under ? data.reach : data.hold) - d)
+        })
+        const f = Math.max(rest, off.z - z - room),
+          g = Math.max(rest, off.z - z - ON_DECK)
+        if (Number.isNaN(low[k]!) || f < low[k]!) low[k] = f
+        if (Number.isNaN(onLevel[k]!) || g < onLevel[k]!) onLevel[k] = g
+      }
+  }
+  return {
+    low: { j0, lo, start, values: low },
+    onLevel: { j0, lo, start, values: onLevel },
+  }
 }

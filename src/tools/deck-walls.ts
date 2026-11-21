@@ -30,10 +30,10 @@ import {
   type Corridor,
   type Deck,
   decksOf,
+  type Field,
   fieldAt,
   fieldsOf,
   isLifted,
-  key,
   type Line,
   liftOf,
   nodesUnder,
@@ -41,6 +41,7 @@ import {
   RES,
   type Segment,
   segmentsOf,
+  valueAt,
 } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
 import { grownBox, nearBoxes, r1, ringBox, segIndex } from "./geometry.ts"
@@ -285,7 +286,7 @@ const wallsOf = (
     // approach's carriageway over far lower ground), the wall is split. The ground on a deck's level
     // is walled only from the low space round it: elsewhere its outline is the low space's own.
     const levelled = (
-      field: ReadonlyMap<number, number>,
+      field: Field,
       ax: number,
       ay: number,
       bx: number,
@@ -379,7 +380,7 @@ const wallsOf = (
     }
     const before = levels.length
     for (const field of [low, onLevel])
-      for (const loop of traceContours((i, j) => field.get(key(i, j)), nodesUnder(field), RES)) {
+      for (const loop of traceContours((i, j) => valueAt(field, i, j), nodesUnder(field), RES)) {
         const pieces: Array<number> = []
         pushPolyline(pieces, simplifyLoop(loop, TOL).flat(), false, PIECE)
         for (let w = 0; w < pieces.length; w += 4)
