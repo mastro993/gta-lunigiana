@@ -62,7 +62,7 @@ import {
  * each node across it at one point alone, so none of the three is in the Taverone's 69.1. The Canale
  * Cravareccia, which joins the Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down
  * rivulets under 1 km² each (the Fosso della Predella's 0.7 the most) and are left out. The 10 m
- * DTM's D8 gives the Magra 930.5 km² where it leaves the play area at y 3900.
+ * DTM's D8 gives the Magra 930.5 km² at y 3900, where it left the play area before Sarzana's part.
  * West of the west edge (x −23100, Sarzana's part, issue #20), on Liguria's DTM ed. 2023 averaged
  * from 5 to 10 m (the MS 10 m DTM over the Vara's 9.6–11.2 km² in Zeri), OSM's rivers and streams
  * burned 10 m into it, two D8s on grids 5 m apart agreeing to 0.1 km²: of the 566.4 km² that come in,
@@ -73,15 +73,16 @@ import {
  * does not map, crossing at y −29 and joining it 1.5 km inside, 1.7, so the Durasca brings both;
  * its D8 crossing lies 204 m north of OSM's, where OSM's line leaves the valley floor (69 m on the
  * edge) for its south side (110 m). The Fosso di Cambertano brings 2.3 (its D8 crossing 45 m north of
- * OSM's, which climbs a 13 m hump), the Torrente Dorgia 1.8 and the Gorda 1.1 (within 5 m). The
- * other 2.5 km² come down rivulets under 1 km² each (the Fosso dei Gatti's 0.8, which leaves again
- * across the north edge, the most). Across the south edge (y −8500) 3.7 km² come in, none down a
+ * OSM's, which climbs a 13 m hump) and the Gorda 1.1 (within 5 m). The Torrente Dorgia's 1.8,
+ * across the edge at y −3396, never reach the play area (it runs down La Spezia's side to the
+ * gulf), and the other 2.5 km² come down rivulets under 1 km² each (the Fosso dei Gatti's 0.8, which
+ * leaves again across the north edge, the most): all are left out. Across the south edge (y −8500) 3.7 km² come in, none down a
  * stream over 1 km² that OSM maps (1.4 at x −17201 meets no OSM water in its first 1.7 km, 1.0 at
  * x −13647 meets the Magra 208 m inside, the Canale dei Sardi brings 0.3), and across the tiles'
  * south edge at y −8000 east of x −10000 0.6 km², 0.4 at most at a point, every stream OSM maps
  * there flowing out; all are left out.
  */
-const OFF_MAP: ReadonlyArray<{
+export const OFF_MAP: ReadonlyArray<{
   readonly name: string
   readonly at: readonly [number, number]
   readonly km2: number
@@ -96,7 +97,6 @@ const OFF_MAP: ReadonlyArray<{
   { name: "Fiume Vara", at: [-23100, 4103], km2: 552.4 },
   { name: "Durasca", at: [-23100, -1360], km2: 11.0 },
   { name: "Fosso di Cambertano", at: [-23100, 3261], km2: 2.3 },
-  { name: "Torrente Dorgia", at: [-23100, -3396], km2: 1.8 },
   { name: "Gorda", at: [-23100, 1430], km2: 1.1 },
 ]
 

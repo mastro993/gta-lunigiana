@@ -5,6 +5,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { OFF_MAP } from "../../../tools/build-terrain.ts"
 import { pointInRing as inRing } from "../../../tools/geometry.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { PARTS } from "../../../tools/region.ts"
@@ -269,6 +270,23 @@ test("water: the Magra and the Taverone bring their heads beyond y 13000; the Ta
   // that leave the box and come back, as by the Taverone's entry.
   const seam = crossing("Fiume Magra", 3900)
   assert.ok(Math.abs(seam - 915) < 5, `the Magra crosses y 3900 with ${seam} km²`)
+})
+
+// Regression: the Torrente Dorgia's 1.8 km² came in over the west edge in OFF_MAP, though no piece
+// of it is in play (it runs down La Spezia's side to the gulf), so the build added it nowhere and
+// nothing failed (issue #20).
+test("water: every stream OFF_MAP brings in over the box's edge is in play, and reads its area", () => {
+  const { minX, minY, maxX, maxY } = MAP.bounds
+  for (const {
+    name,
+    at: [x, y],
+    km2,
+  } of OFF_MAP) {
+    const inside = x >= minX && x <= maxX && y >= minY && y <= maxY
+    if (!inside || Math.min(x - minX, maxX - x, y - minY, maxY - y) > 0) continue
+    const most = Math.max(...named(name).flatMap((w) => w.area))
+    assert.ok(most >= km2, `${name} reads ${most} km² in play, under the ${km2} it brings`)
+  }
 })
 
 type Piece = (typeof WHOLE.water)[number]
