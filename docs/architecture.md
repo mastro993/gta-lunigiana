@@ -399,8 +399,8 @@ spots, water beds and farms round Monzone and Cesena's start. The land cover is 
 rasterised for that tile at build time), and `surfaceAt` (`src/sim/map/surface.ts`) buckets each
 tile's roads in 32 m cells the first time a query reaches it. The lookups are compact static grids
 (`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`, the fill's
-cursor let go once filled), the walls, trees
-and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`):
+cursor let go once filled), the walls, trees and buildings one per tile on the whole map's lattice
+(`src/sim/map/lattice.ts`):
 
 - `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
   arrays and its trees as points, building a tile's grids the first time a query reaches it, and
@@ -442,7 +442,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph. It reads each edge's chord and midpoint from
-  the edge's two nodes in `graph.nodes` when asked, building nothing per query (`distanceToEdge`
+  the edge's two nodes in `graph.nodes` when asked, building nothing per edge (`distanceToEdge`
   goes through `distanceToSegment`), and `isTrafficEdge` and `isWalkEdge` say which networks an
   edge is in from a byte per edge ([Start-up](#start-up) has what they save).
 - `waterAt` (`src/sim/water/rivers.ts`) finds the lake, sea piece or river polygon a point lies in
@@ -638,8 +638,8 @@ against 0.34–0.38 s and 89 MB on the build before):
 | Cesena, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 99–100 MB |
 | Cesena, the vectors in the global file | 0.36–0.37 s | 16.8 ms, 16.8 ms | 94–95 MB |
 
-Lunigiana holds 4 of its 102 tiles at the start, so the vectors of the other 98 stay on the server,
-and the start's four hardly change as parts join (2.08 MB before Fosdinovo's part, 2.10 MB with it).
+Lunigiana holds 4 of its 153 tiles at the start, so the vectors of the other 149 stay on the server,
+and the start's four hardly change as parts join (2.08 MB before Fosdinovo's part, 2.10 MB since).
 What grows with the map at the start is what the game holds whole: the global file, which gunzips
 to 6,214,128 B, its JSON line 2,639,642 B (the spawns 1.12 MB of it, the farms 0.46 MB,
 `MAP.derived` 0.31 MB, the roads' attributes 0.29 MB and the lamps 0.28 MB), and the chunk plan,
@@ -661,12 +661,13 @@ What the game builds at load from the whole map grows with every part as well: t
 (137,905 nodes and 139,684 edges on Lunigiana with Aulla's part) and the lookups over it, and the
 static grids over the whole map's box (an edge grid's cell index over 1,022 × 597 cells of 32 m is
 2.44 MB). Four cuts keep it compact, each answering exactly as before, for issue #20's Sarzana part
-(the heap after GC at the start, `?seed=1`, three runs on 2026-11-21 interleaved with main's build,
-which read 216–217 MB):
+(the heap after GC at the start, `?seed=1`, on 2026-11-21: two runs of each cut's build, on top of
+the ones before it, and six of the four together interleaved with main's build, which read 216–217
+MB in nine runs):
 
 - `staticGrid` lets go of its fill's cursor once filled. The fill's arrow captured it in the scope
   the returned query closes over, so every grid kept a second cell-sized `Int32Array` alive: 216 →
-  191–192 MB.
+  192 MB.
 - `buildGraph` copies each node's edges to an array of their own length, in push order: an array
   grown by pushes from empty keeps room for 17, and 130,039 of the nodes have 2 edges: → 183 MB.
 - `src/sim/edges.ts` reads each edge's chord and midpoint from its two nodes when asked, with the
@@ -678,9 +679,9 @@ which read 216–217 MB):
   routes kept a `Set` of the walk edges and the level crossings and their traffic rules a `Set` of
   the traffic edges each: → 160–161 MB.
 
-Together they cut 55–56 MB. The saves of seeds 1, 7 and 42 after 3,600 steps hash the same with
-them and without (SHA-256 of the save's JSON every 600 steps), and every map built with them is the
-build before to the byte. On the dev server the 40 m/s drive along the SP59
+Together they cut 55–57 MB, run by run. The saves of seeds 1, 7 and 42 after 3,600 steps hash the
+same with them and without (SHA-256 of the save's JSON every 600 steps), and every map built with
+them is the build before to the byte. On the dev server the 40 m/s drive along the SP59
 ([map.md](map.md#adding-a-part)) kept every seam's slowest frame at 16.8 ms in two runs each, now
 with no frame over 30 ms, where main's build had one of 50 ms about 100 s in, off the seams, in
 both; the heap at its end was 186 MB against 243–244 MB. Standing in Aulla (`--at=-12975,5867`, dev
