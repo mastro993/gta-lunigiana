@@ -1,6 +1,6 @@
 // Terrain for the map build: the 4 m node grid (its nodes averaged from the DTM, dtm.ts), river
-// carving and road flattening along profiles, which profile-fit.ts resamples, smooths and fits to
-// their grade.
+// carving along the water's surface profiles (water.ts), and road flattening along the profiles
+// profile-fit.ts smooths and fits to their grade.
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "./geometry.ts"

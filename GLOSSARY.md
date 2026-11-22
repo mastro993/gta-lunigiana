@@ -226,7 +226,7 @@ A sea piece's edges that are its shore, an islet's included: every edge but the 
 _Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
 
 **Bank**:
-Where a body in the water heads to get out (`bankX`, `bankY`): in a river, square across its reach toward the side the body is on, in a river polygon too; in a lake or the sea, the nearest of its banks (`Pool.banks`, `shoreward` in `banks.ts`): a lake's edges less the cuts along a tile's side or the map's bounds, the sea's coast, or all its edges where it has none.
+A still water's edges that a body in it heads for to get out (`Pool.banks`, from `edgesOf` and `coastOf` in `banks.ts`): a lake's edges less the cuts along a tile's side or the map's bounds, the sea's coast, or all its edges where it has none. `shoreward` gives the way to the nearest one; in a river the way out (`bankX`, `bankY`) runs square across the reach instead. Not a road's or a track's bank of earth, which Twin track, Hill's face and Head wall mean.
 _Avoid_: Shore (the water's edge walls), coast (the sea's alone)
 
 **Shore line**:
