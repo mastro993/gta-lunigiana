@@ -3,10 +3,9 @@ import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
 import type { BuildingF, RoadF } from "../features.ts"
-import { ringBox, segDist2 } from "../geometry.ts"
+import { inRings, ringBox, segDist2 } from "../geometry.ts"
 import { gridLattice } from "../terrain.ts"
 import { buildWalls } from "../walls.ts"
-import { inRings } from "../water-areas.ts"
 import { segments } from "./wall-segments.ts"
 
 /** No bridge, so no parapet and no wall under a deck; no building's floor and no tunnel's level. */

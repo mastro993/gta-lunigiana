@@ -153,7 +153,7 @@ export const ringBox = (ring: ReadonlyArray<number>): [number, number, number, n
   return [x0, y0, x1, y1]
 }
 
-export { fillPolygon, pointInRing, segD2, segDist2 } from "../sim/collide.ts"
+export { fillPolygon, inRings, pointInRing, segD2, segDist2 } from "../sim/collide.ts"
 
 /** Arc length at each vertex. */
 export const arcLengths = (pts: ReadonlyArray<V>): Array<number> => {

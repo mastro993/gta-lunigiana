@@ -7,20 +7,9 @@
  *
  * @module water/banks
  */
-import { pointInRing, segDist2 } from "../collide.ts"
+import { inRings, segDist2 } from "../collide.ts"
 import type { Layer } from "../map/format/tile-file.ts"
 import { type Area, MAP, TILE } from "../map/index.ts"
-
-/** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside), as the land cover fills them. */
-export const inRings = (
-  rings: ReadonlyArray<ReadonlyArray<number>>,
-  x: number,
-  y: number,
-): boolean => {
-  let inside = false
-  for (const ring of rings) if (pointInRing(x, y, ring)) inside = !inside
-  return inside
-}
 
 /** A ring's ends within this of a line lie on it, m: half the rings' 0.1 m rounding. */
 const ON_LINE = 0.05

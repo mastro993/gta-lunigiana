@@ -18,14 +18,14 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
-import { insideSpans, segDist2 } from "../collide.ts"
+import { inRings, insideSpans, segDist2 } from "../collide.ts"
 import { addToBuckets, bucketItems, emptyBuckets } from "../map/buckets.ts"
 import type { Layer } from "../map/format/tile-file.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
 import { type Area, isWaterArea, type Water } from "../map/index.ts"
 import { IN_POLYGON, reachOf } from "../map/kinds.ts"
 import { derived, eachTile, type Place, placeAt } from "../map/tiles.ts"
-import { coastOf, edgesOf, inRings, shoreward } from "./banks.ts"
+import { coastOf, edgesOf, shoreward } from "./banks.ts"
 import { channelOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */

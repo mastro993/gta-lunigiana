@@ -317,6 +317,17 @@ export const pointInRing = (x: number, y: number, ring: ReadonlyArray<number>): 
   return inside
 }
 
+/** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside), as the land cover fills them. */
+export const inRings = (
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  x: number,
+  y: number,
+): boolean => {
+  let inside = false
+  for (const ring of rings) if (pointInRing(x, y, ring)) inside = !inside
+  return inside
+}
+
 /** Where along the segment a→b (a share, strictly inside it) it crosses the segment c→d; undefined where it does not. */
 const crossAt = (
   ax: number,

@@ -7,7 +7,7 @@ import type { Area } from "../sim/map/index.ts"
 import { IN_POLYGON, isWaterArea } from "../sim/map/kinds.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
-import { fillPolygon, pointInRing, r1, ringBox, segDist2 } from "./geometry.ts"
+import { fillPolygon, inRings, r1, ringBox, segDist2 } from "./geometry.ts"
 import type { Profile } from "./profile-fit.ts"
 import { anchorNode, gridLattice, type Grid } from "./terrain.ts"
 import { carveAll } from "./water.ts"
@@ -72,13 +72,6 @@ export const holdsCell = (rings: ReadonlyArray<ReadonlyArray<number>>): boolean 
     () => (held = true),
   )
   return held
-}
-
-/** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside). */
-export const inRings = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: number) => {
-  let inside = false
-  for (const ring of rings) if (pointInRing(x, y, ring)) inside = !inside
-  return inside
 }
 
 /** Squared distance from (x, y) to the nearest edge of `rings`. */
