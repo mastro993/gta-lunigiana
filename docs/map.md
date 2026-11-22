@@ -5976,8 +5976,8 @@ first wins, the tally, ring assembly, no picks, a WFS error answer never cached,
 each fill source read from the nearest cell of a tile file (none where no file holds one) and no
 fill columns while a play-area cell has no terrain, each proven red; `ortho.test.ts` and
 `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only)
-and an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap
-and drive with their defaults and flags) and the spot script;
+and an error answer for capabilities; `playtest-cli.test.ts` the spots and the command line (shots,
+heap and drive with their defaults and flags); `playtest.test.ts` the spot script;
 `playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
 nearest the start and at a fork toward the goal, the page's drive script (run in a `vm` against a
 fake `gta`) and its report (the SP59 itself is `playtest-drive.map-test.ts`'s, above, as it reads
@@ -6402,13 +6402,14 @@ issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07, on 
   record (`10k88`, `2k06`, `5k12`) are look only, never traced, and so is any layer the table does
   not list (only band variants such as `.nir` or `.grey.rt` take their flight's row); the tool warns
   and marks the image.
-- **`pnpm playtest shots|heap|drive`** (`playtest.ts`, its CDP client in `cdp.ts`, the drive's
-  route, page script and report in `playtest-drive.ts`) drives a headless Chrome already running
-  ([docs/standards/playtest.md](standards/playtest.md)) in a tab of its own: `shots <url> <outdir>
-  <name>:<x>,<y>[,<texels/m>] … [map]` pins the view on each spot (dev builds only: it needs
-  `window.gta`) and writes a PNG each, `map` the full map; `heap <url>` prints the first frame (the
-  card's "Press any key"), the slowest and p99 frame and the JS heap after a forced GC, with `--at
-  x,y` (dev builds) standing at that point once its tiles are in memory. Every mode fails, exit 1
+- **`pnpm playtest shots|heap|drive`** (`playtest.ts`, its command line in `playtest-cli.ts`, its
+  CDP client in `cdp.ts`, the drive's route, page script and report in `playtest-drive.ts`) drives
+  a headless Chrome already running ([docs/standards/playtest.md](standards/playtest.md)) in a tab
+  of its own: `shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map]` pins the view on each spot
+  (dev builds only: it needs `window.gta`) and writes a PNG each, `map` the full map; `heap <url>`
+  prints the first frame (the card's "Press any key"), the slowest and p99 frame and the JS heap
+  after a forced GC, with `--at x,y` (dev builds) standing at that point once its tiles are in
+  memory. Every mode fails, exit 1
   with no report, once the game stops: at once when the page logs "game stopped" (`haltOf`: the
   game's loop catches what a frame throws, so no exception reaches the CDP), else at the end when
   the Stopped card is up (`STOPPED_SCRIPT`: a tile that will never come logs nothing), the halt's
