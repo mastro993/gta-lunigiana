@@ -16,11 +16,12 @@
 import { deckGround, deckReport, type Slab, slabNodes } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
-import { segIndex, type V } from "./geometry.ts"
+import { type V } from "./geometry.ts"
 import { type Claim, replayClaims } from "./grid-claims.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
+import { segIndex } from "./spatial-index.ts"
 import {
   decimetre,
   type DmGrid,

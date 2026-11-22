@@ -6,7 +6,8 @@
 // a car on the SR445's viaduct west of Gragnola drove off it over the road under it.
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { grownBox, lineBox, nearBoxes, r1, segIndex } from "./geometry.ts"
+import { grownBox, lineBox, nearBoxes, r1 } from "./geometry.ts"
+import { segIndex } from "./spatial-index.ts"
 import { opened, pushPolyline } from "./wall-pieces.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */

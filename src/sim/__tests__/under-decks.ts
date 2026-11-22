@@ -10,8 +10,8 @@
  */
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { segIndex } from "../../tools/geometry.ts"
 import type { JoinedMap } from "../../tools/map-file.ts"
+import { segIndex } from "../../tools/spatial-index.ts"
 import { carClear, moveCar, standClear, walkBy, wallsAlong } from "../body.ts"
 import { moveCircles, segDist2 } from "../collide.ts"
 import { settleFooting } from "../footing.ts"

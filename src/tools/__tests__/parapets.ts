@@ -2,7 +2,7 @@
 // along every drivable bridge's parapets, a car on the deck meets a wall wherever no road on the
 // deck's level reaches the parapet, and a car on any road meets no parapet in its carriageway.
 import { isDrivable, ONE_LEVEL } from "../../sim/map/kinds.ts"
-import { segIndex } from "../geometry.ts"
+import { segIndex } from "../spatial-index.ts"
 
 /** A road as shipped: its class, width, whether it is a bridge, and its line. */
 export interface ShippedRoad {

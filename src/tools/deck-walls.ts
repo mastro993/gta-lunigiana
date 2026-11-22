@@ -46,9 +46,10 @@ import {
   walkSide,
 } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
-import { grownBox, nearBoxes, r1, ringBox, segIndex } from "./geometry.ts"
+import { grownBox, nearBoxes, r1, ringBox } from "./geometry.ts"
 import { simplifyLoop, traceContours } from "./loops.ts"
 import { PARAPET } from "./parapets.ts"
+import { segIndex } from "./spatial-index.ts"
 import { opened, pushPolyline } from "./wall-pieces.ts"
 import type { Levelled } from "./walls.ts"
 

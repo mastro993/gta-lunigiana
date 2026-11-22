@@ -12,8 +12,9 @@ import type { Area } from "../sim/map/index.ts"
 import { isWood, OLIVE_TREES, TILE } from "../sim/map/kinds.ts"
 import { fillRank } from "../sim/map/raster.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, fillPolygon, hash01, pointAt, ringBox, segIndex } from "./geometry.ts"
+import { arcLengths, fillPolygon, hash01, pointAt, ringBox } from "./geometry.ts"
 import type { Rect, Region } from "./region.ts"
+import { segIndex } from "./spatial-index.ts"
 
 const TREE_AREA = 50 // m² per tree
 /** The lattice's step, m: one cell, and at most one tree, per TREE_AREA. */

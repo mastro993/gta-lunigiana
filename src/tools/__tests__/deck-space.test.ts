@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { fieldsOf, offSegment, RES, segmentsOf, valueAt } from "../deck-space.ts"
-import { segIndex } from "../geometry.ts"
+import { segIndex } from "../spatial-index.ts"
 
 test("fieldsOf holds a value at every lattice node within reach of a long diagonal deck and at no other, its rows cut to the deck's band", () => {
   // A deck 300 m long, 35° off the x axis, its walls 4 m off its line: its box is 246 × 172 m.

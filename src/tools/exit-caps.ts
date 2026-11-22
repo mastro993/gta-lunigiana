@@ -2,7 +2,8 @@
 // (its cut end, which has no id): a drive wall across the road, so a car stops short of the edge.
 import { isDrivable } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { segIndex, type V } from "./geometry.ts"
+import { type V } from "./geometry.ts"
+import { segIndex } from "./spatial-index.ts"
 
 /** How far inside the outline a cap stands, along its road from its cut end, m. */
 const IN = 4

@@ -8,8 +8,9 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { splitIn, type CtrTrack, type Polygon } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
-import { arcLengths, pointAt, segDist2, segIndex, type P, type V } from "./geometry.ts"
+import { arcLengths, pointAt, segDist2, type P, type V } from "./geometry.ts"
 import { hitsOn, insertOn, MIN_SEG, pruneShort, type Line } from "./rail-match.ts"
+import { segIndex } from "./spatial-index.ts"
 import { sheet2k, surveyId } from "./survey-ids.ts"
 
 /** An end this close (m) to another track, heading along it within SWITCH.angle degrees, is a switch onto it. */

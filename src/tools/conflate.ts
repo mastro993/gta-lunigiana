@@ -11,7 +11,7 @@ import { isDrivable } from "../sim/map/kinds.ts"
 import { chainsOf } from "./chains.ts"
 import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, pointAt, r1, segIndex, type V } from "./geometry.ts"
+import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { outlineEdgeAt } from "./play-area.ts"
 import { beatsRail } from "./profiles.ts"
@@ -40,6 +40,7 @@ import {
   type Crossed,
   type SpanReport,
 } from "./rail-spans.ts"
+import { segIndex } from "./spatial-index.ts"
 import { GRID_CELL } from "./terrain.ts"
 
 /**

@@ -11,7 +11,7 @@ import {
   ROAD_LIFT,
 } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { segIndex } from "./geometry.ts"
+import { segIndex } from "./spatial-index.ts"
 
 /** The lattice the low space is read on, m. */
 export const RES = 0.25

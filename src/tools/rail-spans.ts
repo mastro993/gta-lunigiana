@@ -7,8 +7,9 @@
 // streams) gets a vertex both share, so every crossing at grade is a shared vertex (rail.map-test.ts),
 // and a stream OSM ends at the track, where its culvert under it begins, stops clear of the track.
 import { inPolygon, splitIn, type Polygon } from "./ctr-rail.ts"
-import { arcLengths, crossings, pointAt, segIndex, type V } from "./geometry.ts"
+import { arcLengths, crossings, pointAt, type V } from "./geometry.ts"
 import { insertOn } from "./rail-match.ts"
+import { segIndex } from "./spatial-index.ts"
 
 /** A line the rail may cross: water or a road, with its width. */
 export interface Crossed {

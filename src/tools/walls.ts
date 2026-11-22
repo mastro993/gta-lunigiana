@@ -7,10 +7,11 @@ import type { Area, Barrier } from "../sim/map/index.ts"
 import { isDrivable, isWaterArea, UNDERPASS } from "../sim/map/kinds.ts"
 import { exitCaps } from "./exit-caps.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import { ringBox, segIndex } from "./geometry.ts"
+import { ringBox } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
 import { ARCH, houseArches, houseWalls, KERB, type Level, levelled } from "./house-walls.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
+import { segIndex } from "./spatial-index.ts"
 import { anchorNode, cellSlope, type DmGrid } from "./terrain.ts"
 import {
   append,

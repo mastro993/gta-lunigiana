@@ -16,12 +16,10 @@ import {
   r1,
   ringBox,
   segDist2,
-  segIndex,
-  staticPoints,
-  staticSegs,
 } from "./geometry.ts"
 import { inPlay } from "./play-area.ts"
 import type { Region } from "./region.ts"
+import { segIndex, staticPoints, staticSegs } from "./spatial-index.ts"
 import { inAreas } from "./water-areas.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
