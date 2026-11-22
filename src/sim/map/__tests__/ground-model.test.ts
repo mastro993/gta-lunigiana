@@ -272,6 +272,7 @@ test("the ground model reads no map: nothing it imports, but for types, decodes 
     "source.ts",
     "tiles.ts",
     "vectors.ts",
+    "format/baked-tables.ts",
     "format/global-file.ts",
     "format/sections.ts",
     "format/tile-file.ts",

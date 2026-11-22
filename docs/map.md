@@ -4872,14 +4872,15 @@ Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2..
 the next byte of every value. Neighbours differ little and like bytes sit together, which is what
 gzip compresses best. One layout per kind of file lists its sections in file order, each with its
 width, stride, count (read from the line) and transform both ways, and both directions walk it
-(`src/sim/map/format/`: `sections.ts`, `global-file.ts`, `tile-file.ts`), so the encoder and the
-decoder cannot disagree on where a section lies. `encodeMap` and `encodeTile` encode (the build
-throws if a value does not fit, or if two sections that share a count, a wall's segment and its id,
-disagree on it), `decodeMap` and `decodeTile` decode (they throw on a file that goes on past its
-sections, and every decoder, `decodeTileVectors` too, on one cut short of the sections it reads,
-rather than read the bytes past its end as 0). The tables here and the layouts are the two places a
-section's facts are written: a change to one is a change to the other. Decoding is exact: the same
-numbers a one-decimal JSON array would give.
+(`src/sim/map/format/`: `sections.ts`, `global-file.ts`, `tile-file.ts`, and `baked-tables.ts`,
+which gives the parked spots', the farms' and the lamps' fields their places in the global file's
+sections), so the encoder and the decoder cannot disagree on where a section lies. `encodeMap` and
+`encodeTile` encode (the build throws if a value does not fit, or if two sections that share a
+count, a wall's segment and its id, disagree on it), `decodeMap` and `decodeTile` decode (they throw
+on a file that goes on past its sections, and every decoder, `decodeTileVectors` too, on one cut
+short of the sections it reads, rather than read the bytes past its end as 0). The tables here and
+the layouts are the two places a section's facts are written: a change to one is a change to the
+other. Decoding is exact: the same numbers a one-decimal JSON array would give.
 
 What goes in which tile:
 
