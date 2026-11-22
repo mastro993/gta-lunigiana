@@ -630,7 +630,10 @@ the lane helpers in `src/sim/route.ts`.
   car standing 38 m on at 16 m/s, and now every model keeps 1.49–2.05 m of its 2 m gap from 12 to 30
   m/s. Nothing changed up to 15 m/s for a Panda or a Carabinieri car, 9.7 m/s for a truck or an Ape.
   The cone bends along the arc the front wheels steer (a straight line under a curvature of 0.001
-  per m), and is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
+  per m) and reaches its range round that arc, not along the heading: what stands by the circle's
+  far side, a few metres ahead along the heading but up to 2 km across, is not in it (it once
+  braked the car, and its level was read round half the circle, past the tiles in memory). The
+  cone is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
   counts by its footprint (half its length and width turned to the car's heading, a person or an
   animal a circle), so a car standing across the road holds it back as well as one ahead. For a
   Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train is
@@ -675,7 +678,11 @@ the lane helpers in `src/sim/route.ts`.
   middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
   over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
   of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
-  as if none did.
+  as if none did. The car reads that ground only within 100 m of its middle (`SIGHT`: a car steps
+  up to 500 m from the player, `FROZEN_BEYOND`, and only the tiles within 600 m of the player are
+  sure to be in memory, `STEP_REACH`): an obstacle whose level would be read farther out holds it
+  back on any level, as everything in the cone did before levels were read; only a truck on the
+  motorway asks that far.
 - **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
   before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
@@ -754,10 +761,11 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   (`WALK_AHEAD`, TUNED: about a village block) plus 0.5 (`WALK_FLOOR`, TUNED), and turns back
   only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
   residents are counted within 60 m of each edge, so all the edges at one junction count about the
-  same houses. With the floor, a lane into the fields draws about 1 walker in 32 against a typical
-  village street (15.4 residents, the median of the peopled walk edges; 15.6 before Fosdinovo's
-  part; 17 on lucido alone, 1 in 35). Of 200 walkers set off for
-  1.5 km from each centre, the share of the distance walked on peopled streets:
+  same houses. With the floor, a lane into the fields draws about 1 walker in 36 against a typical
+  village street (17.3 residents, the median of the peopled walk edges with Sarzana's part,
+  2026-11-22; 15.8 with Aulla's, 1 in 33; 15.4 with Fosdinovo's, 1 in 32; 15.6 before it; 17 on
+  lucido alone, 1 in 35). Of 200 walkers set off for 1.5 km from each centre, the share of the
+  distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
   |---|---|---|---|
@@ -1105,7 +1113,8 @@ points of its centre round (−8910, −3090) (2026-11-07).
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  11,337 of the map's 87,868 walk edges are peopled (7,877 of 61,091 before Fosdinovo's part).
+  53,475 of the map's 218,613 walk edges are peopled with Sarzana's part (2026-11-22; 23,664 of
+  135,674 with Aulla's, 11,337 of 87,868 with Fosdinovo's, 7,877 of 61,091 before it).
   Those sums read buildings all over the map, so the build works them out (`bakeResidents`) and
   the map keeps one per walk edge (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
@@ -1486,14 +1495,19 @@ the terminal, which it passes at 84.2 km/h (2026-11-07, with the run-outs on the
   dwell ends it runs on to the next station, or off the line past the last.
 - **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
   curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
-  1.5 s, for the audio to play): on the Lucca–Aulla line as far as Rometta, the Ugliancaldo tunnel
-  (3194.6 m), and those of 271.1 and 225.0 m, while the 169.3 and 66.8 m ones get none (with
-  Fivizzano's part; the tunnels Aulla's and Sarzana's parts brought are not listed here). A mouth
-  past a terminal, on its run-out, gets none, nor does a bore's end at a terminal, which is where
-  the map cuts it: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's
-  bore already (1324.6 m of it in the map, and all of the 2298.6 m run-out past the terminal), and
-  whistles only running into it from Pieve, 30 m before its portal; one coming in at the west edge
-  enters the Genova–Pisa's or the Pontremolese's bore 161–337 m past its terminal, silent.
+  1.5 s, for the audio to play), running into it from either end (`LINES`' tunnels, measured on
+  2026-11-22): on the Lucca–Aulla line the Ugliancaldo tunnel (3194.6 m) and those of 271.0 and
+  225.2 m (271.1 and 225.0 m with Fivizzano's part) and, by Aulla, of 693.4 and 584.5 m, while the
+  169.3 and 66.8 m ones get none; on the Pontremolese the 7.09 km tunnel and one of 325 m between
+  Aulla and Santo Stefano di Magra and three of 726–882 m north of Aulla, while three of 60–105 m
+  north of Aulla get none; west of Santo Stefano the Pontremolese's of 290 and 295 m and the
+  Genova–Pisa's of 345 and 364 m, one on each track, and, running west only, the bores of 383–397
+  m at the west edge. A mouth past a terminal, on its
+  run-out, gets none, nor does a bore's end at a terminal, which is where the map cuts it: a train
+  coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore already (1324.6 m of
+  it in the map, and all of the 2298.6 m run-out past the terminal), and whistles only running into
+  it from Pieve, 30 m before its portal; one coming in at the west edge enters the Genova–Pisa's or
+  the Pontremolese's bore 161–337 m past its terminal, silent.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the

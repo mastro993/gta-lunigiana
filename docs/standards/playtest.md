@@ -30,7 +30,10 @@ this WebGL page, so drive headless Chrome over CDP:
    at each seam, the tiles in memory and the heap at the end), run
    `pnpm playtest shots|heap|drive … --port <port>` ([docs/map.md](../map.md#adding-a-part));
    `shots` and `heap` take `--date YYYY-MM-DD` to start the game on another day (its snow and its
-   woods' leaves), and `shots` and `drive` need the dev server. For play,
+   woods' leaves), and `shots` and `drive` need the dev server. Every mode fails, exit 1 with no
+   report, once the game stops: at once when the page logs "game stopped" (the game loop catches a
+   frame's error, so no exception reaches CDP), else when the Stopped card is up at the end (a tile
+   gone for good logs nothing). For play,
    `.research/playtest/bot.ts <seed>` walks, steals the Carabinieri car, drives and gets out;
    `cdp.ts` sends single steps. `.research/` is gitignored, so these scripts live only
    in the main checkout (`git worktree list`): copy them over, then change their hard-coded CDP port

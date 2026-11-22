@@ -301,14 +301,19 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   and via Botteghino by Viano, whose junctions refit with the roads it makes whole (Via San Rocco's
   498.1 → 500.4 m); and 67 of Fivizzano's, all within 32 m of its south edge; Aulla's part, built
   with its code's fixes in one pair, 12,670 of the 19.3 million nodes of the play area before it, up
-  to 10.6 m and 0.61 m RMS, most of them by those fixes, each measured where its rule is described).
-  Keep that list true when a part shows more, and treat any other move as a bug, since a part's data
-  reaches the earlier parts only across the seams and through the z of the lines it makes whole. A
-  line's core width never moves the ground: each piece is cored at its own width (`Spec.w` in
-  `profiles.ts`), not its chain's widest, so a part that joins a wider piece onto a chain leaves the
-  ground along the rest of it as it was. Cored at the widest, Fosdinovo's 8.4 m 519669896 widened
-  the Strada comunale per Campo Cecina's core from 5.55 to 6.5 m a side as far east as x −592, and
-  moved 4,878 of lucido's nodes 4–16 m off a road whose line and z held.
+  to 10.6 m and 0.61 m RMS, most of them by those fixes, each measured where its rule is described;
+  Sarzana's, built with its code's fixes in one pair as well (2026-11-21), 9,897 of the 28.3
+  million nodes of the play area before it that lie off its rectangle, up to 9.1 m and 0.84 m RMS
+  (3,228 on −6_−3, −6_−2 and −6_−1, along its seam with Fosdinovo, and 1,269 on Aulla's −7_2),
+  with 13 land-cover cells, and 579 of the 3,871 on the seams, up to 5.6 m, with 8; and beyond
+  that play area, in Aulla's rectangle at x −22100…−15728, 13,891 more, up to 10.5 m, with 566
+  cells). Keep that list true when a part shows more, and treat any other move as a bug, since a
+  part's data reaches the earlier parts only across the seams and through the z of the lines it
+  makes whole. A line's core width never moves the ground: each piece is cored at its own width
+  (`Spec.w` in `profiles.ts`), not its chain's widest, so a part that joins a wider piece onto a
+  chain leaves the ground along the rest of it as it was. Cored at the widest, Fosdinovo's 8.4 m
+  519669896 widened the Strada comunale per Campo Cecina's core from 5.55 to 6.5 m a side as far
+  east as x −592, and moved 4,878 of lucido's nodes 4–16 m off a road whose line and z held.
 - Every river leaves the play area down its own course, wherever the outline cuts it: the catchments
   (`catchment.ts`) burn the water beyond the play area too, owning no node, and keep the water that
   comes in from beyond the grid at its ground, so that an entry is no outlet for the water it joins
@@ -319,7 +324,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   Torchio to the box's west edge, so that the Bardine read 117.3 km², twice its 58.1; Fivizzano's
   west edge cut the Aulella, and a 2 m side stream by Soliera read 108.5. A new part's edges cut new
   rivers: read the area each one leaves with against its basin, and the most any unnamed stream
-  reads (11.33 km² today). A part on the box's edge lists in `OFF_MAP` (`build-terrain.ts`) every
+  reads (11.33 km² today, as before Sarzana's part; the part's own largest, 135653663, reads 9.43
+  at the box's south edge). A part on the box's edge lists in `OFF_MAP` (`build-terrain.ts`) every
   stream OSM maps that brings more than 1 km² in over that edge and reaches the play area, with the
   basin a D8 on the ground beyond gives it (over the west edge Sarzana's part gave the box,
   x −23100: the Vara's 552.4 km², the Durasca's 11.0, the Fosso di Cambertano's 2.3 and the
@@ -335,47 +341,53 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - No building stands twice: `src/tools/__tests__/overlap.map-test.ts` reads every building of
   Lunigiana and fails where two of different sources (by the id's slot, `survey-ids.ts`), or an
   old-schema ruin ring and an `AE_a` unit of its own sheet, share half the smaller one's area or
-  more (331 such pairs stood side by side with Fosdinovo's part, #18). The build drops a later
-  source's copy by that share (`apartFrom` in `overlap.ts`): a centroid test had kept the later copy
-  of any building lying outside its own source's mapped area, and 70 pairs failed before it, among
-  them two 2019 CTR houses at the Liguria border with the NC5's copies. A failure on a new part or
-  source is the merge's: fix it for every source alike, never by dropping one building by hand.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.50 MB, Lunigiana's
-  −8_2 by Aulla, 499,103 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past
-  it). A tile's vector coordinates go in its first packed section (`TILE_LAYOUT` in
+  more (331 such pairs stood side by side with Fosdinovo's part, #18, and 442 with Aulla's, #19;
+  553 stand with Sarzana's, #20). The build drops a later source's copy by that share
+  (`apartFrom` in `overlap.ts`): a centroid test had kept the later copy of any building lying
+  outside its own source's mapped area, and 70 pairs failed before it, among them two 2019 CTR
+  houses at the Liguria border with the NC5's copies. A failure on a new part or source is the
+  merge's: fix it for every source alike, never by dropping one building by hand.
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.56 MB, Lunigiana's
+  −7_−3 by Sarzana, 561,642 B (2026-11-21), where before Sarzana's part it was −8_2 by Aulla,
+  499,103 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past it). A tile's
+  vector coordinates go in its first packed section (`TILE_LAYOUT` in
   `src/sim/map/format/tile-file.ts`), never on its line: with them on it (format version 6) the
-  largest was −7_2's 648,583 B.
+  largest was −7_2's 648,583 B, with Aulla's part.
 - The global file's JSON line is at most 8 MB, 8,000,000 B (issue #5's map.json scale check, which
   #18 asks; `src/__tests__/maps.map-test.ts` fails past it on either map): the game parses the
   line with `JSON.parse` at load, its slowest step, so a bulk array or table goes in a packed
   section after it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line.
-  Lunigiana's line is 892,288 B and Cesena's 340,632 B; with the parked spots, the farms, their
-  centres and the lamps still on it (format version 6) Lunigiana's was 4,560,301 B, and with
-  Fosdinovo's part and the graph, the lanes and the residents too (format version 5) 8,319,700 B.
+  Lunigiana's line is 1,850,520 B with Sarzana's part (2026-11-21; 892,288 B with Aulla's) and
+  Cesena's 340,523 B; with the parked spots, the farms, their centres and the lamps still on it
+  (format version 6) Lunigiana's was 4,560,301 B with Aulla's part, and with Fosdinovo's part and
+  the graph, the lanes and the residents too (format version 5) 8,319,700 B.
 - The build peaks under 3 GB resident (issue #3's scale check, CI's runners; `/usr/bin/time -l pnpm
   map`, its maximum resident set size, and its peak memory footprint beside it, which memory
   compression under other work does not lower): Lunigiana's peaked at 2.32–2.36 GB resident and
-  2.16–2.19 GB of footprint with Sarzana's part (2026-11-21), from 4.20–4.27 GB and 3.78–3.84 GB
-  before the memory work ([Pipeline](../map.md#pipeline)). The parts to come add about as much box
-  again, and the peak is where the DTM and the uncarved grid, 0.8 GB that grows with the box, are
-  held together, so the next engine work is there (Pipeline names it). What grows with the box is
-  held in typed arrays at the fewest bytes that keep its values bit for bit (the finished grid in
-  decimetres, the trees in 32-bit integers), by the phase that reads it and no longer; a stage's
-  indexes hold what its queries reach (`nearBoxes`), and a deck's fields the nodes within reach of
-  its segments (`bandOf`); a bake whose items read the tiles round them takes them tile by tile
-  (`byTile`), as the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which lists
-  every node first. `pnpm map` gives node `--heap-growing-percent=20` on its command line, which
-  takes 0.2 GB off the peak (2.57 GB without it; 3.04 GB at e5f7a67e, over the check).
+  2.16–2.19 GB of footprint with Sarzana's part (2026-11-21, three builds at eacc0a79, before the
+  part's rounds of fixes), from 4.20–4.27 GB and 3.78–3.84 GB before the memory work
+  ([Pipeline](../map.md#pipeline)). The part's final build was not timed so, but the build's prints
+  rose no higher: 2.20 and 2.23 GB at the end of the cut, the highest of them, in its two builds,
+  against 2.18–2.29 GB in those three. The parts to come add about as much box again, and the peak
+  is where the DTM and the uncarved grid, 0.8 GB that grows with the box, are held together, so the
+  next engine work is there (Pipeline names it). What grows with the box is held in typed arrays at
+  the fewest bytes that keep its values bit for bit (the finished grid in decimetres, the trees in
+  32-bit integers), by the phase that reads it and no longer; a stage's indexes hold what its
+  queries reach (`nearBoxes`), and a deck's fields the nodes within reach of its segments
+  (`bandOf`); a bake whose items read the tiles round them takes them tile by tile (`byTile`), as
+  the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which lists every node
+  first. `pnpm map` gives node `--heap-growing-percent=20` on its command line, which takes 0.2 GB
+  off the peak (2.57 GB without it at eacc0a79; 3.04 GB at e5f7a67e, over the check).
 - The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
-  on a production build, three runs): Lunigiana's is 160–161 MB with Aulla's part (2026-11-21). What
-  the game builds at load from the whole map grows with every part: the road graph, the lookups
-  over it and the static grids over the whole map's box. So a new table per node or per edge goes
-  in a typed array, and a set of edges is a byte per edge (`isTrafficEdge`), never a `Set`; a
-  lookup works out from `graph.nodes` what it can, with nothing built per edge, rather than store
-  it; and a build lets go of its scratch before a closure keeps it. `graph.nodes` and `graph.edges`
-  are still an object per node and per edge, and `graph.adjacency` an array per node, the next
-  cuts to make. The cuts that took the start from 216 to 160–161 MB are in
-  [architecture.md](../architecture.md#start-up).
+  on a production build, three runs): Lunigiana's is 209 MB at `?seed=1` with Sarzana's part, from
+  160–161 MB with Aulla's (both 2026-11-21). What the game builds at load from the whole map grows
+  with every part: the road graph, the lookups over it and the static grids over the whole map's
+  box. So a new table per node or per edge goes in a typed array, and a set of edges is a byte per
+  edge (`isTrafficEdge`), never a `Set`; a lookup works out from `graph.nodes` what it can, with
+  nothing built per edge, rather than store it; and a build lets go of its scratch before a closure
+  keeps it. `graph.nodes` and `graph.edges` are still an object per node and per edge, and
+  `graph.adjacency` an array per node, the next cuts to make. The cuts that took the start from
+  216 to 160–161 MB, with Aulla's part, are in [architecture.md](../architecture.md#start-up).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
   tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and

@@ -276,10 +276,12 @@ Input (horn) ──────────────────────�
   the map held 711 owls and 618 dogs: 2.3–2.8 ms and 9.0–10.4 ms, each the first call in a fresh
   process with every tile in memory (no director; 20 processes on 2026-11-04 under a load average
   of 5–7); since #15's olive groves and vineyards, a dog's yard too, it held 710 owls and 625 dogs
-  (not timed again), and since #18's Fosdinovo it holds 932 owls and 953 dogs: 2.4–2.8 ms and
+  (not timed again), and since #18's Fosdinovo it held 932 owls and 953 dogs: 2.4–2.8 ms and
   11.5–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 3–4, but
   for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms); since #19's Aulla it
-  holds 1,399 owls and 1,494 dogs (not timed again).
+  held 1,399 owls and 1,494 dogs (not timed then), and since #20's Sarzana it holds 1,701 owls and
+  4,116 dogs: 3.5–4.1 ms and 28.0–45.5 ms, timed the same way (20 processes on 2026-11-22 under a
+  load average of 3–4, but for 2 of the owls' calls at 12.3 and 12.9 ms).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -752,16 +754,22 @@ weather.
   et al. 2002); a last round at dusk, 1.3 times, all roosting under −6°; none at night; heavy rain
   silences them (0.5–8 mm/h).
 - **Owls**: the tawny owl calls once the sun is 2–6° under (10–20 minutes after sunset) until as
-  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 1,399
-  territories, one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any
-  of `WOODS`: broadleaf, conifer or mixed); those within 600 m call, each resting 30 s after a call,
-  then calling about once in 20 s. The squares count from the region's anchor (`anchorOf`), as the
-  trees' lattice does, never from the box's corner, so a part that grows the box moves no owl of the
-  parts before it but those an edge it opens had held: Fivizzano moved 4 of lucido's 216, those
-  lucido's east edge had held at x 4900, 3 of them now 54–104 m past it and one gone; Fosdinovo
-  moved 12 of the 710, the 4 Fivizzano's west edge had held at x −5300 (now 59–433 m past it) and
-  the 8 by the edge at x −4000 of the notch its part fills, whose tries in it were skipped (now
-  163–446 m into it), and one west of lucido's edge, at (−3624, −3484), sits 0.12 m lower.
+  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 1,701
+  territories (1,399 before Sarzana's part), one in 70 % of the map's 500 m squares with woods, each
+  8 m up a tree in a wood (any of `WOODS`: broadleaf, conifer or mixed); those within 600 m call,
+  each resting 30 s after a call, then calling about once in 20 s. The squares count from the
+  region's anchor (`anchorOf`), as the trees' lattice does, never from the box's corner, so a part
+  that grows the box moves no owl of the parts before it but those an edge it opens had held:
+  Fivizzano moved 4 of lucido's 216, those lucido's east edge had held at x 4900, 3 of them now
+  54–104 m past it and one gone; Fosdinovo moved 12 of the 710, the 4 Fivizzano's west edge had held
+  at x −5300 (now 59–433 m past it) and the 8 by the edge at x −4000 of the notch its part fills,
+  whose tries in it were skipped (now 163–446 m into it), and one west of lucido's edge, at (−3624,
+  −3484), sits 0.12 m lower; Sarzana moved 18 of the 1,399, the 8 Aulla's west edge had held at x
+  −22100 (now 8–231 m past it), the 7 by the notch its part fills, whose tries in it were skipped
+  (moved 186–384 m), and 3 in tile −10_1, south of y 3900, whose earlier tries fall in a wood of the
+  ground it rebuilt there (moved 74–373 m); 6 more sit 1.93 m lower to 1.29 m higher, none is gone,
+  and of its 302 new ones 195 stand in its rectangle, 26 in the Bolano strip Aulla's mask gained and
+  81 south of y −6100 east of it, outside play (2026-11-22).
 - **Crickets** sing where open ground outweighs buildings, in air of 10 °C or more at the ears
   (chirping faster as it warms) and dry. They follow the temperature and the rain, not the hour,
   so an October evening's cooling slows them and its night silences them.
@@ -863,7 +871,7 @@ One-shots:
 | `yell` | the same line, yelled: higher, brighter, its vowels longer | a person's `Cry` that is not a scream, a gatherer's call, a robbed driver ([Conversations and cries](#conversations-and-cries)) | 89 (1 m) for a man, 82 for a woman or a child (Pearsons et al. 1977: shouted) |
 | `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late by a seed hashed from its building's id (`Bell.seed`), which no part that reorders the map's towers moves ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
 | `bird` | `synth/nature.ts`: autumn calls of the robin, great tit, blackbird ("chink" or "seee") and chaffinch ("pink"), 35/30/20/15 %; the tawny owl (`owl`): the male's hoot sequence, about 6 s, or in 30 % of calls the female's "kewick" (0.46 s) | songbirds from a tree 15–70 m away: 0.3 calls a second in full forest, plus 0.05 near houses, by the sun and the rain (`birdActivity`); owls at night from their woods ([Day, night and weather](#day-night-and-weather)) | songbirds 85 (1 m); the owl 90 (1 m, `OWL`, estimated) |
-| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 953 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
+| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 4,116 farm dogs on Lunigiana with Sarzana's part (953 with Fosdinovo's; about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
 | `moo` | `synth/animals.ts` ([Animal calls](#animal-calls)) | a cow on its own (every 40 s on average), its `Cry`, its pain after a hit | 92 (1 m), an estimate between a man's shout and a bark |
 | `grunt` | `synth/animals.ts` | a pig on its own (every 6 s on average), a `Cry` that is not a fright | 70 (1 m), an estimate within pigs' 60–90 dB |
 | `squeal` | `synth/animals.ts` | a pig's fright `Cry`, its pain after a hit | 105 (1 m): piglets peaked at 101.9 dB (Engenharia Agrícola 2018), a grown pig's squeal is commonly put at 110–115 |
