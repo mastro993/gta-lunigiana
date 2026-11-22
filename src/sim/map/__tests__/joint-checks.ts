@@ -176,7 +176,7 @@ export const assertJoints = (known: ReadonlyArray<readonly [number, number]>, le
   for (const [from, onto] of known)
     assert.ok(
       misreads.some((m) => m.from === from && m.onto === onto),
-      `${from} onto ${onto} reads on its level now: drop it from the known misreads`,
+      `${from} onto ${onto} reads on its level now: drop it from the known limits`,
     )
   return { joints, pairs }
 }

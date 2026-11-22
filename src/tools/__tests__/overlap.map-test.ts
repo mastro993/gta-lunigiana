@@ -51,7 +51,8 @@ test("no building of one source stands on one of another, nor a ruin ring on a u
       if (share >= SAME) twice.push(`${b.id} and ${buildings[j]!.id}: ${share.toFixed(2)}`)
     })
   })
-  // 331 with Fosdinovo's part (issue #18): the check reads the sources' ids as survey-ids.ts writes them.
+  // 553 with Sarzana's part (2026-11-21; 331 with Fosdinovo's, issue #18): the check reads the
+  // sources' ids as survey-ids.ts writes them.
   assert.ok(pairs > 300, `${pairs} pairs of buildings of two sources side by side`)
   assert.deepEqual(twice, [])
 })
