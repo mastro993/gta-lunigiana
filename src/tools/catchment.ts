@@ -1,7 +1,8 @@
 // Upstream catchment areas for the map build: the 4 m grid with the water burned in, filled
 // (priority-flood + epsilon, Barnes et al. 2014), routed D8 and accumulated, read at every sample
 // of each water profile.
-import { anchorNode, type Grid, type Profile } from "./terrain.ts"
+import type { Profile } from "./profile-fit.ts"
+import { anchorNode, type Grid } from "./terrain.ts"
 
 /** How far (m) the water's samples are burned under the terrain, so D8 follows the mapped water, not the 4 m grid's guess. */
 const BURN = 100

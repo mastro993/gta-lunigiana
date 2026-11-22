@@ -117,7 +117,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   0.9 m slab under a deck's top more than 4 m in from its outer ends (a joint with the next piece of
   the bridge is none), or more than 0.05 m over its profile nearer them, but at its abutments
   ([Ground under the
-  decks](../map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+  decks](../map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
   failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
   fix that for every deck alike, never with an exception for one bridge or one part but a known
@@ -220,7 +220,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   counts (roads in tunnels, passages, metres, wall triangles, mouths, portals, head walls and open
   mouths by reason)
   ([Road and rail
-  profiles](../map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+  profiles](../map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
   tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's

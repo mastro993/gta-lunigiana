@@ -15,8 +15,8 @@ import { lifted } from "./chains.ts"
 import type { RoadF } from "./features.ts"
 import type { V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
+import { keepSamples, RELAX, resample } from "./profile-fit.ts"
 import { type Bound, PATH_PASS } from "./profiles.ts"
-import { keepSamples, RELAX, resample } from "./terrain.ts"
 import { WALK_SLOPE } from "./walls.ts"
 
 /** How near the ground a level meets it, m: within half the file's 0.1 m rounding. */

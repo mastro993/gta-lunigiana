@@ -8,7 +8,8 @@ import { IN_POLYGON, isWaterArea } from "../sim/map/kinds.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { fillPolygon, pointInRing, r1, ringBox, segDist2 } from "./geometry.ts"
-import { anchorNode, gridLattice, type Grid, type Profile } from "./terrain.ts"
+import type { Profile } from "./profile-fit.ts"
+import { anchorNode, gridLattice, type Grid } from "./terrain.ts"
 import { carveAll } from "./water.ts"
 
 /** A lake's bed deepens by this much a metre from its shore (m/m) … */

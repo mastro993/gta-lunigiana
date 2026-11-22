@@ -3,8 +3,8 @@ import { test } from "node:test"
 
 import type { RailF, RoadF, WaterF } from "../features.ts"
 import type { V } from "../geometry.ts"
+import type { Profile } from "../profile-fit.ts"
 import { railLevels } from "../rail-levels.ts"
-import type { Profile } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 const road = (id: number, pts: ReadonlyArray<V>, more: Partial<RoadF> = {}): RoadF => ({

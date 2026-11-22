@@ -4,7 +4,8 @@
 import { lifted } from "./chains.ts"
 import type { RoadF } from "./features.ts"
 import { segDist2, type V } from "./geometry.ts"
-import { flatten, GRID_CELL, type Grid, type Profile } from "./terrain.ts"
+import type { Profile } from "./profile-fit.ts"
+import { flatten, GRID_CELL, type Grid } from "./terrain.ts"
 
 /**
  * Half-width (m) of the core a line `w` m wide writes into a grid of `cell` m: half a cell past

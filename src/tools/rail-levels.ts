@@ -7,9 +7,9 @@ import { UNDERPASS } from "../sim/map/kinds.ts"
 import type { Linear } from "./chains.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, type V } from "./geometry.ts"
+import type { Profile } from "./profile-fit.ts"
 import type { Bound } from "./profiles.ts"
 import { DECK, naturalAt } from "./road-levels.ts"
-import type { Profile } from "./terrain.ts"
 
 /** What the bounds are read from: the rail, the roads, the water with its surface profiles, the uncarved ground, and each profiled line's z at arc length s. */
 interface LevelsInput {

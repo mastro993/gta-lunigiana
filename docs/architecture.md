@@ -1508,7 +1508,7 @@ lines lie 2 cm over that ribbon as it is drawn (`roadPieces` in `src/render/line
   texels a metre, and cut there, the ribbon drew the kink of the junction's blend as a dark crease
   across the road. A ridge where the mouth's hold behind Sarzana's service tunnel 376037643
   (`mouthClaim`, [map.md section
-  7](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
+  7](map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
   left a node at the bore's floor beside nodes it did not hold stood 0.56 m through the footway
   1462688623. Round Lunigiana's 427 mouths (12 m, every 0.125 m) the mesh stood more than 2 cm
   through a ribbon at 21,904 points (342 m²), up to 4.03 m, and now at none. Every road at grade is
@@ -1614,7 +1614,7 @@ only its road, under its house. Where each mouth is and what stands there is dec
   3,459 triangles in 25 chunks (13 of its 59 roads in tunnels change: 1503940160 from 4 to 32,
   696205205 from 15 to 7).
 - **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
-  [map.md](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
+  [map.md](map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
   with a portal, the railway's shape round the bore
   (`portalRound`): the dark mouth as wide as the bore, its arch springing at the springing and
   rising half the bore's half width over it in three steps, the face wall 2.6 m past the mouth's
@@ -3369,7 +3369,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     while each road was cored at its chain's widest piece). Lunigiana's two buried mouths are
     Vezzano Ligure station's stair stubs 1419380924 and 1419380925: the path pass (issue #20) fits
     the subway's stairs over them at grade from their clearance over the bores ([map.md section
-    7](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
+    7](map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
     so the stubs sink under the stairs and the ground at their mouths stands the bores' clear height
     over them; the same pass moves the ground round three mouths, one of which gets a portal and
     two of which are no longer crowded (29,764 wall triangles, 41 portals, none buried, 215 low and

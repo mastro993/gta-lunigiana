@@ -3,7 +3,8 @@ import { createHash } from "node:crypto"
 import { test } from "node:test"
 
 import { catchments } from "../catchment.ts"
-import type { Grid, Profile } from "../terrain.ts"
+import type { Profile } from "../profile-fit.ts"
+import type { Grid } from "../terrain.ts"
 
 /** A 4 m grid over 400 × 160 m falling 2 % to the east, and a polyline sampled every 2 m on its surface less 0.5 m. */
 const cols = 101,

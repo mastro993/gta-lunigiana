@@ -1,7 +1,7 @@
 // A chain's bridges and tunnels on its profile (profiles.ts): the decks and bores it is laid out in,
 // the levels their ends take before the fit, and the line a deck ships after it.
 import type { V } from "./geometry.ts"
-import type { Pin, Profile } from "./terrain.ts"
+import type { Pin, Profile } from "./profile-fit.ts"
 
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4

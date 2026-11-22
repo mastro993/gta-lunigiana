@@ -4,8 +4,9 @@
 import { reachOf } from "../sim/map/kinds.ts"
 import type { WaterF } from "./features.ts"
 import { type V } from "./geometry.ts"
+import { keepSamples, resample, type Profile } from "./profile-fit.ts"
 import { segIndex } from "./spatial-index.ts"
-import { carve, keepSamples, resample, type Grid, type Profile } from "./terrain.ts"
+import { carve, type Grid } from "./terrain.ts"
 
 const TAIL = 0.25 // extra slope a tributary tail gets when lowered to meet the water it joins
 /** A bridge's deck stands at least this high over the water under it, m. */

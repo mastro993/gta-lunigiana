@@ -4,9 +4,9 @@ import { test } from "node:test"
 import type { RailF, RoadF, WaterF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { clearancesAtGrade, waterTopOf } from "../path-pass.ts"
+import { resample } from "../profile-fit.ts"
 import type { Bound } from "../profiles.ts"
 import type { Clearance } from "../road-levels.ts"
-import { resample } from "../terrain.ts"
 
 const v = (x: number, y: number): V => ({ x, y })
 // A 4 m stream along y 0 whose surface falls from 20 to 19 m over x 0–100, its gravel bed 3 m

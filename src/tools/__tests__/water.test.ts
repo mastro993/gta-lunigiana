@@ -6,8 +6,8 @@ import { test } from "node:test"
 
 import type { WaterF } from "../features.ts"
 import { ringBox } from "../geometry.ts"
+import { resample } from "../profile-fit.ts"
 import { PIER_DECK, pierDeck } from "../shore.ts"
-import { resample } from "../terrain.ts"
 import { type CarvedArea, stillLevel } from "../water-areas.ts"
 import { BRIDGE_CLEAR, capUnderDecks, dropPerched, PERCH, waterProfiles } from "../water.ts"
 

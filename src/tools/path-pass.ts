@@ -10,11 +10,12 @@ import type { RoadF, WaterF } from "./features.ts"
 import { lineBox, segDist2, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { pathApproaches, pathsAtGrade } from "./path-approaches.ts"
+import type { Profile } from "./profile-fit.ts"
 import { type Bound, type makeProfiler, PATH_PASS } from "./profiles.ts"
 import type { railLevels } from "./rail-levels.ts"
 import { type Clearance, clearanceAcross, type roadLevels } from "./road-levels.ts"
 import { pierDeck } from "./shore.ts"
-import { GRID_CELL, type Profile } from "./terrain.ts"
+import { GRID_CELL } from "./terrain.ts"
 
 /** What the path pass reads of the roads' and rail's fit before it. */
 export interface PathPassInput {

@@ -19,6 +19,7 @@ import type { WaterF } from "./features.ts"
 import { type V } from "./geometry.ts"
 import { type Claim, replayClaims } from "./grid-claims.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
+import type { Profile } from "./profile-fit.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { segIndex } from "./spatial-index.ts"
@@ -29,7 +30,6 @@ import {
   sampleGrid,
   slotOf,
   type Grid,
-  type Profile,
   type Span,
 } from "./terrain.ts"
 import { carveAreas, raiseAreas, seaNodes, waterNodes, type CarvedArea } from "./water-areas.ts"

@@ -611,7 +611,7 @@ build if the two differ. Each tile's window is copied from the uncarved grid `un
 sampled before the pass, rather than averaged from the LiDAR during it, and the catchments then run
 on that grid, accumulating their areas in its buffer. Once
 every tile is written, the ground under the decks is lowered on the whole grid (`deck-ground.ts`,
-[section 7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
+[section 7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
 where a deck stands clear of the ground is read along it, across the tiles' seams, so it is no
 window's work. It took about 30 ms on Lunigiana's 219 decks and Cesena's 56 (2026-11-06, before
 Fosdinovo's part); Lunigiana has 814 since Sarzana's part, 625 road bridges and 189 rail bridges
@@ -1832,7 +1832,7 @@ before Sarzana's part):
     and where a road widens its profile's bench moves the terrain: 11,683 of 4,879,451 nodes, up to
     16.1 m and 1.33 m RMS, on the Carrara side (x −2268…1316, y −6100…−4252; measured when the
     2009 sheets came in, while each road chain was cored at its widest piece's width: [section
-    7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+    7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   - Roads still unnamed take a street name from addresses (`nameFromAddresses` in `addresses.ts`).
     An address stands by its own road: each `addr:street` votes for the OSM road way whose vertex
     is nearest it within 100 m (`REACH`), over every part's extract with the ways whole, and the
@@ -2391,7 +2391,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
   protected bed (w ≥ 4 m: w/2 + 1 m), a main road's core (motorway to tertiary, whose rank beats
   the rail's, [section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts): w/2 + 2.3 m), and the
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts): w/2 + 2.3 m), and the
   core of any other road at grade a pass cores (unclassified to track; not a path or steps, which no
   pass cores, nor a bridge or a tunnel, which write no cell): under the deck the rail's approach core
   yields to it, so it holds its level lowered under the deck there, each plus a cell's diagonal (5.7
@@ -2851,7 +2851,7 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   the Parmignola's line cut a jetty at its mouth 1.8 m, to −0.3 m at (−8767, −13111). All 1,502
   of magra-coast's raised nodes stand at their top.
 
-### 7. Road and rail profiles (`profiles.ts`, `chains.ts`, `lifted-runs.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`, `path-pass.ts`)
+### 7. Road and rail profiles (`profiles.ts`, `profile-fit.ts`, `chains.ts`, `lifted-runs.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`, `path-pass.ts`)
 
 - Pieces are chained through nodes where exactly two ends meet, and the rail's on through its
   switches too (below; `chainsOf` in `chains.ts`). Each chain is resampled every 4 m from the ground
@@ -2995,7 +2995,7 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit is the
   midpoint of the two grade envelopes, so cut and fill split evenly. A bound the fit breaks (a road
   under its minimum, or over its maximum) is pinned and the fit redone, the pin held within the
-  grade of the broken bounds beside it with no other pin between (`heldPins` in `terrain.ts`): a
+  grade of the broken bounds beside it with no other pin between (`heldPins` in `profile-fit.ts`): a
   minimum raised to the reach down from them, a maximum lowered to the reach up, so two bounds
   broken side by side are met within the grade, not in a step. None is moved past what every other
   pin and bound, each at its own level, allows within the grade (`reachOf`): a minimum is raised no
@@ -4147,7 +4147,7 @@ through the 0.9 m slab first (issue #87): under Via Nuova's bridge in Gragnola (
 went up the bank from (−1600.7, 3675.3) and stepped from 164.26 m onto the deck's 164.76 m. The
 build walls off the low space under every road deck, as an abutment would (`deck-walls.ts`, from
 the ground as lowered under the decks: [Ground under the
-decks](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
+decks](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
 walk walls where the deck's underside (`DECK_SLAB.depth`, 0.9 m, under its top) stands less than a
 person (`PERSON_HEIGHT`, 1.8 m) over the ground, drive walls where it stands less than the tallest
 vehicle (the truck's 2.65 m). Someone under a bridge goes only where there is headroom, and onto its
@@ -4708,7 +4708,7 @@ counter-clockwise, holes clockwise.
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it; the line holds `table`, every distinct offset ascending (131 on Lunigiana, 111 before Aulla's part, the lane fit's float noise such as 2.0500000000000003 among them, kept to the bit), and `counts`, each model's lanes in the order the decoded map lists the models; the lanes themselves are a section of indices into the table |
 | `farms` | baked: `{ building, rural, pen }` per farm decoded (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`), which sections hold; the line holds how many there are |
 | `lamps` | baked: every street lamp's lantern, `{ x, y, nx, ny, kind, z }` decoded (`kind` `wall` or `pole`), which sections hold; the line holds how many there are |
-| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 109 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32; the line holds their count, a section their bit patterns), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices; the line holds how many values, a section their doubles) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal, `head: true`, `throat` and `back` (0) for an underpass's head wall, or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts); 56 on Lunigiana) |
+| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 109 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32; the line holds their count, a section their bit patterns), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices; the line holds how many values, a section their doubles) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal, `head: true`, `throat` and `back` (0) for an underpass's head wall, or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts); 56 on Lunigiana) |
 
 The global file's sections follow its line in file order (each coded as a tile's are, [A
 tile](#a-tile)):
@@ -4823,7 +4823,7 @@ list, ascending, and the feature, whole:
 | Layer | Each feature |
 |---|---|
 | `roads` | the road's line (`RoadLine`): `pts` and `z` (surface elevation per vertex); its attributes are `MAP.roads[id]` |
-| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint: the grid at its rings' vertices, as it stood before the paths' approaches, [section 7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)), `style`, `ruins?`, `tint`, `outer`, `holes?` |
+| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint: the grid at its rings' vertices, as it stood before the paths' approaches, [section 7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes), a water area's still `level?` (m) or its river's `waters?` (indices into the whole map's water; [section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)), whose pieces lie in every tile the area does; the platforms (`platform`) and walkways (`paved`) are the whole map's last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
@@ -5818,7 +5818,7 @@ must still fall short, so a fix drops it from the list: Cesena's one, Via Piazza
 (issue #20), and Cesena lists none now; the coast's one (`KNOWN["the coast"]`), a limit of the
 build, is Via Bassagrande's bridge (463589363), 1.93 m over the path along the Fossa Maestra's bank
 (326011444), which the canal beside it keeps from dipping under the deck (issue #20, [section
-7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
 The knot by Aulla it listed, the footway 1311831119 over the tunnel 1311831121, clears ([Known data
 limitations](#known-data-limitations)). Issue #20's build leaves eight short
 on Lunigiana, seven on Sarzana's part and a micro-mapped knot by Aulla, which `KNOWN.lunigiana`
@@ -5831,7 +5831,7 @@ bridge 647881621 1.35 m over the Canale Lunense's bank path 159053025 (above); t
 374756512 2.35 m over the steps 374756566 on the ground, as the A15's piece 1514016673, mapped at
 grade between its viaducts, holds the cell 2.3 m from the steps, which drop 5.4 m in the 2.9 m past
 its carriageway's edge, more than the 4 m grid holds (4.00 m on their profile,
-[section 7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts));
+[section 7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts));
 the footbridge 93746169 −0.50 m over the path 1423036800 inside Via Aurelia's carriageway, 2.9 m
 from where it leaves the road at its level; and the micro-mapped knots 717088457 over the 1.4 m
 footway tunnel 717088463 (1.80 m) by Aulla, at (−16497, 5329), and 1419380935 over Vezzano
@@ -6701,7 +6701,7 @@ Fivizzano's presence (lucido alone against Lunigiana), in lucido's rectangle:
   by the Aulella the SR445 claims (12.3 m at (416, 3072)). 42 land-cover cells by the north seam
   change (y 3078…3898). That bank was the SR445's chain cored at its widest piece's width, which
   #18's review ended ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
   measured since against `lunigiana-lucido`, which reads Fivizzano's extract too, so only roughly,
   Fivizzano's presence moves 3,745 of lucido's nodes, up to 6.5 m at (−1524, 3724) and 0.65 m RMS,
   in x −2864…4900, y 0…3900, 1,928 of them within 300 m of the seams and the other 1,817, up to
@@ -6807,7 +6807,7 @@ Fivizzano's rectangles:
   Campo Cecina: on #18's code before its review 6,746 nodes moved, 0.86 m RMS, out to x −588, 3,479
   of them along that road, as Fosdinovo's 8.4 m 519669896 joined onto its chain widened its core
   ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   67 of Fivizzano's nodes move, up to 2.3 m at (−3288, 3900): 26 on its seam y 3900 west of
   lucido (x −5260…−3288), the other 41 within 32 m north of it (y 3904…3932); and 3 land-cover
   cells change, at lucido's west edge.
@@ -6874,7 +6874,7 @@ The review's fixes are code changes of their own, made for every part, each meas
 build before it (`pnpm map-diff`, 2026-11-07):
 
 - **Each road piece cored at its own width** ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
   moves far more than Fosdinovo's seam: 209,141 of Lunigiana's 26,392,176 heightmap nodes, up to
   34.8 m and 0.868 m RMS over them (147,178 by 0.5 m or less, 36,462 by up to 1 m, 19,886 to 2 m,
   4,952 to 5 m, 575 to 10 m and 88 more), almost all banks beside roads that a wider piece
@@ -7027,13 +7027,13 @@ The rules the part brought apply to every map, each described where it acts:
   6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts), [section
   8](#8-water-under-decks-waterts)); the profiles' held bounds, the exit caps and the houses' walls
   over a bore ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts),
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts),
   [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)); the lines run where OSM's
   train routes run, the platforms OSM draws as lines and the twin tracks' formation on one level
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)); and the paths and steps at
   grade fitted from their clearance under a deck or over a bore and laid on the terrain as the
   game draws it (the path pass, [section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
 
 `pnpm map-diff` compared main's builds (at bc5d4dab, format version 6) with #20's final ones
 (2026-11-21, version 7): Lunigiana 2553b5eb503319bd → 25250ec895fe3e1f, Cesena 8261f9e4f88c1939 →
@@ -7209,7 +7209,7 @@ longer lucido:
 - **Cesena's footbridges and two of its tunnels stood too near the ways they cross for the level
   check.** Measured before the paths' and steps' bridges and tunnels were fitted (issue #19), when a
   footbridge ran straight between its ends at the terrain's level
-  ([section 7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
+  ([section 7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)):
   within 4 m of where they cross, 57046028 stands 2.17–2.34 m over Viale Europa and Via Arturo
   Carlo Jemolo at (−296, 563) and 2.18 m over the path beside them, 137735218 and 137735231 1.90
   and 1.68 m over Via Riccione at (−684, 470) and (−687, 485) and 1.09–1.64 m over the Ciclovia del
@@ -7250,7 +7250,7 @@ longer lucido:
   Sanguinetti (55016697) into the car park's aisle 68301723, which OSM tags `layer` −1 but no tunnel
   or covered way, so the build lays it at grade. Since a tunnel takes its bound from a road at grade
   of its own pass over it (issue #20, [section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
   the bore keeps the clearance under the street, 22 m from its north mouth and 14 m from its south
   one, and so lies at 29.3–29.4 m, both mouths 6 m under the ground: the access road falls from
   35.4 m to 29.3 m in its 12.7 m (48%, a service road's limit 20%, 30% relaxed), and the aisle
@@ -7411,7 +7411,7 @@ longer lucido:
   carry no heights. On the line's at-grade track, sampled every 2 m against the LiDAR's ground
   (`loadDtm`), the bed lies within 0.09 m of it at the median and 0.56 m at p90 (0.10 and 0.90 m on
   lucido alone, whose figures by an earlier measure were 0.10 and 0.86 m: [section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts));
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts));
   where the ground is steeper than the limit allows or bends within the 100 m smoothing it stays
   off: up to 1.3 m under the ground and 3.2 m over it along Monzone's station (s 8568–8818), 2.2 m
   under it south of Gragnola (s 11318–11568), 4.5 m over it past the Aulella bridge north of
@@ -7442,7 +7442,7 @@ longer lucido:
   provincial roads (90th percentile), but the steep lanes of the hill villages are steeper than
   the 15% class limit and are fitted up to 3 m off the terrain there. Bridges come from the OSM
   tags: the LiDAR terrain has no decks, so the build lowers the ground under them ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   Where a deck lies on the ground near its ends (an OSM bridge drawn over the bank, the SP59's by
   Vinca for its first 13 m) the ground stays in its slab, the slab's sides buried, and in the
   triangles of the drawn mesh at a deck's very ends its approach's ground holds: there a
@@ -7498,7 +7498,7 @@ longer lucido:
   river.
 - **Paths and steps follow the terrain**, but their approaches to a path's or steps' bridge or
   tunnel ([section
-  7](#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
+  7](#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
   and approaches are seeded from the paths' decks alone: a path leading onto a road's bridge keeps
   the terrain's level up to it. They can be very steep (the summary prints the worst grade per
   class). Footways and pedestrian lanes are paths, so the HUD does not name them (Via Buca in Equi

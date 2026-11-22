@@ -15,7 +15,7 @@ import {
   smooth,
   type Pin,
   type Profile,
-} from "./terrain.ts"
+} from "./profile-fit.ts"
 
 /** An elevation at a point of a chain (nearest sample); `min`/`max` only bind when the fit crosses them. */
 export interface Bound {
