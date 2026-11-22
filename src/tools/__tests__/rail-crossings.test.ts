@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import type { RailF, RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import { underRail } from "../rail-crossings.ts"
+import { slideCrossing, underRail } from "../rail-crossings.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 const road = (id: number, pts: ReadonlyArray<V>, more: Partial<RoadF> = {}): RoadF => ({
@@ -14,6 +14,39 @@ const road = (id: number, pts: ReadonlyArray<V>, more: Partial<RoadF> = {}): Roa
   private: false,
   pts,
   ...more,
+})
+
+/** `slideCrossing` on node "lc" of `roads`, the moved rail running along y −1.5 m: its result, the rail and the moves. */
+const slid = (roads: ReadonlyArray<RoadF>) => {
+  const holders = roads.flatMap((r, at) =>
+    r.pts.flatMap((p, i) => (p.id === "lc" ? [{ road: at, i }] : [])),
+  )
+  const line = [v(400, -1.5), v(600, -1.5)],
+    moves = new Map<string, V>()
+  return { slid: slideCrossing(line, "lc", new Map([["lc", holders]]), roads, moves), line, moves }
+}
+
+// OSM's rail crosses the roads below at node "lc" (500, 1); the CTR moves it 2.5 m south.
+test("slideCrossing takes a road that only ends on the rail to where the moved rail is nearest", () => {
+  // As driveway 1455968336 at Santo Stefano di Magra, which ends on the Pontremolese short of the CTR's track.
+  const r = slid([road(10, [v(500, 20, "r0"), v(500, 1, "lc")])])
+  assert.deepEqual(r.slid, { id: "lc", road: 10, shift: 2.5, x: 500, y: -1.5 })
+  assert.deepEqual(r.moves.get("lc"), { x: 500, y: -1.5, id: "lc" })
+  assert.deepEqual(r.line[1], { x: 500, y: -1.5, id: "lc" })
+})
+
+// Regression: a road through the rail that OSM splits into two ways at the crossing node ends on it
+// twice, and was taken for one that ends there: bent onto the moved rail where one it does not split
+// throws.
+test("slideCrossing throws when the moved rail no longer crosses a road through it, split at the node or not", () => {
+  // Crossing at 3°: the CTR's track passes south of the road's next vertex.
+  const [west, east] = [v(460, 3, "r0"), v(540, -1, "r1")]
+  const through = /level crossing lc: the rail no longer crosses its road$/
+  assert.throws(() => slid([road(10, [west, v(500, 1, "lc"), east])]), through)
+  assert.throws(
+    () => slid([road(10, [west, v(500, 1, "lc")]), road(11, [v(500, 1, "lc"), east])]),
+    through,
+  )
 })
 
 // Regression: OSM maps the farm track 205932314 under the Genova–Pisa's bank by Sarzana at layer −1 with no tunnel tag, and the

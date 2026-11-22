@@ -22,7 +22,8 @@ const CROSSING_NEAR = 10
  * Puts crossing node `id` into the moved rail `line` where it crosses the node's road (`roadsAt`:
  * each road and vertex index holding it), recording it in `moves`; a road that only ends on the rail
  * keeps ending on it, where it is nearest. Throws when the rail no longer crosses a road it runs
- * through, or when the node would slide half its road segment or more.
+ * through (one OSM splits at the node included), or when the node would slide half its road segment
+ * or more.
  */
 export const slideCrossing = (
   line: Array<V>,
@@ -49,39 +50,40 @@ export const slideCrossing = (
       }
     }
   }
-  // A road that only ends on the rail (its node each road's first or last) follows it, to where the
-  // moved rail is nearest: the CTR may have moved the rail short of its last segment (driveway
-  // 1455968336 at Santo Stefano di Magra, which ends on the Pontremolese).
-  const holders = roadsAt.get(id)!
-  if (
-    best === undefined &&
-    holders.every(({ road, i }) => i === 0 || i === roads[road]!.pts.length - 1)
-  )
-    for (const { road, i } of holders) {
-      const rp = roads[road]!.pts,
-        next = rp[i === 0 ? 1 : i - 1]!
-      let near: { x: number; y: number; d2: number } | undefined
-      for (let k = 0; k + 1 < line.length; k++) {
-        const { d2, t } = segDist2(
-          rp[i]!.x,
-          rp[i]!.y,
-          line[k]!.x,
-          line[k]!.y,
-          line[k + 1]!.x,
-          line[k + 1]!.y,
-        )
-        if (near === undefined || d2 < near.d2)
-          near = {
-            x: line[k]!.x + t * (line[k + 1]!.x - line[k]!.x),
-            y: line[k]!.y + t * (line[k + 1]!.y - line[k]!.y),
-            d2,
-          }
-      }
-      const shift = Math.sqrt(near!.d2),
-        half = Math.hypot(next.x - rp[i]!.x, next.y - rp[i]!.y) / 2
-      if (best === undefined || shift < best.shift)
-        best = { x: near!.x, y: near!.y, road, shift, half }
+  // A road that only ends on the rail (its node that road's first or last, and on no other road)
+  // follows it, to where the moved rail is nearest: the CTR may have moved the rail short of its last
+  // segment (driveway 1455968336 at Santo Stefano di Magra, which ends on the Pontremolese). Two roads
+  // ending on the node are one road through the rail that OSM splits there.
+  const [only, ...others] = roadsAt.get(id)!
+  const rp = roads[only!.road]!.pts
+  if (best === undefined && others.length === 0 && (only!.i === 0 || only!.i === rp.length - 1)) {
+    const end = rp[only!.i]!,
+      next = rp[only!.i === 0 ? 1 : only!.i - 1]!
+    let near: { x: number; y: number; d2: number } | undefined
+    for (let k = 0; k + 1 < line.length; k++) {
+      const { d2, t } = segDist2(
+        end.x,
+        end.y,
+        line[k]!.x,
+        line[k]!.y,
+        line[k + 1]!.x,
+        line[k + 1]!.y,
+      )
+      if (near === undefined || d2 < near.d2)
+        near = {
+          x: line[k]!.x + t * (line[k + 1]!.x - line[k]!.x),
+          y: line[k]!.y + t * (line[k + 1]!.y - line[k]!.y),
+          d2,
+        }
     }
+    best = {
+      x: near!.x,
+      y: near!.y,
+      road: only!.road,
+      shift: Math.sqrt(near!.d2),
+      half: Math.hypot(next.x - end.x, next.y - end.y) / 2,
+    }
+  }
   if (best === undefined)
     throw new Error(`level crossing ${id}: the rail no longer crosses its road`)
   if (best.shift >= best.half)
