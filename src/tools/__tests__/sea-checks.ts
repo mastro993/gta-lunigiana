@@ -45,7 +45,7 @@ const onCut = (v: number, low: number, high: number) =>
 
 /**
  * The coastline's edges (flat, as `edgesOf` gives them): the sea areas' edges less the cuts along a
- * tile's side or the map's bounds, where the sea goes on (`isCut` in rivers.ts).
+ * tile's side or the map's bounds, where the sea goes on (`isCut` in water/banks.ts).
  */
 export const coastline = (whole: JoinedMap): Array<number> => {
   const { minX, minY, maxX, maxY } = whole.bounds,

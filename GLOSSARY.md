@@ -225,6 +225,10 @@ _Avoid_: Coast (a sea piece's shore edges), shoreline
 A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on, and the closures across a river's or a lake's mouth, where the water goes on into the river (`coastOf`).
 _Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
 
+**Bank**:
+Where a body in the water heads to get out (`bankX`, `bankY`): in a river, square across its reach toward the side the body is on, in a river polygon too; in a lake or the sea, the nearest of its banks (`Pool.banks`, `shoreward` in `banks.ts`): a lake's edges less the cuts along a tile's side or the map's bounds, the sea's coast, or all its edges where it has none.
+_Avoid_: Shore (the water's edge walls), coast (the sea's alone)
+
 **Shore line**:
 The coastline less each segment that closes a river or a lake across its mouth (`shoreLines`): what the sea floor rises to, so a river's mouth holds no sill.
 _Avoid_: Shore (the water's edge walls), coast

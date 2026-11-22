@@ -7,8 +7,8 @@ stand still at their level, and the sea at 0 m, which holds a river up where it 
 player wades through them and swims once they lift him off his feet or the current takes them from
 under him; people, animals and vehicles meet the same water. Nobody drowns.
 
-The code is in `src/sim/water/` (`flow.ts`, `channel.ts`, `rivers.ts`, `swim.ts`), the `Wade`
-system in `src/sim/systems/water.ts`, a swimmer's footing in `FindFooting`
+The code is in `src/sim/water/` (`flow.ts`, `channel.ts`, `rivers.ts`, `banks.ts`, `swim.ts`),
+the `Wade` system in `src/sim/systems/water.ts`, a swimmer's footing in `FindFooting`
 (`src/sim/systems/footing.ts`), the catchment areas and the lakes' levels in the map build
 (`src/tools/catchment.ts`, `src/tools/water-areas.ts`) and the drawn water in
 `src/render/lines.ts`, `src/render/water.ts` and `src/render/sky/water-shader.ts`.
@@ -231,7 +231,7 @@ follow from the discharge per km², q.
   OSM's coastline ([map.md](map.md#3-features-featurests)). The build cuts it into a piece per
   tile, each the tile's square cut to the map's bounds, so a piece's ring runs along tile lines and
   bounds where the sea goes on: those edges are cuts, not shore (an edge along x or y = k × 2000 m,
-  or along the bounds; `isCut` in `rivers.ts`, for any still water: the L test region's bounds cut
+  or along the bounds; `isCut` in `banks.ts`, for any still water: the L test region's bounds cut
   the lake by the Solco di Equi at x 2400, and a swimmer there heads for its shore, not the cut).
   The way to the bank is toward the nearest coast of any sea piece the point's tile holds
   (every piece within 32 m of the tile, whole), islets included; where none holds any coast, the
