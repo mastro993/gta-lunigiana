@@ -1,16 +1,28 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { Ops } from "@typeonce/ritmo-math"
+import { Ops, Random } from "@typeonce/ritmo-math"
 
 import { RIGS, settle } from "../chassis.ts"
-import { Game, SetPlayer } from "../index.ts"
-import { inPlay, MAP } from "../map/index.ts"
+import { Game, SetClock, SetHandling, SetPlayer, SetWeather } from "../index.ts"
+import { graph, inPlay, MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
 import { setTileSource, tileFromDisk } from "../map/source.ts"
 import { dropTile, FROZEN_BEYOND, provideTile, STEP_REACH, tilesOver } from "../map/tiles.ts"
+import {
+  allowsModel,
+  cruiseSpeed,
+  edgeIndex,
+  endNode,
+  facesForward,
+  laneOf,
+  lanePoint,
+  laneSide,
+  nextTrafficEdge,
+  roadOf,
+} from "../route.ts"
 import { Chassis } from "../schema.ts"
-import { parkedCar, rollingChassis } from "../spawning.ts"
+import { parkedCar, rollingChassis, trafficCar } from "../spawning.ts"
 import { inReach } from "../systems/reach.ts"
 import { battistiTraffic, door, ON_BATTISTI, press, rolling, start, wear } from "../testing.ts"
 
@@ -192,6 +204,64 @@ test("a traffic car steering a gentle curve reads no tile across its circle: wha
     return game.world().vehicles.find((v) => v.traffic)!.input
   }
   assert.deepEqual(driven([parkedCar("panda", 0xb8312b, opposite)]), driven([]))
+})
+
+// Regression: a straight cone reaches 8 m + 1.2 s of speed plus the stop at FOLLOW, over the grip left, and a laden truck held
+// back by what it finds there reads its level all the way: up to 125 m out at the motorway's 30 m/s, past the 100 m between
+// FROZEN_BEYOND and STEP_REACH, so near the edge of reach it read a tile the host had dropped.
+test("a traffic truck at the edge of reach reads no tile past it: what its cone finds farther on still holds it back", () => {
+  // The A15 southbound where it crosses the tile seam at y = 2000 m, found by geometry: the start of its truck lane 104 m north of
+  // the seam, the player FROZEN_BEYOND behind it, a car parked 112 m on in the lane, in the rain at 24 m/s.
+  const motorway = graph.trafficEdges.filter(
+      (e) => cruiseSpeed(roadOf(e)) === 30 && allowsModel(e, "truck"),
+    ),
+    edge = edgeIndex(motorway).nearest(-16590, 2095),
+    forward = facesForward(edge, -Math.PI / 2),
+    lane = laneOf(edge, forward),
+    route = { edge, forward, side: laneSide({ edge, forward }, "truck") },
+    at = { ...lanePoint(lane, 0, route.side), angle: Ops.atan2(lane.dy, lane.dx) },
+    player = { x: at.x, y: at.y + FROZEN_BEYOND, angle: 0 },
+    parked = ahead(at, 112)
+  const truck = trafficCar(
+    "truck",
+    0x3d6155,
+    at,
+    24,
+    route,
+    nextTrafficEdge(endNode(edge, forward), edge, "truck", Random.make(1)),
+  )
+  const near = tilesOver(
+    player.x - STEP_REACH,
+    player.y - STEP_REACH,
+    player.x + STEP_REACH,
+    player.y + STEP_REACH,
+  )
+  assert.ok(inReach(at, player), "the truck steps")
+  assert.ok(
+    !near.includes(tilesOver(parked.x, parked.y, parked.x, parked.y)[0]!),
+    "the parked car's tile lies beyond the player's",
+  )
+  const driven = (cars: ReadonlyArray<ReturnType<typeof parkedCar>>) => {
+    const game = start([], [player, { traffic: [truck], cars }], { alone: true })
+    game.runtime.send(SetHandling, { key: "weatherGrip", value: 1 })
+    game.runtime.send(SetClock, { rate: 0 })
+    game.runtime.send(SetWeather, { regime: "storm", settle: true })
+    try {
+      for (const key of near) provideTile(tileFromDisk(key))
+      setTileSource(undefined)
+      for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
+      game.run(1)
+    } finally {
+      setTileSource(tileFromDisk)
+    }
+    return game.world().vehicles.find((v) => v.traffic)!.input
+  }
+  const free = driven([]),
+    held = driven([parkedCar("panda", 0xb8312b, parked)])
+  assert.ok(
+    held.throttle < free.throttle - 0.2,
+    `held back: throttle ${held.throttle.toFixed(2)} for the parked car, ${free.throttle.toFixed(2)} with none`,
+  )
 })
 
 test("SetPlayer: on foot the player stands still at the pose; driving, the car is settled there; off the map or not a number, it is dropped", () => {

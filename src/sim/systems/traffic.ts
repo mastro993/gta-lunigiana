@@ -5,8 +5,9 @@ import { forwardSpeed, wrapAngle } from "../body.ts"
 import { GRAVITY, rigFor, RIGS, wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
-import { rolledTo } from "../map/ground.ts"
+import { groundZ, rolledTo } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
+import { FROZEN_BEYOND, STEP_REACH } from "../map/tiles.ts"
 import { type Level, onOneLevel, pitched } from "../one-level.ts"
 import { trainCars } from "../rail/bodies.ts"
 import { atCrossings, backRoom, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
@@ -171,6 +172,13 @@ export const comfortSpeed = (
 export const leans = (model: VehicleModel, chassis: Pick<ChassisValue, "roll">): boolean =>
   Math.abs(chassis.roll) > LEANING * Ops.atan(RIGS[model].tipping)
 
+/**
+ * How far from a driver's middle its path's level is read, m: a car steps within FROZEN_BEYOND of the player, and the host keeps
+ * in memory only the tiles within STEP_REACH of the player. Only a truck on the motorway asks farther: at its 30 m/s, the level
+ * of what stands up to 115 m past the gap it keeps, about 125 m out (a Panda: 75 m, about 83 m out).
+ */
+const SIGHT = STEP_REACH - FROZEN_BEYOND
+
 /** Where something meets a driver's path, in the driver's frame (m): see `onPathLevel`. */
 interface Meeting {
   readonly front: number
@@ -189,7 +197,8 @@ interface Meeting {
  * along the axis to that point and on to there (`rolledTo` over `surface`: the deck it drives, or the road under it, through a
  * sag or over a crest) is on one level with `other` read toward there (`onOneLevel`). Read there, not under the driver's middle,
  * so the car ahead stays in sight through a dip; nor under the other's middle, which may lie off the deck (a train's car passing
- * under it).
+ * under it). Where that would read the ground farther than `SIGHT` from the driver's middle, the other is on its level unread,
+ * as everything in a cone was before levels were read: it holds the driver back.
  */
 export const onPathLevel = (
   at: { readonly x: number; readonly y: number; readonly angle: number; readonly ground: number },
@@ -206,6 +215,15 @@ export const onPathLevel = (
     a = across + (axisAcross - across) * pull,
     fx = Ops.cos(at.angle),
     fy = Ops.sin(at.angle)
+  // The ground, read only within SIGHT: past it, nothing is read and the other counts as on the level.
+  let beyond = false
+  const seen = (x: number, y: number, near: number) => {
+    if (beyond || Ops.hypot(x - at.x, y - at.y) > SIGHT) {
+      beyond = true
+      return near
+    }
+    return surface === undefined ? groundZ(x, y, near, true) : surface(x, y, near)
+  }
   // Rolled from the driver's middle along the line, or round the arc a metre's chord at a time (swept by `sweep` round its centre
   // in all), then on to where the other reaches in.
   let level = at.ground,
@@ -218,7 +236,7 @@ export const onPathLevel = (
       level,
       at.x + fx * tf - fy * ta,
       at.y + fy * tf + fx * ta,
-      surface,
+      seen,
     )
     pf = tf
     pa = ta
@@ -231,7 +249,13 @@ export const onPathLevel = (
       roll(circle * Ops.sin((sweep * k) / chords), circle * (1 - Ops.cos((sweep * k) / chords)))
   }
   roll(f, a)
-  return onOneLevel(level, other, { x: at.x + fx * f - fy * a, y: at.y + fy * f + fx * a }, surface)
+  const same = onOneLevel(
+    level,
+    other,
+    { x: at.x + fx * f - fy * a, y: at.y + fy * f + fx * a },
+    seen,
+  )
+  return beyond || same
 }
 
 /** Lifted roads: a bridge deck or a tunnel. */
