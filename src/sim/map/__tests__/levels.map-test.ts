@@ -6,7 +6,8 @@
 // (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), what people and
 // animals run from (`Perceive`, `Animals`), and what a train meets. The rule is code, so a new map
 // can break it only through its data: a deck too low over what it crosses. Where both are the rail,
-// nothing meets across them and they are left out. The test regions' builds (the L, the coast) live
+// nothing meets across them and they are left out. A way at grade is read where the game stands on
+// it, never under the terrain's mesh (`roadZ` in ground-model.ts). The test regions' builds (the L, the coast) live
 // in test-maps/ (`pnpm maps`): without one its check is skipped, but in CI, which builds them, a
 // missing build fails.
 import assert from "node:assert/strict"
@@ -14,9 +15,11 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { latticeGround } from "../../../tools/build-ground.ts"
+import { APPROACH_GRADE } from "../../../tools/path-approaches.ts"
+import { RELAX } from "../../../tools/profile-fit.ts"
 import { PATH_PASS } from "../../../tools/profiles.ts"
 import { passesOver } from "../../../tools/road-levels.ts"
-import { RELAX } from "../../../tools/terrain.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
 import { ONE_LEVEL } from "../kinds.ts"
@@ -58,9 +61,21 @@ interface Way {
 }
 const rail = (w: Way) => w.cls === "rail"
 
-/** Points of `w`'s profile every STEP m within REACH of (x, y): x, y and z. */
-const near = (w: Way, x: number, y: number) => {
+/** The terrain's mesh at (x, y), m, as the game draws it; none, where a check reads profiles alone. */
+type Terrain = (x: number, y: number) => number
+
+/** Whether `w` lies on the ground: a road at grade, which the game never stands under the terrain's mesh. */
+const onGround = (w: Way) => !rail(w) && w.bridge !== true && w.tunnel !== true
+
+/**
+ * Points of `w` every STEP m within REACH of (x, y): x, y and z, its profile's, but a way at grade's
+ * never under the terrain's mesh (`terrain`), where the game stands on it: under the A15's deck at
+ * Santo Stefano di Magra the steps 374756566's profile dipped 4.00 m under it and the ground the
+ * game reads 2.35 m, a slab's grid node 2.3 m off their line held at 46.9 m.
+ */
+const near = (w: Way, x: number, y: number, terrain?: Terrain) => {
   const out: Array<readonly [number, number, number]> = []
+  const ground = terrain !== undefined && onGround(w) ? terrain : undefined
   for (let k = 0; k + 1 < w.z.length; k++) {
     const ax = w.pts[2 * k]!,
       ay = w.pts[2 * k + 1]!,
@@ -70,21 +85,22 @@ const near = (w: Way, x: number, y: number) => {
     for (let i = 0; i <= n; i++) {
       const px = ax + (dx * i) / n,
         py = ay + (dy * i) / n
-      if (Ops.hypot(px - x, py - y) <= REACH)
-        out.push([px, py, w.z[k]! + ((w.z[k + 1]! - w.z[k]!) * i) / n])
+      if (Ops.hypot(px - x, py - y) > REACH) continue
+      const z = w.z[k]! + ((w.z[k + 1]! - w.z[k]!) * i) / n
+      out.push([px, py, ground === undefined ? z : Math.max(z, ground(px, py))])
     }
   }
   return out
 }
 
 /**
- * The least height of `up`'s profile over `down`'s between points of the two within REACH of each
+ * The least height of `up` over `down` (`near`) between points of the two within REACH of each
  * other and of their crossing at (x, y): a deck's slope toward its end (a ramp) counts.
  */
-const gapOver = (up: Way, down: Way, x: number, y: number) => {
-  const below = near(down, x, y)
+const gapOver = (up: Way, down: Way, x: number, y: number, terrain?: Terrain) => {
+  const below = near(down, x, y, terrain)
   let gap = Infinity
-  for (const [ax, ay, az] of near(up, x, y))
+  for (const [ax, ay, az] of near(up, x, y, terrain))
     for (const [bx, by, bz] of below)
       if (Ops.hypot(ax - bx, ay - by) <= REACH) gap = Math.min(gap, az - bz)
   return gap
@@ -115,19 +131,31 @@ const arcOf = (w: Way) => {
 
 /**
  * The bounds a fit can put on `w`'s level where it crosses (arc length `s`, built level `z`): `hi`
- * the highest and `lo` the lowest, each `off` m along it from the crossing toward the nearest end
- * the path pass pins (`pinned`: at a road's level or the ground's, where no path or steps at grade
- * alone leads on, its approach), where it climbs or dips at most PATH_GRADE from that end's level. A
- * way the path pass does not fit keeps its built level; one of its ways with no end pinned is free.
+ * the highest and `lo` the lowest, each `off` m along it from the crossing toward the nearest level
+ * pinned, where it climbs or dips at most its grade from that level. A path's or steps' bridge or
+ * tunnel is pinned at its ends the path pass pins (`pinned`: at a road's level or the ground's,
+ * where no path or steps at grade alone leads on, its approach) and climbs PATH_GRADE; a path or
+ * steps at grade, which the pass fits from its clearance under a deck or over a bore
+ * (path-approaches.ts), at each vertex it shares with another way (`fixed`: a road's junction, a
+ * deck's or a bore's end, the rail, and another path's or steps' junction, which an approach may
+ * have set), and climbs its class's APPROACH_GRADE. Any other way keeps its built level; one with
+ * no level pinned is free.
  */
-const fitBounds = (w: Way, s: number, z: number, pinned: (x: number, y: number) => boolean) => {
-  if (!fitted(w)) return { hi: () => z, lo: () => z }
+const fitBounds = (
+  w: Way,
+  s: number,
+  z: number,
+  pinned: (x: number, y: number) => boolean,
+  fixed: (x: number, y: number) => boolean,
+) => {
+  const deck = fitted(w)
+  if (!deck && !(isPath(w) && onGround(w))) return { hi: () => z, lo: () => z }
   const arc = arcOf(w),
-    last = arc.length - 1
-  const pins = [0, last]
-    .filter((k) => pinned(w.pts[2 * k]!, w.pts[2 * k + 1]!))
+    grade = deck ? PATH_GRADE : APPROACH_GRADE[w.cls as "path" | "steps"]
+  const pins = (deck ? [0, arc.length - 1] : arc.map((_, k) => k))
+    .filter((k) => (deck ? pinned : fixed)(w.pts[2 * k]!, w.pts[2 * k + 1]!))
     .map((k) => ({ s: arc[k]!, z: w.z[k]! }))
-  const rise = (off: number, e: { s: number }) => Math.max(0, Math.abs(s - e.s) - off) * PATH_GRADE
+  const rise = (off: number, e: { s: number }) => Math.max(0, Math.abs(s - e.s) - off) * grade
   return {
     hi: (off: number) => Math.min(Infinity, ...pins.map((e) => e.z + rise(off, e))),
     lo: (off: number) => Math.max(-Infinity, ...pins.map((e) => e.z - rise(off, e))),
@@ -149,6 +177,7 @@ const fitReach = (
   down: Way,
   c: { readonly k: number; readonly t: number; readonly m: number; readonly u: number },
   pinned: (x: number, y: number) => boolean,
+  fixed: (x: number, y: number) => boolean,
 ) => {
   if (!fitted(up) && !fitted(down)) return Infinity
   const along = (w: Way, k: number, t: number) => {
@@ -160,8 +189,8 @@ const fitReach = (
   }
   const a = along(up, c.k, c.t),
     b = along(down, c.m, c.u)
-  const hi = fitBounds(up, a.s, a.z, pinned).hi,
-    lo = fitBounds(down, b.s, b.z, pinned).lo,
+  const hi = fitBounds(up, a.s, a.z, pinned, fixed).hi,
+    lo = fitBounds(down, b.s, b.z, pinned, fixed).lo,
     off = REACH - STEP
   return Math.min(hi(0) - lo(off), hi(off) - lo(0))
 }
@@ -175,12 +204,13 @@ interface Shortfall {
 
 /**
  * Every crossing on two levels among `roads` and the rail's `tracks` whose ways stand ONE_LEVEL +
- * MARGIN apart or less within REACH of it, but those no fit of the path pass could clear
- * (`fitReach`).
+ * MARGIN apart or less within REACH of it (`gapOver` on `terrain`), but those no fit of the path
+ * pass could clear (`fitReach`).
  */
 const shortfalls = (
   roads: ReadonlyArray<Way>,
   tracks: ReadonlyArray<Omit<Way, "cls">>,
+  terrain?: Terrain,
 ): Array<Shortfall> => {
   const ways: Array<Way> = [...roads, ...tracks.map((r) => ({ ...r, cls: "rail" }))]
   const boxes = ways.map((w) => boxOf(w.pts))
@@ -192,8 +222,15 @@ const shortfalls = (
         .flatMap((r) => r.pts.flatMap((v, i) => (i % 2 === 0 ? [`${v},${r.pts[i + 1]}`] : []))),
     )
   const approaches = atGrade(true),
-    roadsAt = atGrade(false)
+    roadsAt = atGrade(false),
+    seen = new Map<string, number>()
+  for (const w of ways)
+    for (const key of new Set(
+      w.pts.flatMap((v, i) => (i % 2 === 0 ? [`${v},${w.pts[i + 1]}`] : [])),
+    ))
+      seen.set(key, (seen.get(key) ?? 0) + 1)
   const pinned = (x: number, y: number) => roadsAt.has(`${x},${y}`) || !approaches.has(`${x},${y}`)
+  const fixed = (x: number, y: number) => (seen.get(`${x},${y}`) ?? 0) > 1
   const out: Array<Shortfall> = []
   ways.forEach((up, i) => {
     const [ax0, ay0, ax1, ay1] = boxes[i]!
@@ -202,8 +239,8 @@ const shortfalls = (
       const [bx0, by0, bx1, by1] = boxes[j]!
       if (ax0 > bx1 || bx0 > ax1 || ay0 > by1 || by0 > ay1) return
       for (const c of crossings(up.pts, down.pts)) {
-        const gap = gapOver(up, down, c.x, c.y)
-        if (gap <= ONE_LEVEL + MARGIN && fitReach(up, down, c, pinned) > ONE_LEVEL + MARGIN)
+        const gap = gapOver(up, down, c.x, c.y, terrain)
+        if (gap <= ONE_LEVEL + MARGIN && fitReach(up, down, c, pinned, fixed) > ONE_LEVEL + MARGIN)
           out.push({
             up: up.id,
             down: down.id,
@@ -217,25 +254,44 @@ const shortfalls = (
 
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
- * (docs/map.md, "Known data limitations"): Cesena's car park ramp its square's pass leaves at the
- * square's level; the coast test region's Via Bassagrande's bridge over the Fossa Maestra, 1.93 m
- * over the path along its bank. Each must still fall short, so a fix drops it from here. Cesena's
- * footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
+ * (docs/map.md, "Known data limitations"): the coast test region's Via Bassagrande's bridge over
+ * the Fossa Maestra, 1.93 m over the path along its bank, which the canal beside it keeps from
+ * dipping under the deck (path-pass.ts). Each must still fall short, so a fix drops it from here:
+ * Lunigiana's micro-mapped knot of approaches by Via Cospedo at Aulla, the footway 1311831119 0.4 m
+ * over the footway tunnel 1311831121 it leads out of 0.7 m on, clears it by 4.0 m since a path or
+ * steps at grade crossing a deck or a bore is fitted from its clearance there, before the
+ * approaches (path-approaches.ts, issue #20). Cesena's car park ramp 68296970, which its square's
+ * pass left at the square's level,
+ * dips under it since a tunnel takes its bound from a road at grade of its own pass (issue #20).
+ * Cesena's footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
  * pedestrian underpass under Via Giuseppe Di Vittorio, and the coast's foot and cycle bridge over
  * the A12 at Luni and its footway under Via Palmiro Togliatti, ran straight between their ends at
  * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); Cesena's 5.5 m
  * path bridge 683510421 now stands 4.5 m over the path 22776463 under it, which ran 3.5 m under it
  * on the ground its ramps' claims held at the deck's level until the approach's crossing shipped its
- * fitted level (path-approaches.ts). Two are micro-mapped knots of approaches no fit of theirs
- * clears: on Lunigiana the footways 1311831119 and 1311831120 cross the footway tunnels
- * 1311831121 and 1311862950 0.7 and 1.5 m from the nodes where they lead from the bores' ends at
- * their level.
+ * fitted level (path-approaches.ts).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
-  cesena: [[55016697, 68296970]],
+  cesena: [],
+  // The crossings no rule of the passes clears since Sarzana's part, all in it but the knot by
+  // Aulla (issue #20; the user's choice, after three rounds of fixes, to list them as known limits:
+  // docs/map.md, Known data limitations): the A15's piece 1514016673, mapped at grade between its
+  // viaducts, holds the cell 2.3 m from its steps, which drop 5.4 m in the 2.9 m past the
+  // carriageway's edge, more than the 4 m grid holds; three ends pinned at the ground by a road
+  // fitted first, before the deck's or bore's clearance; the Canale Lunense's bank path under a
+  // bridge level with the bank, which would dip into the canal; two micro-mapped knots of paths,
+  // stubs and bores no fit can part, by Vezzano Ligure's station and, in Aulla's part, at (−16497,
+  // 5329); and the footbridge 93746169 leaving Via Aurelia at its level over the path inside the
+  // primary's carriageway.
   lunigiana: [
-    [1311831119, 1311831121],
-    [1311831120, 1311862950],
+    [374756512, 374756566],
+    [99473194, 300940651],
+    [311538487, 99473496],
+    [238380861, 378473973],
+    [647881621, 159053025],
+    [1419380935, 1419380923],
+    [717088457, 717088463],
+    [93746169, 1423036800],
   ],
   "the coast": [[463589363, 326011444]],
 }
@@ -252,7 +308,8 @@ for (const [region, read, skip] of REGIONS)
         map.roads.some((r) => r.bridge === true),
         "no bridge to check",
       )
-      const found = shortfalls(map.roads, map.rail),
+      const hm = map.heightmap,
+        found = shortfalls(map.roads, map.rail, latticeGround(hm, (n) => hm.data[n]!).terrainZ),
         known = KNOWN[region] ?? []
       const isKnown = (s: Shortfall) => known.some(([up, down]) => s.up === up && s.down === down)
       assert.deepEqual(
@@ -271,16 +328,23 @@ test("levels: a path's or steps' bridge or tunnel too short from a pinned end to
   // A footway tunnel 30 m long, all at 100 m, its west end meeting `west` (a service road at grade,
   // which pins it, a footway at grade, its approach, which leaves it to the fit, or nothing, where
   // the pass pins it at the ground) and its east end a service road, under a footway at grade
-  // crossing it `at` m from its west end.
-  const ways = (at: number, west?: string, cls = "path"): Array<Way> => [
+  // crossing it `at` m from its west end, between two service roads 3 m either side of the tunnel
+  // that pin it (`pin`), or free.
+  const ways = (at: number, west?: string, cls = "path", pin = true): Array<Way> => [
     ...(west === undefined ? [] : [{ id: 1, cls: west, pts: [-10, 0, 0, 0], z: [100, 100] }]),
     { id: 2, cls, tunnel: true, layer: -1, pts: [0, 0, 30, 0], z: [100, 100] },
     { id: 3, cls: "service", pts: [30, 0, 40, 0], z: [100, 100] },
-    { id: 4, cls: "path", pts: [at, -10, at, 10], z: [100, 100] },
+    { id: 4, cls: "path", pts: [at, -3, at, 3], z: [100, 100] },
+    ...(pin
+      ? [
+          { id: 5, cls: "service", pts: [at - 10, -3, at, -3], z: [100, 100] },
+          { id: 6, cls: "service", pts: [at, 3, at + 10, 3], z: [100, 100] },
+        ]
+      : []),
   ]
   const found = (w: Array<Way>) => shortfalls(w, []).map((s) => [s.up, s.down])
   // 2 m in from a pinned end, it dips 0.6 m at most at the crossing, and not at all REACH back
-  // toward it.
+  // toward it; the footway over it, pinned 3 m off, rises 0.9 m at most.
   assert.deepEqual(found(ways(2, "service")), [])
   assert.deepEqual(found(ways(2)), [])
   // 15 m in, it could dip 3.45 m 11.5 m in and 4.5 m at the crossing: the fit's to make.
@@ -290,4 +354,30 @@ test("levels: a path's or steps' bridge or tunnel too short from a pinned end to
   assert.deepEqual(found(ways(2, "path")), [[4, 2]])
   // A service road's tunnel is the road passes' to fit, never left out.
   assert.deepEqual(found(ways(2, "service", "service")), [[4, 2]])
+  // A footway at grade pinned nowhere near rises over the bore from its clearance there
+  // (path-approaches.ts), so it is the fit's to clear.
+  assert.deepEqual(found(ways(2, "service", "path", false)), [[4, 2]])
+})
+
+// Regression: the check read each way's profile, which the game stands on only where it is over
+// the terrain's mesh: the steps 374756566 read 4.00 m under the A15's deck at Santo Stefano di
+// Magra, where someone on them stood 2.35 m under it on the mesh a slab's node held.
+test("levels: a way at grade is read where the game stands on it, never under the terrain's mesh", () => {
+  // A road's deck at 104 m over a footway at grade whose profile runs at 99.5 m under it, through
+  // ground at 100 m: 4.5 m on the profile, 4 m on the ground; lowered to 102.1 m, 2.6 and 2.1 m.
+  const ways: Array<Way> = [
+    { id: 1, cls: "residential", bridge: true, layer: 1, pts: [-20, 0, 20, 0], z: [104, 104] },
+    { id: 2, cls: "path", pts: [0, -20, 0, 20], z: [99.5, 99.5] },
+  ]
+  const lowered = ways.map((w) => (w.id === 1 ? { ...w, z: [102.1, 102.1] } : w))
+  assert.deepEqual(shortfalls(lowered, []), [], "2.6 m on the profile")
+  assert.deepEqual(
+    shortfalls(lowered, [], () => 100).map((s) => [s.up, s.down]),
+    [[1, 2]],
+    "2 m on the ground",
+  )
+  assert.deepEqual(
+    shortfalls(ways, [], () => 100),
+    [],
+  )
 })

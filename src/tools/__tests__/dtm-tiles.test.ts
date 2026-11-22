@@ -122,22 +122,33 @@ test("a tile needs its square cut to the region's box, and none of a tile wholly
 test("assembleTiles joins tiles on the lattice, a cell two hold kept once, and refuses two heights for one cell", () => {
   const a = block(LATTICE.e, LATTICE.n, 3, 2, (c, r) => 100 + c + 10 * r),
     b = block(LATTICE.e + 2 * CELL, LATTICE.n, 3, 2, (c, r) => (c === 0 ? 102 + 10 * r : 200 + c))
-  const { dtm, held } = assembleTiles([
-    { key: "a", tile: a },
-    { key: "b", tile: b },
+  const dtm = assembleTiles([
+    { key: "a", cells: a, read: () => a },
+    { key: "b", cells: b, read: () => b },
   ])
   assert.deepEqual([dtm.e0, dtm.n0, dtm.cols, dtm.rows], [LATTICE.e, LATTICE.n, 5, 2])
-  assert.deepEqual([...held], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+  assert.deepEqual([...dtm.sources.codes], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
   assert.equal(dtm.dm[2], 102)
   assert.equal(dtm.dm[4], 202)
   const clash = block(LATTICE.e + 2 * CELL, LATTICE.n, 1, 1, () => 999)
   assert.throws(
     () =>
       assembleTiles([
-        { key: "a", tile: a },
-        { key: "c", tile: clash },
+        { key: "a", cells: a, read: () => a },
+        { key: "c", cells: clash, read: () => clash },
       ]),
     /tile c holds 99\.9 m \(lidar\) at EPSG:3003 1587401, 4884308, where another holds/,
+  )
+  // Each tile read as it is copied, the box from the cells its file should span.
+  const read: Array<string> = []
+  assembleTiles([
+    { key: "a", cells: a, read: () => (read.push("a"), a) },
+    { key: "b", cells: b, read: () => (read.push("b"), b) },
+  ])
+  assert.deepEqual(read, ["a", "b"])
+  assert.throws(
+    () => assembleTiles([{ key: "b", cells: a, read: () => b }]),
+    /tile b spans other cells than its file should/,
   )
 })
 
@@ -146,8 +157,8 @@ test("drawEdgesOn holds each edge's height past the cells held, as a sampler pas
   const t = block(LATTICE.e, LATTICE.n, 4, 4, (c, r) =>
     c >= 1 && c <= 2 && r >= 1 && r <= 2 ? 10 * r + c : Number.NaN,
   )
-  const { dtm, held } = assembleTiles([{ key: "t", tile: t }])
-  drawEdgesOn(dtm, held)
+  const dtm = assembleTiles([{ key: "t", cells: t, read: () => t }])
+  drawEdgesOn(dtm)
   const z = (c: number, r: number) => dtm.dm[r * 4 + c]!
   assert.deepEqual(
     [0, 1, 2, 3].map((r) => [0, 1, 2, 3].map((c) => z(c, r))),

@@ -1,53 +1,10 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 
 import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
 import { fitMap, wholeMap } from "../map-view.ts"
-import { mapLabels, PLACES, placeLabels } from "../worldmap.ts"
-
-/** A 10 px square label box at (x, y). */
-const box = (x: number, y = 0) => ({ x0: x, x1: x + 10, y0: y, y1: y + 10 })
-/** A label of `rank`, its dot at x = `dot` on a row of its own, its name taking one of `sides`. */
-const label = (rank: number, dot: number, ...sides: Array<ReturnType<typeof box>>) => ({
-  rank,
-  dot: box(dot, 100),
-  sides,
-})
-
-test("labels: ranks in order, each name on its first free side, fewest free sides first", () => {
-  // The player's place (rank -1, `mapLabels`), the town, then villages, hamlets and peaks, whatever
-  // their order.
-  assert.deepEqual(
-    placeLabels([
-      label(3, 0, box(0)),
-      label(2, 20, box(0)),
-      label(1, 40, box(0)),
-      label(-1, 60, box(0)),
-      label(0, 80, box(0)),
-    ]),
-    [undefined, undefined, undefined, 0, undefined],
-  )
-  // A name taken on its first side goes on its next; touching boxes do not overlap.
-  assert.deepEqual(placeLabels([label(0, 0, box(0)), label(1, 20, box(5), box(20))]), [0, 1])
-  assert.deepEqual(placeLabels([label(1, 0, box(0)), label(1, 20, box(10))]), [0, 0])
-  // Of two with as many free sides, the earlier wins; one with fewer goes first.
-  assert.deepEqual(placeLabels([label(1, 0, box(0)), label(1, 20, box(5))]), [0, undefined])
-  assert.deepEqual(placeLabels([label(1, 0, box(0), box(20)), label(1, 20, box(5))]), [1, 0])
-  // A fixed box (the north arrow, the scale bar) beats every label.
-  assert.deepEqual(placeLabels([label(0, 0, box(0)), label(1, 20, box(20))], [box(0)]), [
-    undefined,
-    0,
-  ])
-})
-
-test("labels: a name never covers a dot, and a dot under a name goes with its label", () => {
-  // Its own dot, a placed one, and one its rank has still to place are all kept clear.
-  assert.deepEqual(placeLabels([label(1, 0, box(0, 100), box(20))]), [1])
-  assert.deepEqual(placeLabels([label(0, 0, box(20)), label(1, 40, box(0, 100), box(60))]), [0, 1])
-  assert.deepEqual(placeLabels([label(1, 0, box(20, 100), box(40)), label(1, 20, box(60))]), [1, 0])
-  // A hamlet's dot under a village's name is left out with its name, though its side is free.
-  assert.deepEqual(placeLabels([label(1, 0, box(20, 100)), label(2, 20, box(40))]), [0, undefined])
-})
+import { mapLabels, PLACES } from "../worldmap.ts"
 
 test("places: the villages, hamlets and peaks the user asked for, one per name, each in play and in the HUD district of its name", () => {
   // worldmap.map-test.ts checks that the full map draws them.
@@ -110,4 +67,30 @@ test("zoomed in, the map names only the places on its frame, inside it, and name
     ),
   )
   assert.ok(labels.some((l) => !whole.has(l.name)))
+})
+
+test("the whole map's names stay inside the room within the margins across, a hamlet's or a peak's inside the frame", () => {
+  // worldmap.map-test.ts checks where the towns' and villages' names reach past the frame.
+  for (const [width, height] of [
+    [1920, 1080],
+    [1280, 720],
+    [844, 390],
+  ] as const) {
+    const fit = fitMap({ bounds: MAP.bounds, width, height }),
+      { frame, room } = fit
+    for (const l of mapLabels(fit, (text, size) => (text.length * 1229 * size) / 2048)) {
+      const within = PLACES.find((p) => p.name === l.name)!.major ? room : frame
+      assert.ok(l.box.x0 >= within.x0 && l.box.x1 <= within.x1, `${l.name} at ${width}x${height}`)
+    }
+  }
+})
+
+test("the full map's canvases take no letter-spacing from the HUD, so Chrome lays the names out as wide as the tests measure them", () => {
+  // Chrome measures and draws a canvas's text with the canvas's CSS letter-spacing; #hud's 0.06em
+  // made each name 0.9 px a letter wider than Courier New's 0.6 em the tests measure (93.0 px for
+  // BASTREMOLI at 14 px, not 84.0), so the game named fewer places than the tests check: at
+  // 1280 × 720 it left out Valeriano, Ceparana and Piano di Valeriano.
+  const css = readFileSync(new URL("../hud.css", import.meta.url), "utf8")
+  const rule = /#hud-map canvas\s*\{([^}]*)\}/.exec(css)?.[1] ?? ""
+  assert.match(rule, /letter-spacing:\s*(0(px|em)?|normal)\s*;/)
 })

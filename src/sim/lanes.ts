@@ -9,8 +9,10 @@
  */
 import { carRadius, crossesAny, meets } from "./body.ts"
 import { segmentDistance } from "./collide.ts"
+import { midpointOf } from "./edges.ts"
 import { atGrade, roadLevel } from "./map/ground.ts"
 import {
+  byTile,
   graph,
   isMotorRoad,
   laneOffset,
@@ -227,67 +229,70 @@ const largestPart = (sides: Float64Array): Float64Array => {
 }
 
 /**
- * Per model, the lane offset of each traffic edge and direction: the nominal
- * keep-right offset, shrunk toward the centreline until the body clears every
- * wall along the lane (houses that crowd one side of the road); −1 where it
- * does not fit even on the centreline, two cars could not pass between the
- * walls (they would meet head-on with no room to back out or turn round), its
- * class is off limits, or the edge is cut off from the rest.
+ * Model `model`'s lane offset on traffic edge `edge` either way, into `sides` (by `stepKey`): the
+ * nominal keep-right offset, shrunk toward the centreline until the body clears every wall along
+ * the lane (houses that crowd one side of the road); left as it is (−1) where it does not fit even
+ * on the centreline, two cars could not pass between the walls (they would meet head-on with no
+ * room to back out or turn round), or its class is off limits.
  */
-const lanesFor = (model: VehicleModel): Float64Array => {
-  const sides = new Float64Array(graph.edges.length * 2).fill(-1)
+const fitLanes = (model: VehicleModel, edge: number, sides: Float64Array): void => {
+  if (!classAllows(edge, model)) return
   const { width, length } = VEHICLES[model],
     r = carRadius(model)
   const passing = width + VEHICLES.panda.width + PASS_MARGIN
-  for (const edge of graph.trafficEdges) {
-    if (!classAllows(edge, model)) continue
-    // Samples every LANE_SAMPLE m over the middle 80%: the same points travelled either way.
-    const samples = Math.max(2, Math.ceil((graph.edges[edge]!.length * 0.8) / LANE_SAMPLE))
-    const at = (lane: Lane, i: number) => lane.length * (0.1 + (0.8 * i) / samples)
-    const nominal = laneOffset(roadOf(edge))
-    const ab = laneOf(edge, true)
-    // Every wall `freeWidth` can meet within PASS_REACH, and every one a body circle can touch (half the body length out) at any side offset, with 1 m to spare.
-    const walls = wallsBeside(edge, ab, Math.max(PASS_REACH, nominal + length / 2) + 1)
-    let singleFile = false
-    for (let i = 0; i <= samples && !singleFile; i++) {
-      const c = lanePoint(ab, at(ab, i), 0)
-      singleFile = freeWidth(metAt(walls, edge, c.x, c.y), ab, at(ab, i)) < passing
-    }
-    if (singleFile) continue
-    for (const forward of [false, true]) {
-      const lane = laneOf(edge, forward)
-      // The body's hull (the capsule its circles sweep along its axis, `offBody`) at least r from
-      // every wall a body meets at that sample's level: in plan, the hulls of consecutive samples,
-      // LANE_SAMPLE m apart at most, cover every pose between the first and the last sample (the
-      // middle 80%) under every model's axis (the Ape's 1.5 m), so `carClear`'s circles clear those
-      // walls between the samples too, not only at them. Each sample reads its own level, so a wall
-      // met only at a level between two samples, or in an edge's end tenths, goes unchecked.
-      const fx = lane.dx * (length / 2 - r),
-        fy = lane.dy * (length / 2 - r)
-      const fits = (side: number) => {
-        for (let i = 0; i <= samples; i++) {
-          const c = lanePoint(lane, at(lane, i), side),
-            axis = { ax: c.x - fx, ay: c.y - fy, bx: c.x + fx, by: c.y + fy }
-          if (!metAt(walls, edge, c.x, c.y).every((s) => apart(axis, s) >= r)) return false
-        }
-        return true
-      }
-      let side = nominal
-      while (side > 0 && !fits(side)) side = Math.max(0, side - SIDE_STEP)
-      if (side > 0 || fits(0)) sides[stepKey({ edge, forward })] = side
-    }
+  // Samples every LANE_SAMPLE m over the middle 80%: the same points travelled either way.
+  const samples = Math.max(2, Math.ceil((graph.edges[edge]!.length * 0.8) / LANE_SAMPLE))
+  const at = (lane: Lane, i: number) => lane.length * (0.1 + (0.8 * i) / samples)
+  const nominal = laneOffset(roadOf(edge))
+  const ab = laneOf(edge, true)
+  // Every wall `freeWidth` can meet within PASS_REACH, and every one a body circle can touch (half the body length out) at any side offset, with 1 m to spare.
+  const walls = wallsBeside(edge, ab, Math.max(PASS_REACH, nominal + length / 2) + 1)
+  let singleFile = false
+  for (let i = 0; i <= samples && !singleFile; i++) {
+    const c = lanePoint(ab, at(ab, i), 0)
+    singleFile = freeWidth(metAt(walls, edge, c.x, c.y), ab, at(ab, i)) < passing
   }
-  return largestPart(sides)
+  if (singleFile) return
+  for (const forward of [false, true]) {
+    const lane = laneOf(edge, forward)
+    // The body's hull (the capsule its circles sweep along its axis, `offBody`) at least r from
+    // every wall a body meets at that sample's level: in plan, the hulls of consecutive samples,
+    // LANE_SAMPLE m apart at most, cover every pose between the first and the last sample (the
+    // middle 80%) under every model's axis (the Ape's 1.5 m), so `carClear`'s circles clear those
+    // walls between the samples too, not only at them. Each sample reads its own level, so a wall
+    // met only at a level between two samples, or in an edge's end tenths, goes unchecked.
+    const fx = lane.dx * (length / 2 - r),
+      fy = lane.dy * (length / 2 - r)
+    const fits = (side: number) => {
+      for (let i = 0; i <= samples; i++) {
+        const c = lanePoint(lane, at(lane, i), side),
+          axis = { ax: c.x - fx, ay: c.y - fy, bx: c.x + fx, by: c.y + fy }
+        if (!metAt(walls, edge, c.x, c.y).every((s) => apart(axis, s) >= r)) return false
+      }
+      return true
+    }
+    let side = nominal
+    while (side > 0 && !fits(side)) side = Math.max(0, side - SIDE_STEP)
+    if (side > 0 || fits(0)) sides[stepKey({ edge, forward })] = side
+  }
 }
 
 /**
  * Every model's lanes for the map file: per traffic edge (in `graph.trafficEdges` order) its offset
- * travelled b → a, then a → b, −1 where the model may not drive it (`MAP.lanes`).
+ * travelled b → a, then a → b (`fitLanes`), −1 where the model may not drive it or the edge is cut
+ * off from the rest of its network (`largestPart`; a truck's, from its loops too: `loopsOnly`)
+ * (`MAP.lanes`). Every model is fitted to an edge in turn, the edges tile by tile (`byTile`).
  */
-export const bakeLanes = (): Record<VehicleModel, Array<number>> =>
-  Object.fromEntries(
-    VEHICLE_MODELS.map((model) => {
-      const sides = model === "truck" ? loopsOnly(lanesFor(model)) : lanesFor(model)
-      return [model, graph.trafficEdges.flatMap((edge) => [sides[edge * 2]!, sides[edge * 2 + 1]!])]
+export const bakeLanes = (): Record<VehicleModel, Array<number>> => {
+  const { trafficEdges } = graph
+  const sides = VEHICLE_MODELS.map(() => new Float64Array(graph.edges.length * 2).fill(-1))
+  for (const k of byTile(trafficEdges.length, (k) => midpointOf(trafficEdges[k]!)))
+    VEHICLE_MODELS.forEach((model, m) => fitLanes(model, trafficEdges[k]!, sides[m]!))
+  return Object.fromEntries(
+    VEHICLE_MODELS.map((model, m) => {
+      const part = largestPart(sides[m]!),
+        kept = model === "truck" ? loopsOnly(part) : part
+      return [model, trafficEdges.flatMap((edge) => [kept[edge * 2]!, kept[edge * 2 + 1]!])]
     }),
   ) as Record<VehicleModel, Array<number>>
+}

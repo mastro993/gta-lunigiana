@@ -27,13 +27,14 @@ import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
 import {
   along,
   clustersOf,
+  CORRIDOR,
   type Corridor,
   type Deck,
   decksOf,
+  type Field,
   fieldAt,
   fieldsOf,
   isLifted,
-  key,
   type Line,
   liftOf,
   nodesUnder,
@@ -41,12 +42,16 @@ import {
   RES,
   type Segment,
   segmentsOf,
+  valueAt,
+  walkSide,
 } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
-import { r1, segIndex } from "./geometry.ts"
+import { grownBox, nearBoxes, r1, ringBox } from "./geometry.ts"
 import { simplifyLoop, traceContours } from "./loops.ts"
 import { PARAPET } from "./parapets.ts"
-import { type Levelled, opened, pushPolyline } from "./walls.ts"
+import { segIndex } from "./spatial-index.ts"
+import { opened, pushPolyline } from "./wall-pieces.ts"
+import type { Levelled } from "./walls.ts"
 
 /** How far an outline may stray from its simplified wall, m. */
 const TOL = 0.1
@@ -58,12 +63,17 @@ const UNDER_TOP = ONE_LEVEL + ON_DECK
 const OUTSIDE = [0.25, 0.5] as const
 /** The most the ground outside one wall may span below a deck's level, m: a wall meets the grounds within ONE_LEVEL of its level, half a metre in from either end of that. */
 const SPAN = 2 * ONE_LEVEL - 1
-/** A corridor reaches this far past where the bodies on its road go, m: its walls stand off them. */
-const CORRIDOR = 0.25
 /** How far past a deck's end, along it, a road meeting the end opens the walk walls round it, m (`open`). */
 const ONTO = 2
 /** How far past its carriageway a car on a road reaches, m. */
 const CAR_PAD = 0.5
+/**
+ * How far past the widest walls round a deck the walls traced there, and the points `open` asks
+ * along them, may stand off its line, m: the fields' nodes lie within the walls' `side` and 2 RES
+ * of a deck, their contour within a lattice square of those, the simplified walls within TOL of
+ * that, and the points are rounded to 0.1 m: 1.2 m at most.
+ */
+const WAY_MARGIN = 2
 
 /** The tallest vehicle that drives the roads, m (`VEHICLES` heights: the truck's). */
 const TALLEST = Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].height))
@@ -96,7 +106,7 @@ interface Kind {
 /** Walk walls: under PERSON_HEIGHT of headroom, round where someone on foot is on the deck (its slab, its walkers' reach). */
 const WALK: Kind = {
   room: DECK_SLAB.depth + PERSON_HEIGHT,
-  side: (d) => Math.max(d.w / 2 + DECK_SLAB.margin, footReach(d.cls, d.w)),
+  side: walkSide,
   reach: (r) => footReach(r.cls, r.w),
   uses: () => true,
   onto: (r) => footReach(r.cls, r.w) + PERSON_RADIUS,
@@ -127,15 +137,46 @@ const wallsOf = (
   const sides = decks.map((d) => kind.side(roads[d.road]!)),
     widest = Math.max(0, ...sides)
   // The roads this kind's bodies use, each segment as far as a corridor reaches, and that plus the
-  // widest walls (to find those reaching within a deck's).
+  // widest walls (to find those reaching within a deck's): the segments that reach as far as
+  // WAY_MARGIN round the decks' walls, where both are asked.
   const ways = segIndex<{ readonly road: number; readonly seg: Segment }>(),
-    wide = segIndex<number>()
+    wide = segIndex<number>(),
+    reaches = nearBoxes(
+      decks.flatMap((d) =>
+        d.segs.map((s) =>
+          grownBox(
+            [
+              Math.min(s.ax, s.ax + s.ux * s.len),
+              Math.min(s.ay, s.ay + s.uy * s.len),
+              Math.max(s.ax, s.ax + s.ux * s.len),
+              Math.max(s.ay, s.ay + s.uy * s.len),
+            ],
+            WAY_MARGIN,
+          ),
+        ),
+      ),
+    )
   roads.forEach((r, i) => {
     if (!kind.uses(r.cls)) return
     const reach = kind.reach(r) + CORRIDOR
+    if (!reaches(...grownBox(ringBox(lines[i]!.pts), reach + widest + 1))) return
     for (const seg of segmentsOf(lines[i]!, 0)) {
       const bx = seg.ax + seg.ux * seg.len,
         by = seg.ay + seg.uy * seg.len
+      if (
+        !reaches(
+          ...grownBox(
+            [
+              Math.min(seg.ax, bx),
+              Math.min(seg.ay, by),
+              Math.max(seg.ax, bx),
+              Math.max(seg.ay, by),
+            ],
+            reach + widest,
+          ),
+        )
+      )
+        continue
       ways.add(seg.ax, seg.ay, bx, by, reach, { road: i, seg })
       wide.add(seg.ax, seg.ay, bx, by, reach + widest, i)
     }
@@ -247,7 +288,7 @@ const wallsOf = (
     // approach's carriageway over far lower ground), the wall is split. The ground on a deck's level
     // is walled only from the low space round it: elsewhere its outline is the low space's own.
     const levelled = (
-      field: ReadonlyMap<number, number>,
+      field: Field,
       ax: number,
       ay: number,
       bx: number,
@@ -341,7 +382,7 @@ const wallsOf = (
     }
     const before = levels.length
     for (const field of [low, onLevel])
-      for (const loop of traceContours((i, j) => field.get(key(i, j)), nodesUnder(field), RES)) {
+      for (const loop of traceContours((i, j) => valueAt(field, i, j), nodesUnder(field), RES)) {
         const pieces: Array<number> = []
         pushPolyline(pieces, simplifyLoop(loop, TOL).flat(), false, PIECE)
         for (let w = 0; w < pieces.length; w += 4)

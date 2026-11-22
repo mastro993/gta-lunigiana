@@ -5,7 +5,9 @@
 // grid built tile by tile (build-grid.ts), the paths on it, the catchments on the uncarved grid and
 // the perched water dropped.
 import type { Water } from "../sim/map/index.ts"
+import { reachOf } from "../sim/map/kinds.ts"
 import { tileByTile, uncarvedGrid } from "./build-grid.ts"
+import { gridGround } from "./build-ground.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
 import { chainsOf, insideNodes, lifted, type Linear } from "./chains.ts"
@@ -17,22 +19,26 @@ import {
   arcLengths,
   boxesMeet,
   crossings,
+  endsUnder,
   flatLine,
   lineBox,
   r1,
   ringBox,
   type V,
 } from "./geometry.ts"
-import { pathPass } from "./path-pass.ts"
+import { boreEnds, footwaysNear } from "./grid-claims.ts"
+import type { Limit } from "./junction-reach.ts"
+import { pathPass, waterTopOf } from "./path-pass.ts"
 import { inPlay, onOutline } from "./play-area.ts"
+import { type Profile, resample } from "./profile-fit.ts"
 import { EXTRA_RANK, makeProfiler, RAIL_PASS, ROAD_PASSES } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
+import { HEADING_SPAN, MAX_TURN } from "./rail-graph.ts"
 import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
 import { PIER_DECK } from "./shore.ts"
-import { type Profile, resample, sampleGrid } from "./terrain.ts"
 import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
 import {
   BRIDGE_CLEAR,
@@ -44,21 +50,39 @@ import {
 } from "./water.ts"
 
 /**
- * Catchments beyond the map's box that drain into it, km², each at the point on the box's north
- * edge (y 13000) where its stream comes in: the ground north of the edge whose flow crosses it there,
- * by a D8 on the MS 10 m DTM. Of the 522.0 km² that come in, the Torrente Aulella's heads under the
- * Cerreto pass are 14.7, all of which reach the Torrente Rosaro above Fivizzano, 13.1 down the
- * Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro brings them all. The Fiume Magra
- * brings 420.9 of its upper valley and the Torrente Taverone 69.1, each at its own crossing, 15 and
- * 8 m from OSM's; the Torrente Civiglia, which joins the Taverone 84 m above its mouth, 4.5, and the
- * Canale Torchio di Bacco and the Canale della Ghiaia, which join the Civiglia, 3.8 and 3.0. Each
- * crosses the edge 3.7 to 5.6 km west of the Taverone, and D8 sends each node across it at one point
- * alone, so none of the three is in the Taverone's 69.1. The Canale Cravareccia, which joins the
- * Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down rivulets under 1 km² each
- * (the Fosso della Predella's 0.7 the most) and are left out. The 10 m DTM's D8 gives the Magra 930.5
- * km² where it leaves the play area at y 3900.
+ * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge where
+ * its stream comes in (OSM's crossing): the ground beyond the edge whose flow crosses it there, by a
+ * D8. North of the north edge (y 13000), on the MS 10 m DTM: of the 522.0 km² that come in, the
+ * Torrente Aulella's heads under the Cerreto pass are 14.7, all of which reach the Torrente Rosaro
+ * above Fivizzano, 13.1 down the Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro
+ * brings them all. The Fiume Magra brings 420.9 of its upper valley and the Torrente Taverone 69.1,
+ * each at its own crossing, 15 and 8 m from OSM's; the Torrente Civiglia, which joins the Taverone
+ * 84 m above its mouth, 4.5, and the Canale Torchio di Bacco and the Canale della Ghiaia, which join
+ * the Civiglia, 3.8 and 3.0. Each crosses the edge 3.7 to 5.6 km west of the Taverone, and D8 sends
+ * each node across it at one point alone, so none of the three is in the Taverone's 69.1. The Canale
+ * Cravareccia, which joins the Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down
+ * rivulets under 1 km² each (the Fosso della Predella's 0.7 the most) and are left out. The 10 m
+ * DTM's D8 gives the Magra 930.5 km² at y 3900, where it left the play area before Sarzana's part.
+ * West of the west edge (x −23100, Sarzana's part, issue #20), on Liguria's DTM ed. 2023 averaged
+ * from 5 to 10 m (the MS 10 m DTM over the Vara's 9.6–11.2 km² in Zeri), OSM's rivers and streams
+ * burned 10 m into it, two D8s on grids 5 m apart agreeing to 0.1 km²: of the 566.4 km² that come in,
+ * the Fiume Vara brings 547.6 at its crossing, 2–3 m from OSM's, and 552.4 with the 4.7 km² of the
+ * box's own ground west of the divide above Calice al Cornoviglio, which leave the box across the
+ * edge at y 6100–10700 and come back down the Vara (the Autorità di bacino del Magra's PGRA, 2016,
+ * gives the Vara about 600 km² at the Magra; the D8 605.6). The Durasca brings 9.3, and a stream OSM
+ * does not map, crossing at y −29 and joining it 1.5 km inside, 1.7, so the Durasca brings both;
+ * its D8 crossing lies 204 m north of OSM's, where OSM's line leaves the valley floor (69 m on the
+ * edge) for its south side (110 m). The Fosso di Cambertano brings 2.3 (its D8 crossing 45 m north of
+ * OSM's, which climbs a 13 m hump) and the Gorda 1.1 (within 5 m). The Torrente Dorgia's 1.8,
+ * across the edge at y −3396, never reach the play area (it runs down La Spezia's side to the
+ * gulf), and the other 2.5 km² come down rivulets under 1 km² each (the Fosso dei Gatti's 0.8, which
+ * leaves again across the north edge, the most): all are left out. Across the south edge (y −8500) 3.7 km² come in, none down a
+ * stream over 1 km² that OSM maps (1.4 at x −17201 meets no OSM water in its first 1.7 km, 1.0 at
+ * x −13647 meets the Magra 208 m inside, the Canale dei Sardi brings 0.3), and across the tiles'
+ * south edge at y −8000 east of x −10000 0.6 km², 0.4 at most at a point, every stream OSM maps
+ * there flowing out; all are left out.
  */
-const OFF_MAP: ReadonlyArray<{
+export const OFF_MAP: ReadonlyArray<{
   readonly name: string
   readonly at: readonly [number, number]
   readonly km2: number
@@ -70,6 +94,10 @@ const OFF_MAP: ReadonlyArray<{
   { name: "Canale Torchio di Bacco", at: [-10417, 13000], km2: 3.8 },
   { name: "Canale della Ghiaia", at: [-11105, 13000], km2: 3.0 },
   { name: "Canale Cravareccia", at: [-5874, 13000], km2: 1.1 },
+  { name: "Fiume Vara", at: [-23100, 4103], km2: 552.4 },
+  { name: "Durasca", at: [-23100, -1360], km2: 11.0 },
+  { name: "Fosso di Cambertano", at: [-23100, 3261], km2: 2.3 },
+  { name: "Gorda", at: [-23100, 1430], km2: 1.1 },
 ]
 
 /**
@@ -142,11 +170,13 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   const wet = waterAreas(src.areas, water, wp0, dem, src.seaFloor)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
   // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
-  // of the junctions set before along the roads not yet fitted (junction-reach.ts).
+  // of the junctions set before along the roads not yet fitted, and of the rail's clearance over
+  // them (`railUnder`, set once the rail's levels are; junction-reach.ts).
+  const railUnder = new Map<Linear, Array<Limit>>()
   const links = ROAD_PASSES.flatMap(({ classes, grade, relax }) =>
     roads
       .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
-      .map((piece) => ({ piece, grade: relax * grade })),
+      .map((piece) => ({ piece, grade: relax * grade, limits: () => railUnder.get(piece) ?? [] })),
   )
   // Where each road and rail bridge's deck ends: a line meeting it there runs on under it.
   const bridgeEnds = new Set(
@@ -154,9 +184,14 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       l.bridge === true ? [l.pts[0]!.id, l.pts.at(-1)!.id].filter((id) => id !== undefined) : [],
     ),
   )
-  const profiler = makeProfiler(ground, links, bridgeEnds)
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = profiler
-  const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
+  const profiler = makeProfiler(
+    ground,
+    links,
+    bridgeEnds,
+    boreEnds(roads, new Set(ROAD_PASSES.flatMap(({ classes }) => classes))),
+    footwaysNear(roads),
+  )
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf, zAt } = profiler
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
     allRail,
@@ -170,11 +205,13 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   // The rail goes first (its grade limit is the strictest; roads dip under it and meet it at level
   // crossings), then roads by class (ROAD_PASSES). Ranks decide grid cells: the main roads beat
   // the rail, and the rail beats the rest.
-  // A switch in a tunnel or on a bridge is no portal or abutment: its chains run on at their level.
-  // A track beside one fitted before it keeps to its level (rail-twins.ts).
+  // A track runs on through its switches as one chain, the way a train runs on (rail-graph.ts); only
+  // the track that diverges ends there. A switch in a tunnel or on a bridge is no portal or
+  // abutment: its chains run on at their level. A track beside one fitted before it keeps to its
+  // level (rail-twins.ts).
   const inside = insideNodes(rail),
     twins = railTwins(rail)
-  for (const ch of grown(chainsOf(rail)))
+  for (const ch of grown(chainsOf(rail, { turn: MAX_TURN, span: HEADING_SPAN })))
     profile(ch, { w: 4, ...RAIL_PASS, tol: RAIL_TOL, inside: (id) => inside.has(id) }, [
       ...railBounds(ch),
       ...twinBounds(twins, ch, (l) => denseOf.get(l)),
@@ -222,6 +259,11 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   )
   // A road crossing another on two levels keeps the clearance under it (road-levels.ts).
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
+  for (const { rl, rd, c, clear } of railRoad)
+    railUnder.set(rd, [
+      ...(railUnder.get(rd) ?? []),
+      { s: c.sb, z: zAt(rl, c.sa) - clear, kind: "max" },
+    ])
   for (const { classes, rank, grade, half, relax } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
       profile(ch, { w: (r) => r.w, rank, grade, half, relax, mouths: true, reach: true }, [
@@ -230,6 +272,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       ])
   // The paths' and steps' bridges and tunnels and the piers, after every road, and the paths and
   // steps at grade leading from them (path-pass.ts).
+  const levelAt = waterLevel(wet.carved, water, wp0)
   const { pierZ, approaches } = pathPass({
     roads,
     ground,
@@ -238,7 +281,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     zAt,
     rail: { railRoad, roadBounds },
     overpasses,
-    levelAt: waterLevel(wet.carved, water, wp0),
+    levelAt,
+    waterTop: waterTopOf(water, wp0, levelAt),
   })
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)
@@ -258,8 +302,20 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       s = arcLengths(l.pts),
       box = lineBox(l.pts)
     water.forEach((w, wi) => {
-      if (!boxesMeet(waterBox[wi]!, box)) return
-      for (const c of crossings(w.pts, l.pts))
+      // How far from a deck's centreline a water's end lies under it: the deck's half-width and the
+      // water's bed's reach.
+      const under = l.bridge === true ? lw / 2 + reachOf(w) : 0
+      const [x0, y0, x1, y1] = box
+      if (!boxesMeet(waterBox[wi]!, [x0 - under, y0 - under, x1 + under, y1 + under])) return
+      const met = crossings(w.pts, l.pts)
+      // A water ending under a deck keeps its clearance there too: where the build drops the culvert
+      // OSM maps on under it (features.ts), the ditch 864556128 by Piano di Vezzano started
+      // 2.7 m off the centreline of Via Pratolino's bridge (878660856), 0.65 m under its deck, and
+      // a spate stood on its verge.
+      if (under > 0)
+        for (const e of endsUnder(w.pts, l.pts, under))
+          if (!met.some((c) => Math.abs(c.sa - e.sa) <= lw / 2 + 2)) met.push(e)
+      for (const c of met)
         crossed.push({
           water: wi,
           at: c.sa,
@@ -333,11 +389,11 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     railLines,
     /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
     runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
-    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid gives. */
+    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid's drawn mesh gives. */
     roadLines: roads.map((r) =>
       denseOf.has(r) || zOf.has(r) || lifted(r) ? lineOut(r, unread(`road ${r.id}`)) : undefined,
     ),
-    /** The approaches' lines by road (path-approaches.ts), their z undefined where the finished grid gives it. */
+    /** The approaches' lines by road (path-approaches.ts), their z undefined where the finished grid's drawn mesh gives it. */
     approaches: approaches.lines,
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
@@ -359,24 +415,35 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
   const { uncarved, input, crossed } = profiled
   const grid = tileByTile(uncarved, input)
   lap("grid")
+  // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it. In a
+  // loop: `Uint8Array.from` with a mapping function lists every node first, 1.1 GB of the JS heap
+  // for Lunigiana's 45 million.
+  const land = new Uint8Array(grid.listed.length)
+  for (let n = 0; n < land.length; n++) land[n] = grid.sea[n] === 1 ? 0 : grid.listed[n]!
   const drained = catchments(
     uncarved,
     input.wp0,
     water.map((w) => w.pts.map((v) => v.id)),
-    // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it.
-    Uint8Array.from(grid.listed, (on, n) => (grid.sea[n] === 1 ? 0 : on)),
+    land,
     profiled.inflows,
     profiled.beyond,
   )
   dropPerched(water, input.wp, crossed, grid.perched, profiled.still)
   lap("water")
+  // A path or steps at grade follows the terrain as the game draws it, each cell split along its
+  // south-west to north-east diagonal (`terrainZ`): read bilinearly, a vertex in a cell with a node
+  // far off the others took that node's share where the drawn mesh does not, and the footways
+  // beside Sarzana's service tunnel 376037643, whose mouths' hold sinks a corner of their cells to
+  // the bore's floor, lay 0.92 and 0.96 m under the mesh there and climbed 1.2 m in a metre out of it.
+  const { terrainZ: onMesh } = gridGround(grid.grid)
   return {
     grid: grid.grid,
     floors: grid.floors,
     railLines: profiled.railLines,
     runOuts: profiled.runOuts,
     roadLines: profiled.roadLines.map((line, i) => {
-      const onGrid = (v: V) => r1(sampleGrid(grid.grid, v.x, v.y))
+      // At the point as shipped (`flatLine`), where the game reads the mesh under it.
+      const onGrid = (v: V) => r1(onMesh(r1(v.x), r1(v.y)))
       const a = profiled.approaches.get(roads[i]!)
       if (a !== undefined)
         return { pts: flatLine(a.pts), z: a.pts.map((v, k) => r1(a.z[k] ?? onGrid(v))) }

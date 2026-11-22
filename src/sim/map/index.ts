@@ -36,6 +36,7 @@ export {
   type AreaKind,
   BUILDING_STYLES,
   type BuildingStyle,
+  byTile,
   DECK_BALLAST,
   DECK_SLAB,
   isAreaKind,
@@ -291,7 +292,7 @@ export interface Lamp {
   readonly kind: "wall" | "pole"
 }
 
-/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents: `./format/global-file.ts`). */
+/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents, the parked spots, the farms, their centres and the lamps: `./format/global-file.ts`). */
 export interface MonzoneMap {
   /** `MAP_VERSION` (`./format/sections.ts`): the decoders throw on any other. */
   readonly version: number
@@ -412,6 +413,12 @@ const hm = MAP.heightmap
 const { minX, minY, maxX, maxY } = MAP.bounds
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
 
+/**
+ * The region's anchor (src/tools/region.ts), map metres: the corner the game's lookups whose order
+ * it draws on count their cells from (`staticGrid`'s `at`), so a part joining far off reorders none.
+ */
+export const ANCHOR: readonly [x: number, y: number] = [AX, AY]
+
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 
@@ -455,7 +462,7 @@ interface RoadGraph {
   /**
    * Edges AI cars may use: motorway..service, public, one connected component. Where a lane
    * crosses a footprint the house is clipped to ~2.4 m around it, so keep vehicles wider than
-   * ~2.2 m on the main and unclassified roads (`lanesFor` in lanes.ts fits each model to the walls).
+   * ~2.2 m on the main and unclassified roads (`fitLanes` in lanes.ts fits each model to the walls).
    */
   readonly trafficEdges: ReadonlyArray<number>
   /** Edges pedestrians may use: every road but motorways, trunk roads and their slip roads (`isMotorRoad`), out of tunnels, one connected component. */
@@ -477,7 +484,15 @@ const buildGraph = (): RoadGraph => {
     adjacency[b]!.push(edges.length)
     edges.push({ a, b, road: flat[i + 2]!, length: Math.sqrt(dx * dx + dy * dy) })
   }
-  return { nodes, edges, adjacency, trafficEdges: traffic, walkEdges: walk }
+  // Each node's edges copied to an array of their own length, in push order: one grown by pushes
+  // keeps room for 17 (8-9 MB more of the heap over Lunigiana's 137,905 nodes).
+  return {
+    nodes,
+    edges,
+    adjacency: adjacency.map((incident) => incident.slice()),
+    trafficEdges: traffic,
+    walkEdges: walk,
+  }
 }
 
 /** The road graph, rebuilt from shared OSM nodes at build time. */

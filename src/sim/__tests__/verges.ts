@@ -10,10 +10,16 @@ import { waterUnder } from "../water/rivers.ts"
 
 /**
  * Asserts that every point of the bridges among `roads` about the verge pedestrians walk (w/2 + 0.8 m off the
- * centreline) over the water at `discharge` is on the deck, not in the water; returns how many such points it checked.
+ * centreline) over the water at `discharge` is on the deck, not in the water, but on the `known` bridges, each of which
+ * must still flood; returns how many such points it checked.
  */
-export const assertVergesDry = (roads: ReadonlyArray<Road>, discharge: number): number => {
+export const assertVergesDry = (
+  roads: ReadonlyArray<Road>,
+  discharge: number,
+  known: ReadonlyArray<number> = [],
+): number => {
   let checked = 0
+  const flooded = new Set<number>()
   for (const road of roads.filter((r) => r.bridge === true))
     for (let k = 0; k + 1 < road.pts.length / 2; k++) {
       const ax = road.pts[2 * k]!,
@@ -32,12 +38,13 @@ export const assertVergesDry = (roads: ReadonlyArray<Road>, discharge: number): 
           // Where the deck stands clear of the ground: at a bridge's foot the flood may reach the path.
           if (under === undefined || deck < terrainZ(x, y) + 0.5) continue
           checked++
-          assert.equal(
-            waterUnder(x, y, false, discharge),
-            undefined,
-            `bridge ${road.id} verge at ${x}, ${y}`,
-          )
+          const wet = waterUnder(x, y, false, discharge)
+          if (known.includes(road.id)) {
+            if (wet !== undefined) flooded.add(road.id)
+          } else assert.equal(wet, undefined, `bridge ${road.id} verge at ${x}, ${y}`)
         }
     }
+  for (const id of known)
+    assert.ok(flooded.has(id), `bridge ${id}'s verges stay dry now: drop it from the known`)
   return checked
 }

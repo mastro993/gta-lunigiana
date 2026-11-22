@@ -44,3 +44,28 @@ test("junctionReach keeps a junction within its links' steepest grade of the jun
   const steep = junctionReach(graded([ab]), (x) => 100 + 0.3 * x)
   assert.ok(near(steep("B", set({ A: 100 }), all), 96.4, 103.6))
 })
+
+// Regression: the junction 3.4 m from the Pontremolese's bridge 617064928 over the primary
+// 1295717964 by Vezzano Ligure, set by the primary fitted before it at 22.0 m, held the road 2.27 m
+// under the deck where its clearance asked 5.5 m.
+test("junctionReach keeps a junction within reach of the levels a link not yet fitted keeps on the way", () => {
+  // A rail bridge over the link from B to A asks it 94 m at most 4 m from B: B at 94.9 m at most;
+  // with A set at 100 m, the span between their cones; the link fitted, nothing.
+  const under = [{ piece: ab, grade: GRADE, limits: () => [{ s: 8, z: 94, kind: "max" as const }] }]
+  const reach = junctionReach(under, () => 100)
+  assert.deepEqual(
+    reach("B", set({}), all)?.map((z) => z.toFixed(2)),
+    ["-Infinity", "94.90"],
+  )
+  assert.ok(near(reach("B", set({ A: 100 }), all), 94.9, 97.3))
+  assert.equal(
+    reach("B", set({}), (l) => l !== ab),
+    undefined,
+  )
+  // A level it keeps over: B at 103.1 m at least.
+  const over = [{ piece: ab, grade: GRADE, limits: () => [{ s: 8, z: 104, kind: "min" as const }] }]
+  assert.deepEqual(
+    junctionReach(over, () => 100)("B", set({}), all)?.map((z) => z.toFixed(2)),
+    ["103.10", "Infinity"],
+  )
+})

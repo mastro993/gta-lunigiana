@@ -20,12 +20,17 @@ never compares a change's map with the map before it, so these runs are yours.
   file format (`MAP_VERSION` in `src/sim/map/format/sections.ts`) rewrites the reader of the version
   before (`src/tools/map-upgrade.ts`, which `readWholeMap` calls) for the version it replaces, so
   `pnpm map-diff` still compares the build before with the new one, and drops the reader of the
-  version before that: no build of it is left to compare. Today it reads version 5 as one of 6, and
-  version 6's move of the graph, the lanes and the residents into sections diffed as no difference
-  on Lunigiana, Cesena and the L. A change to the shape of a baked table's entry (a mouth's new kind,
-  or a field added, renamed or removed) is such a change, since a build before it would be read
-  wrong; a change to which entries the bake gives, in the same shape, is a rebuild (`pnpm maps`)
-  alone (the user's answer to issue #111's seventh question).
+  version before that: no build of it is left to compare. Today it reads version 6 as one of 7, and
+  version 7's move of the parked spots, the farms, their centres and the lamps into the global
+  file's sections, and of the tiles' vector coordinates into a section of their own, diffed as no
+  difference on Lunigiana, Cesena, the L and the coast. A change to the shape of a baked table's
+  entry (a mouth's new kind, or a field added, renamed or removed) is such a change, since a build
+  before it would be read wrong; a change to which entries the bake gives, in the same shape, is a
+  rebuild (`pnpm maps`) alone (the user's answer to issue #111's seventh question). The parked
+  spots, the farms and the lamps travel field by field in the global file's sections, so a field
+  added to one is such a change too: it fails to compile until `PARKED_FIELDS`, `FARM_FLAGS` or
+  `LAMP_WORDS` in `src/sim/map/format/baked-tables.ts` gives it its place, and the build throws on
+  a parked spot with a key `PARKED_FIELDS` lacks, which the file would drop.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the test regions' (the L and the coast:
   `pnpm maps` builds them into `test-maps/`; without one its checks are skipped, but fail in CI,
@@ -36,11 +41,11 @@ never compares a change's map with the map before it, so these runs are yours.
   Find them again by geometry.
 - Place hand-made tables (`STONE_CORES`, `LANDMARKS`, stream widths, district discs) on
   orthophotos and OSM nodes, with a comment saying how. A width by reach, a threshold on a way's
-  mean ground (the Bardine's, the Bardinello's, the Osca's and the Penolo's in `water-sizes.ts`),
-  takes the ways either side of its threshold into the widths test of `water.map-test.ts`: nothing
-  else shows a typo in it, or a
-  rebuild that moves a way's mean ground across it (the Bardinello's gorge pair sits 1.3 and 1.7 m
-  from its 267 m).
+  mean ground (the Bardine's, the Bardinello's, the Osca's, the Penolo's and the Amola's in
+  `water-sizes.ts`), takes the ways either side of its threshold into a widths test of
+  `src/sim/map/__tests__/water.map-test.ts`: nothing else shows a typo in it, or a rebuild that
+  moves a way's mean ground across it (the Bardinello's gorge pair sits 1.3 and 1.7 m from its
+  267 m).
 - `data/raw` is pinned by `data/raw.lock.json`; `pnpm fetch-raw` restores it. Fetch again
   (`pnpm fetch-osm <part>`, `pnpm fetch-rt <part>`, `pnpm fetch-lig <part>`) only to change the
   inputs on purpose: OSM returns current edits, so the map moves. Then run `pnpm pin-raw` and
@@ -71,12 +76,16 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
   Cesena), their parts' rectangles and masks (`checkMask` throws on a bad one), and `play-area.ts`
   the outline of their union, which the map is clipped to and walled along (issue #7). A part's
-  mask comes with the part's own issue (#17 on); a part with ground in Liguria (Fosdinovo's, in
-  Castelnuovo Magra, Sarzana and Luni) runs `fetch-lig` (#12) before `fetch-rt`, whose fallback
-  chain reads Liguria's DTM crops where no LiDAR flew, and a part on the coast (#21) `fetch-osm`
-  between them, as the chain's sea step reads the coastline in the part's own extract (#13: without
-  it Emilia-Romagna's DTM fills the sea with junk and nothing fails). When one is missing, name the
-  issue that adds it and ask the user before building it.
+  mask comes with the part's own issue (#17 on), and may grow an earlier part's where it plays a
+  comune whole across their seam (Sarzana's part, #20, plays Bolano whole, so Aulla's mask took
+  Bolano's 3.36 km² north of y 3900: the user's choice). A part with Liguria's ground in its tiles,
+  in play or beyond it (Fosdinovo's in Castelnuovo Magra, Sarzana and Luni, Aulla's west corner,
+  Sarzana's 94.97 of its 119.22 km²), runs `fetch-lig` (#12) before `fetch-rt`, whose fallback
+  chain reads Liguria's DTM crops where no LiDAR flew, and a part whose tiles reach the sea (the
+  coast's, #21, and Sarzana's, with 4.75 km² of the gulf's corner beyond its play area)
+  `fetch-osm` between them, as the chain's sea step reads the coastline in the part's own extract
+  (#13: without it Emilia-Romagna's DTM fills the sea with junk and nothing fails). When one is
+  missing, name the issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt <part>`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw`
   then pins the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into
@@ -90,15 +99,29 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   one again brings OSM's current edits into its play area; `fetch-osm.test.ts` checks that the
   lock's extracts hold every listed tile's ground in the box.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
+- A new part's failures of the map checks are fixed by a rule for every feature alike, as each check
+  below says; the failures three rounds of such fixes leave are its known limits, the one exception
+  to each check's "never" below (the user's choice, issue #20, after the third round on Sarzana's
+  part). The check lists each by OSM id, with a comment giving the reason no rule clears it, and
+  asserts that it still fails, so a fix fails the check until the item is dropped; every other
+  failure still fails the check. Each is listed in the part's PR and in [Known data
+  limitations](../map.md#known-data-limitations). Sarzana's part lists 8 crossings
+  (`levels.map-test.ts`), 3 joints (`joints.map-test.ts`), 3 links past their class grade and the
+  shortfall of the `track`-class bridge 99473194 over the A12
+  (`src/sim/map/__tests__/map.map-test.ts`), the climb beside the A15's viaduct 156568131 and the
+  walled ends of the bridges 262912001 and 1149354824 (`under-decks.map-test.ts`), the flooded
+  verge of the footbridge 93746068 (`src/sim/__tests__/water.map-test.ts`) and 8 bridge passes
+  (`src/render/__tests__/ground.map-test.ts`).
 - Every bridge's deck keeps the ground out of it: `deck-ground.map-test.ts` reads every road and
   rail deck of Lunigiana, Cesena, the L and the coast, and fails where the terrain stands within the
   0.9 m slab under a deck's top more than 4 m in from its outer ends (a joint with the next piece of
   the bridge is none), or more than 0.05 m over its profile nearer them, but at its abutments
   ([Ground under the
-  decks](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
+  decks](../map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
   failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
-  fix that for every deck alike, never with an exception for one bridge or one part.
+  fix that for every deck alike, never with an exception for one bridge or one part but a known
+  limit (above).
 - Every bridge's parapets hold on its deck's level and only there: `parapets.map-test.ts` reads
   every drivable bridge of Lunigiana, Cesena, the L and the coast, and fails where a car on the deck
   meets no wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a
@@ -106,10 +129,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   walled off by a parapet's wrong level), or where a wall with no level stands on the parapet over a
   road under or over the deck ([Collision
   walls](../map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)). The build (`parapets.ts`)
-  opens and levels every parapet from the shipped roads and the terrain alone (`roadLevel`), so a failure on a new part is the
-  data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or more, a barrier drawn
-  along a deck's edge) or the build's: fix that for every bridge alike, never with an exception for
-  one bridge or one part.
+  opens and levels every parapet from the shipped roads and the terrain alone (`roadLevel`), so a
+  failure on a new part is the data's (a bridge's or a road's profile, a junction's roads at odds by
+  2 m or more, a barrier drawn along a deck's edge) or the build's: fix that for every bridge alike,
+  never with an exception for one bridge or one part but a known limit (above).
 - Nobody comes up onto a bridge's deck from under it: `under-decks.map-test.ts` and its Cesena, L
   and coast twins walk the game's own walker (`footZ`, `walkBy`) under every road deck, from where
   there is room to stand (2.7 m under its top) toward the ground near its top, drive a Panda
@@ -117,49 +140,67 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   tallest vehicle, and walk every road meeting its ends onto it, on its centreline and its verges,
   and drive it, each setting out on that road's level and a car leaving out a road that turns 30° or
   more onto the deck (no car turns in place onto a deck), and fail where the walker or the car comes
-  up onto the deck or where a wall with a level shuts an end that led onto it ([Walls under the
-  decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`) walls every road deck from
-  the shipped roads, the platforms and the ground as lowered under the decks alone, read through the
-  game's ground model (`build-ground.ts`), so a failure on a new part is the data's (a road at grade
-  meeting a deck's level with no junction between them, a deck's or an approach's profile at odds
-  with the ground at its end, ground left near a deck's top) or the pass's: fix that for every deck
-  alike, never with an exception for one bridge or one part.
+  up onto the deck or where a wall with a level shuts an end that led onto it, but at the climb and
+  the ends the Lunigiana test lists, each of which must still fail: Sarzana's known limits (above)
+  and the steps bridge 717897184's last end, in a micro-mapped knot of Aulla's part at (−16438,
+  5072) ([Walls under the decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`)
+  walls every road deck from the shipped roads, the platforms and the ground as lowered under the
+  decks alone, read through the game's ground model (`build-ground.ts`), so a failure on a new part
+  is the data's (a road at grade meeting a deck's level with no junction between them, a deck's or
+  an approach's profile at odds with the ground at its end, ground left near a deck's top) or the
+  pass's: fix that for every deck alike, never with an exception for one bridge or one part but a
+  known limit (above).
 - What stands on a bridge stays apart from what runs under it:
   `src/sim/map/__tests__/levels.map-test.ts` reads every crossing of two ways on two levels with no
   node in common on Lunigiana, Cesena, the L and the coast (a road, path or rail bridge over a road,
   a path, steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and
   fails where the way above stands 2.5 m or less (the level rule's 2 m, `ONE_LEVEL`, and a 0.5 m
   margin) over the one below between points of the two within 3.99 m of each other and of the
-  crossing, but at the crossings it lists by OSM id on Cesena, Lunigiana and the coast test region,
-  each of which must still fall short, and at a crossing on a path's or steps' bridge or tunnel no
-  fit of the path pass could clear from its ends at grade (micro-mapped crossings too short from
-  their ends, left out by rule: [Known data limitations](../map.md#known-data-limitations)). The
-  level rule (`onOneLevel`) is code, so a failure on a new part is the data's (a deck too low over
-  what it crosses, a crossing a fit could clear) or the profiles' pass's: fix that for every
-  crossing alike, never by listing a new part's crossing (the coast is a test region, not a shipped
-  part: part 5, #21, which brings it into the shipped map, must fix its 1, as
-  [docs/map.md](../map.md#checks-and-tools) says).
-- A motorway keeps its grade, and its carriageways and tracks their twins' level:
+  crossing, a way at grade read where the game stands on it (never under the terrain's mesh), but
+  at the crossings it lists by OSM id, Sarzana's known limits (above) on Lunigiana and one on the
+  coast test region, each of which must still fall short, and at a crossing on a path's or steps'
+  bridge or tunnel no fit of the path pass could clear from its ends at grade, a path or steps at
+  grade it crosses free between the vertices it shares with another way (micro-mapped crossings too
+  short from their ends, left out by rule: [Known data
+  limitations](../map.md#known-data-limitations)). The level rule (`onOneLevel`) is code, so a
+  failure on a new part is the data's (a deck too low over what it crosses, a crossing a fit could
+  clear) or the profiles' pass's: fix that for every crossing alike, never by listing a new part's
+  crossing but a known limit (above; the coast is a test region, not a shipped part: part 5, #21,
+  which brings it into the shipped map, takes its 1 as its own failure, [Checks and
+  tools](../map.md#checks-and-tools)).
+- A motorway keeps its grade, its carriageways and tracks their twins' level, every way its
+  class's grade and every deck its clearance:
   `src/sim/map/__tests__/carriageways.map-test.ts` joins every motorway's pieces into carriageways
   on every built region and fails where one climbs or falls more than the motorway pass's 6% over
   any 100 m, plus the 0.1 m rounding; `rail.map-test.ts` fails where two tracks side by side within
-  6 m stand more than 0.3 m apart in level; and `approaches.map-test.ts` where a path or steps at
-  grade meets its path's deck off its level ([Checks and tools](../map.md#checks-and-tools)). The
-  passes' grades, the twin rules (`TWINS` in `road-levels.ts`, `rail-twins.ts`) and the paths'
-  approaches (`path-approaches.ts`) are code, so a failure on a new part is the data's (a survey's
-  dip under one carriageway, a micro-mapped joint) or the pass's: fix that for every road alike,
-  never by loosening the bound for one way or one part.
+  6 m stand more than 0.3 m apart in level; `approaches.map-test.ts` where a path or steps at
+  grade meets its path's deck off its level; and `src/sim/map/__tests__/map.map-test.ts` where a
+  road climbs more than 1.5 times its pass's grade over 8 m, plus the 0.1 m rounding (the rail
+  4.25%), but on a stretch drawn straight between two junctions over ground the survey reads
+  steeper, and where a deck stands short of its clearance: 2.4 m over water, a road bridge 5.4 m
+  over the rail, a road bridge over a drivable road that road's `maxheight` (4 m untagged,
+  `UNDERPASS`) plus the 1.5 m deck, and the rail over a road that road's `maxheight` plus 0.6 m
+  (4.6 m untagged); but at Sarzana's known limits it lists (above), each of which must still fail
+  ([Checks and tools](../map.md#checks-and-tools)). The rail's clearance follows the road's sign
+  as the build fits it (`rail-levels.ts`: the sign plus the 1.5 m deck): the check asked 4.6 m
+  over every road until issue #20, and Sarzana's tracks pass lower over the underpasses whose sign
+  gives less, 2 m at Via Ghiarettolo's and Via Madonna dei Mari's and 2.9 m at Via Caduti del
+  Lavoro's and Via Penten's. The passes' grades, the twin rules (`TWINS` in `road-levels.ts`,
+  `rail-twins.ts`) and the paths' approaches (`path-approaches.ts`) are code, so a failure on a
+  new part is the data's (a survey's dip under one carriageway, a micro-mapped joint) or the
+  pass's: fix that for every road alike, never by loosening the bound for one way or one part but
+  a known limit (above).
 - A driver reads its way on its level onto and off every bridge and tunnel:
   `src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts`, `joints-l.map-test.ts`
   and `joints-coast.map-test.ts` stand a driver on its lane up to 40 m before every joint where a
   Panda drives from a road onto or off a bridge or a tunnel, or from one bridge way onto the next,
   with no junction and no turn of 30° or more, and fail where it reads a Panda standing in its lane
-  past the joint off its level (`onPathLevel`, `joint-checks.ts`), but at the mouth of Pieve San
-  Lorenzo's underpass the Lunigiana test lists, which must still fail ([Checks and
+  past the joint off its level (`onPathLevel`, `joint-checks.ts`), but at the joints the Lunigiana
+  test lists, Sarzana's known limits (above), each of which must still fail ([Checks and
   tools](../map.md#checks-and-tools)).
   The reading follows the map's surfaces, so a failure on a new part is the data's or the profiles'
   (a joint whose two profiles meet a step apart, a deck whose start stands off its approach): fix
-  that for every joint alike, never by listing a new part's joint.
+  that for every joint alike, never by listing a new part's joint but a known limit (above).
 - Every road tunnel is drawn at its floor under the hill, and no road runs into a bank:
   `src/render/__tests__/tunnels.map-test.ts` and its Cesena, L and coast twins check every road in a
   tunnel drawn at its floor along its whole line (every 0.5 m, 2 cm or less off it: a sharp bend's
@@ -169,16 +210,21 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   facing out of its bank at the bore's width and clear height with its top under that bank, either
   clear of every other road and the track, an open mouth with none and a reason for it found again
   by geometry (`whyOpen`: the ground at the mouth the clear height over the road, buried; a house at
-  the way's level over it by the mouth, the ground over it lower
-  than a head wall, or another road or the track in the wall's room; any other open mouth fails),
-  and the chunks round it as a whole-map build cuts them, and pin each region's counts (roads in
-  tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason)
+  the way's level over it by the mouth, the ground over it, as far in as a head wall's box may
+  run, lower than a head wall, or another road or the track in the wall's room; any other open
+  mouth fails),
+  round each mouth the roads at grade over the terrain (2 cm at most under it, `DRAPE_POKE`) and
+  their painted lines 1 cm or more over their ribbons, with no step where a ribbon's triangles
+  meet (`checkLaid`: the hold behind a mouth drops the ground as much as 7 m under a road over a
+  shallow bore), and the chunks round it as a whole-map build cuts them, and pin each region's
+  counts (roads in tunnels, passages, metres, wall triangles, mouths, portals, head walls and open
+  mouths by reason)
   ([Road and rail
-  profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
+  profiles](../map.md#7-road-and-rail-profiles-profilests-profile-fitts-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
   tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's
-  (the mouths' bake, `src/render/mouths/`, `bores.ts`, the ribbons' `ribbons.ts`): fix
+  (the mouths' bake, `src/render/mouths/`, `bores.ts`, the ribbons' `ribbons.ts` and `drape.ts`): fix
   that for every tunnel alike, never with an exception for one tunnel or one part.
 - The shadow box holds its size through a turn over the region's ground:
   `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view
@@ -196,10 +242,12 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   leads on in line), setting out on that road's level, each wheel keeping to the level of its last
   contact as the drive physics does and the walker to its footing as `FindFooting` does, drawn where
   the renderer draws it, and fails where the wheels or the walker stand 0.5 m or more off the deck's
-  top, but on a bridge starting at a tunnel's mouth or the play area's edge
+  top, but on a bridge starting at a tunnel's mouth or the play area's edge, and on the passes it
+  lists, Sarzana's known limits (above), each of which must still leave its deck
   ([Footing](../gameplay.md#footing)). A failure on a new part is the data's (a bridge's ends or
   profile off its approach, two spans at odds where they join) or the ground's (`groundZ`, `footZ`,
-  the decks' verges): fix that for every bridge alike, never by skipping one.
+  the decks' verges): fix that for every bridge alike, never by skipping one but a known limit
+  (above).
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
   (`region.ts`), never at the box, and a tree's id is its lattice cell's number. Never move an
@@ -218,7 +266,13 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   keeps each whole or drops it (they reach up to 19.2 m in on the 3x), and the walkers' residents
   count the homes within 60 m of a walk edge's midpoint (`EDGE_REACH`), a farm's rural flag those
   within 140 m (`RURAL_REACH`). The DTM's projection lattice, every terrain and cover lookup, the
-  terrain's colour patches, the owls' squares and the ambience blocks count from the anchor too.
+  terrain's colour patches, the owls' squares and the ambience blocks count from the anchor too, and
+  so do the game's lookups whose order it draws on (`ANCHOR`: the traffic and walk edges round a
+  point, the parked spots and the farms near one). The buildings' and the walls' lattices do not
+  yet: they count from the lowest corner of their items (`MAP.vectors.lattice.buildings`,
+  `MAP.walls.lattice`), so a part reaching farther south or west reorders the houses a cat picks
+  from and the walls a body meets, and a seeded game round the earlier parts plays out anew
+  ([Where state lives](../architecture.md#where-state-lives)).
   `x3-region.map-test.ts` checks the terrain, the land cover, and the lamps, water beds and parked
   spots' rests on the 3x test region against lucido alone (`lunigiana-lucido`, as the shipped map
   is no longer lucido). What the grown box alone does change (the place, the catchments, the
@@ -234,10 +288,12 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   of the villages by the seams, as each building goes to the nearest place node in play within 600 m
   (`REACH` in `districts.ts`), a town's within 1200 m (`TOWN_REACH`: Aulla's disc renamed 643
   buildings and 126 parked spots from its neighbours' rims); walls and buildings along the old edge;
-  the tiles' `zmin` and `zmax`; the railway, and the ground beyond the play area under a terminal's
-  run-out where the grown box gives it real ground (`rail-runouts.ts`, which writes no node in play:
-  Fosdinovo's box gave Rometta's terminal, on Fivizzano's west edge, ground past it, and its run-out
-  moved 1,055 nodes there, up to 8.5 m); and trees in the strip along the old box edges. [What
+  all that stands on the ground an earlier part's mask gains (Aulla's took Bolano's 3.36 km² north
+  of y 3900 with Sarzana's part); the tiles' `zmin` and `zmax`; the railway, and the ground beyond
+  the play area under a terminal's run-out where the grown box gives it real ground
+  (`rail-runouts.ts`, which writes no node in play: Fosdinovo's box gave Rometta's terminal, on
+  Fivizzano's west edge, ground past it, and its run-out moved 1,055 nodes there, up to 8.5 m); and
+  trees in the strip along the old box edges. [What
   growing a region changes](../map.md#what-growing-a-region-changes) counts each for each part
   (Fivizzano moved 9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0, on
   #17's build, which cored each road chain at its widest piece; Fosdinovo 869 of them, up to 13.3 m,
@@ -245,14 +301,19 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   and via Botteghino by Viano, whose junctions refit with the roads it makes whole (Via San Rocco's
   498.1 → 500.4 m); and 67 of Fivizzano's, all within 32 m of its south edge; Aulla's part, built
   with its code's fixes in one pair, 12,670 of the 19.3 million nodes of the play area before it, up
-  to 10.6 m and 0.61 m RMS, most of them by those fixes, each measured where its rule is described).
-  Keep that list true when a part shows more, and treat any other move as a bug, since a part's data
-  reaches the earlier parts only across the seams and through the z of the lines it makes whole. A
-  line's core width never moves the ground: each piece is cored at its own width (`Spec.w` in
-  `profiles.ts`), not its chain's widest, so a part that joins a wider piece onto a chain leaves the
-  ground along the rest of it as it was. Cored at the widest, Fosdinovo's 8.4 m 519669896 widened
-  the Strada comunale per Campo Cecina's core from 5.55 to 6.5 m a side as far east as x −592, and
-  moved 4,878 of lucido's nodes 4–16 m off a road whose line and z held.
+  to 10.6 m and 0.61 m RMS, most of them by those fixes, each measured where its rule is described;
+  Sarzana's, built with its code's fixes in one pair as well (2026-11-21), 9,897 of the 28.3
+  million nodes of the play area before it that lie off its rectangle, up to 9.1 m and 0.84 m RMS
+  (3,228 on −6_−3, −6_−2 and −6_−1, along its seam with Fosdinovo, and 1,269 on Aulla's −7_2),
+  with 13 land-cover cells, and 579 of the 3,871 on the seams, up to 5.6 m, with 8; and beyond
+  that play area, in Aulla's rectangle at x −22100…−15728, 13,891 more, up to 10.5 m, with 566
+  cells). Keep that list true when a part shows more, and treat any other move as a bug, since a
+  part's data reaches the earlier parts only across the seams and through the z of the lines it
+  makes whole. A line's core width never moves the ground: each piece is cored at its own width
+  (`Spec.w` in `profiles.ts`), not its chain's widest, so a part that joins a wider piece onto a
+  chain leaves the ground along the rest of it as it was. Cored at the widest, Fosdinovo's 8.4 m
+  519669896 widened the Strada comunale per Campo Cecina's core from 5.55 to 6.5 m a side as far
+  east as x −592, and moved 4,878 of lucido's nodes 4–16 m off a road whose line and z held.
 - Every river leaves the play area down its own course, wherever the outline cuts it: the catchments
   (`catchment.ts`) burn the water beyond the play area too, owning no node, and keep the water that
   comes in from beyond the grid at its ground, so that an entry is no outlet for the water it joins
@@ -263,28 +324,70 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   Torchio to the box's west edge, so that the Bardine read 117.3 km², twice its 58.1; Fivizzano's
   west edge cut the Aulella, and a 2 m side stream by Soliera read 108.5. A new part's edges cut new
   rivers: read the area each one leaves with against its basin, and the most any unnamed stream
-  reads (11.33 km² today). `water.map-test.ts` checks the Aulella's 199 at Fivizzano's west edge and
-  313 at its mouth, the Bardine's 63, the Magra's and the Taverone's heads (420.9 and 69.1 km²) and
-  the Magra's 915 leaving, and the streams by them, and `catchment.test.ts` both rules; a failure is
-  the catchments' code, so fix it for every river alike, never with an exception for one river or
-  one part.
+  reads (11.33 km² today, as before Sarzana's part; the part's own largest, 135653663, reads 9.43
+  at the box's south edge). A part on the box's edge lists in `OFF_MAP` (`build-terrain.ts`) every
+  stream OSM maps that brings more than 1 km² in over that edge and reaches the play area, with the
+  basin a D8 on the ground beyond gives it (over the west edge Sarzana's part gave the box,
+  x −23100: the Vara's 552.4 km², the Durasca's 11.0, the Fosso di Cambertano's 2.3 and the
+  Gorda's 1.1; the rivulets under 1 km² each are left out). `src/sim/map/__tests__/water.map-test.ts`
+  checks the Aulella's 199 at Fivizzano's west edge and 313 at its mouth, the Bardine's 65.3, the
+  Magra's and the Taverone's heads (420.9 and 69.1 km²), the Magra's 915 at y 3900, the Vara's
+  552.4 in and 605.6 at the Magra, the Magra's 1,618.8 leaving at y −8500, and the streams by
+  them, and that every stream `OFF_MAP` brings in over the box's edge is in play and reads its area
+  (the Torrente Dorgia's 1.8 km² were listed, but no piece of the Dorgia is in play: it runs down
+  La Spezia's side to the gulf, so the build added its area nowhere and nothing failed), and
+  `catchment.test.ts` both rules; a failure is the catchments' code, so fix it for every river
+  alike, never with an exception for one river or one part.
 - No building stands twice: `src/tools/__tests__/overlap.map-test.ts` reads every building of
   Lunigiana and fails where two of different sources (by the id's slot, `survey-ids.ts`), or an
   old-schema ruin ring and an `AE_a` unit of its own sheet, share half the smaller one's area or
-  more (331 such pairs stand side by side today). The build drops a later source's copy by that
-  share (`apartFrom` in `overlap.ts`): a centroid test had kept the later copy of any building
-  lying outside its own source's mapped area, and 70 pairs failed before it, among them two 2019
-  CTR houses at the Liguria border with the NC5's copies. A failure on a new part or source is the
+  more (331 such pairs stood side by side with Fosdinovo's part, #18, and 442 with Aulla's, #19;
+  553 stand with Sarzana's, #20). The build drops a later source's copy by that share
+  (`apartFrom` in `overlap.ts`): a centroid test had kept the later copy of any building lying
+  outside its own source's mapped area, and 70 pairs failed before it, among them two 2019 CTR
+  houses at the Liguria border with the NC5's copies. A failure on a new part or source is the
   merge's: fix it for every source alike, never by dropping one building by hand.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.63 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 632,249 B, and Fosdinovo's largest −4_1
-  627,856 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past it).
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.56 MB, Lunigiana's
+  −7_−3 by Sarzana, 561,642 B (2026-11-21), where before Sarzana's part it was −8_2 by Aulla,
+  499,103 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past it). A tile's
+  vector coordinates go in its first packed section (`TILE_LAYOUT` in
+  `src/sim/map/format/tile-file.ts`), never on its line: with them on it (format version 6) the
+  largest was −7_2's 648,583 B, with Aulla's part.
 - The global file's JSON line is at most 8 MB, 8,000,000 B (issue #5's map.json scale check, which
   #18 asks; `src/__tests__/maps.map-test.ts` fails past it on either map): the game parses the
-  line with `JSON.parse` at load, its slowest step, so a bulk array goes in a packed section after
-  it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line. Lunigiana's line
-  is 2,639,642 B and Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the
-  residents still on it (format version 5) Lunigiana's was 8,319,700 B.
+  line with `JSON.parse` at load, its slowest step, so a bulk array or table goes in a packed
+  section after it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line.
+  Lunigiana's line is 1,850,520 B with Sarzana's part (2026-11-21; 892,288 B with Aulla's) and
+  Cesena's 340,523 B; with the parked spots, the farms, their centres and the lamps still on it
+  (format version 6) Lunigiana's was 4,560,301 B with Aulla's part, and with Fosdinovo's part and
+  the graph, the lanes and the residents too (format version 5) 8,319,700 B.
+- The build peaks under 3 GB resident (issue #3's scale check, CI's runners; `/usr/bin/time -l pnpm
+  map`, its maximum resident set size, and its peak memory footprint beside it, which memory
+  compression under other work does not lower): Lunigiana's peaked at 2.32–2.36 GB resident and
+  2.16–2.19 GB of footprint with Sarzana's part (2026-11-21, three builds at eacc0a79, before the
+  part's rounds of fixes), from 4.20–4.27 GB and 3.78–3.84 GB before the memory work
+  ([Pipeline](../map.md#pipeline)). The part's final build was not timed so, but the build's prints
+  rose no higher: 2.20 and 2.23 GB at the end of the cut, the highest of them, in its two builds,
+  against 2.18–2.29 GB in those three. The parts to come add about as much box again, and the peak
+  is where the DTM and the uncarved grid, 0.8 GB that grows with the box, are held together, so the
+  next engine work is there (Pipeline names it). What grows with the box is held in typed arrays at
+  the fewest bytes that keep its values bit for bit (the finished grid in decimetres, the trees in
+  32-bit integers), by the phase that reads it and no longer; a stage's indexes hold what its
+  queries reach (`nearBoxes`), and a deck's fields the nodes within reach of its segments
+  (`bandOf`); a bake whose items read the tiles round them takes them tile by tile (`byTile`), as
+  the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which lists every node
+  first. `pnpm map` gives node `--heap-growing-percent=20` on its command line, which takes 0.2 GB
+  off the peak (2.57 GB without it at eacc0a79; 3.04 GB at e5f7a67e, over the check).
+- The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
+  on a production build, three runs): Lunigiana's is 209 MB at `?seed=1` with Sarzana's part, from
+  160–161 MB with Aulla's (both 2026-11-21). What the game builds at load from the whole map grows
+  with every part: the road graph, the lookups over it and the static grids over the whole map's
+  box. So a new table per node or per edge goes in a typed array, and a set of edges is a byte per
+  edge (`isTrafficEdge`), never a `Set`; a lookup works out from `graph.nodes` what it can, with
+  nothing built per edge, rather than store it; and a build lets go of its scratch before a closure
+  keeps it. `graph.nodes` and `graph.edges` are still an object per node and per edge, and
+  `graph.adjacency` an array per node, the next cuts to make. The cuts that took the start from
+  216 to 160–161 MB, with Aulla's part, are in [architecture.md](../architecture.md#start-up).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
   tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and

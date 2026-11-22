@@ -16,6 +16,7 @@
 import { pointInRing, staticGrid } from "../../sim/collide.ts"
 import {
   buildingStyleOf,
+  byTile,
   type Lamp,
   MAP,
   type Road,
@@ -163,11 +164,45 @@ const mountNear = (px: number, py: number, half: number): StreetLamp | undefined
         !indoors(lamp.x + lamp.nx * (1 - ARM), lamp.y + lamp.ny * (1 - ARM)),
     )?.lamp
 
+/** Calls `visit` with each point tried along `road`, every STEP m from its start (the step carries over its vertices). */
+const eachStep = (road: Road, visit: (x: number, y: number) => void): void => {
+  const pts = road.pts
+  // `s`: where the next point falls along the current segment.
+  let s = 0
+  for (let k = 0; k + 3 < pts.length; k += 2) {
+    const ax = pts[k]!,
+      ay = pts[k + 1]!,
+      len = Math.hypot(pts[k + 2]! - ax, pts[k + 3]! - ay)
+    for (; s < len; s += STEP)
+      visit(ax + ((pts[k + 2]! - ax) * s) / len, ay + ((pts[k + 3]! - ay) * s) / len)
+    s -= len
+  }
+}
+
 /**
  * Every street lamp along `roads` (the whole map's, in its order), placed road by road (widest
- * class first, then map order), so the same map always gives the same lamps.
+ * class first, then map order), so the same map always gives the same lamps: at each point tried
+ * SPACING m or more past the road's last lamp, the lamp of the nearest wall fronting it
+ * (`mountNear`), in a village and GAP m or more from every lamp placed. What a point's lamp would
+ * be reads the buildings round it alone, so it is worked out first for every point, tile by tile
+ * (`byTile`): road by road, the build, which keeps a few tiles decoded, decoded a tile again for
+ * most points.
  */
 export const placeLamps = (roads: ReadonlyArray<Road>): Array<StreetLamp> => {
+  const lit = roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
+  lit.sort((a, b) => LIT[roadClassOf(a)]! - LIT[roadClassOf(b)]!)
+  const xy: Array<number> = [],
+    half: Array<number> = []
+  for (const road of lit)
+    eachStep(road, (x, y) => {
+      xy.push(x, y)
+      half.push(road.w / 2)
+    })
+  const mounted = new Map<number, StreetLamp>()
+  for (const p of byTile(half.length, (p) => ({ x: xy[2 * p]!, y: xy[2 * p + 1]! }))) {
+    const lamp = mountNear(xy[2 * p]!, xy[2 * p + 1]!, half[p]!)
+    if (lamp !== undefined && inVillage(lamp.x, lamp.y)) mounted.set(p, lamp)
+  }
   const lamps: Array<StreetLamp> = []
   const cells = new Map<number, Array<StreetLamp>>()
   const cellOf = (cx: number, cy: number) => cx * 100003 + cy
@@ -181,30 +216,20 @@ export const placeLamps = (roads: ReadonlyArray<Road>): Array<StreetLamp> => {
       }
     return false
   }
-  const lit = roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
-  lit.sort((a, b) => LIT[roadClassOf(a)]! - LIT[roadClassOf(b)]!)
+  let p = 0
   for (const road of lit) {
-    const pts = road.pts
-    // `s`: where the next point falls along the current segment (the step carries over its vertices).
-    let since = SPACING,
-      s = 0
-    for (let k = 0; k + 3 < pts.length; k += 2) {
-      const ax = pts[k]!,
-        ay = pts[k + 1]!,
-        len = Math.hypot(pts[k + 2]! - ax, pts[k + 3]! - ay)
-      for (; s < len; s += STEP, since += STEP) {
-        if (since < SPACING) continue
-        const px = ax + ((pts[k + 2]! - ax) * s) / len,
-          py = ay + ((pts[k + 3]! - ay) * s) / len
-        const lamp = mountNear(px, py, road.w / 2)
-        if (lamp === undefined || crowded(lamp.x, lamp.y) || !inVillage(lamp.x, lamp.y)) continue
-        lamps.push(lamp)
-        const key = cellOf(Math.floor(lamp.x / GAP), Math.floor(lamp.y / GAP))
-        cells.set(key, [...(cells.get(key) ?? []), lamp])
-        since = 0
+    let since = SPACING
+    eachStep(road, () => {
+      const lamp = mounted.get(p++)
+      if (since < SPACING || lamp === undefined || crowded(lamp.x, lamp.y)) {
+        since += STEP
+        return
       }
-      s -= len
-    }
+      lamps.push(lamp)
+      const key = cellOf(Math.floor(lamp.x / GAP), Math.floor(lamp.y / GAP))
+      cells.set(key, [...(cells.get(key) ?? []), lamp])
+      since = STEP
+    })
   }
   return lamps
 }

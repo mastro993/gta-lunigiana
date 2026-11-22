@@ -5,6 +5,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { builtTestMaps } from "../../../tools/__tests__/test-maps.ts"
+import { LANDMARKS } from "../../../tools/districts.ts"
 import { type Dem, loadDtm } from "../../../tools/dtm.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
@@ -33,6 +34,7 @@ import {
   type Segment,
   wallsNear,
 } from "../index.ts"
+import { UNDERPASS } from "../kinds.ts"
 import { overpassShortfalls } from "./overpass-checks.ts"
 
 const { hypot } = Ops
@@ -275,6 +277,66 @@ const VILLAGES = {
   "Villa Rosticciola": { x: -19020.1, y: 10396.8 }, // 10289122205
   Villanova: { x: -6569.4, y: 6722.5 }, // 1467639452
   Villecchia: { x: -19817.1, y: 11258.3 }, // 1003621973
+  // Sarzana's part (#20), each toLocal of its OSM place node to 0.1 m: the issue's ten, then
+  // every other village and hamlet in its play area that the traffic graph reaches.
+  Sarzana: { x: -13599.4, y: -5397.3 }, // 66586997, place=town
+  "Santo Stefano di Magra": { x: -17011, y: 372.2 }, // 1531400346, place=town
+  "Ponzano Magra": { x: -16389.8, y: -1548 }, // 66587022
+  Falcinello: { x: -13475.4, y: -1037.5 }, // 1229330058
+  "Vezzano Inferiore": { x: -19183.5, y: -2142.3 }, // 66587035
+  "Vezzano Superiore": { x: -19873.5, y: -2239.3 }, // 8631872417
+  Arcola: { x: -17919.9, y: -5263.3 }, // 1214195899, place=town
+  "Romito Magra": { x: -15692.4, y: -6974.4 }, // 316529666
+  Caprigliola: { x: -15772.8, y: 1466.5 }, // 866311548; the issue's (-15931, 1517), 166.1 m west-north-west, is its walls' node 8458093784
+  Ceparana: { x: -19497.3, y: 549.8 }, // 3311624642
+  Baccano: { x: -18669.3, y: -5488.8 }, // 1214196038
+  Bastremoli: { x: -22886.5, y: -641.9 }, // 316052356, Follo
+  Battifollo: { x: -14840.4, y: -6732.9 }, // 316529665
+  Bettola: { x: -16054.7, y: 1693.5 }, // 1267020425
+  Bibola: { x: -11897.9, y: 3383.3 }, // 1267021215
+  Bolano: { x: -18747.9, y: 2877.8 }, // 66586953
+  Boschetto: { x: -21202.3, y: 2228.1 }, // 1445480746
+  Bottagna: { x: -20101.2, y: -854.8 }, // 7395969782
+  Buonviaggio: { x: -21677, y: -1925.6 }, // 8566712344
+  Carignano: { x: -11606, y: -1538.8 }, // 1088681747
+  Carozzo: { x: -21704.2, y: -3322.7 }, // 1701180014, La Spezia: the mask bends out for it
+  "Casa Scattina": { x: -20199.9, y: 3055.5 }, // 1445480537
+  "Casesa -Pantano": { x: -13319.5, y: 73.5 }, // 12610476327, OSM's name as tagged
+  Castello: { x: -22177.9, y: 2585.3 }, // 6822457806, Follo; Follo's hamlet Castello (1389734280) lies outside the play area
+  Cerri: { x: -16957.8, y: -7318.8 }, // 1193262139
+  Chiamici: { x: -15362.9, y: 2000.7 }, // 6715770051
+  "Costa di Tivegna": { x: -21992.8, y: 1967.1 }, // 1445480956, Follo
+  Fornola: { x: -18394.7, y: -2929.8 }, // 8631872419
+  Fresonara: { x: -19270.2, y: -4340 }, // 4706304353
+  Guercio: { x: -16914.3, y: -7696.2 }, // 1724195028
+  "Guercio Carpione": { x: -16636.7, y: -7421.5 }, // 1724195023, Lerici
+  Isola: { x: -16366, y: 2530.8 }, // 1267019612
+  "La Serra": { x: -21935.9, y: 1053.6 }, // 6822457790, Follo
+  "Lago Scuro": { x: -19983.7, y: 835.2 }, // 1445480028
+  Masignano: { x: -18015, y: -4255 }, // 6814284197
+  "Montebello di Cima": { x: -19596.3, y: 4122.4 }, // 1445480005, Bolano's land in Aulla's rectangle, played since this part plays Bolano whole
+  "Montebello di Mezzo": { x: -20047, y: 3762.2 }, // 1445480724
+  "Monti di Arcola": { x: -18983.5, y: -4673.8 }, // 4706304354
+  Paghezzana: { x: -11660.5, y: -3875.5 }, // 1411140308
+  Pagliadiccio: { x: -21290.8, y: 3262.9 }, // 1445480953
+  Panigale: { x: -19246, y: 2947.5 }, // 1445480131
+  "Piana Battolla": { x: -22216.3, y: 3562.4 }, // 290590223, Follo
+  "Piano di Arcola": { x: -17344.9, y: -4031.8 }, // 8631872420
+  "Piano di Follo": { x: -21206, y: -147.8 }, // 316052360, Follo
+  "Piano di Valeriano": { x: -20655.8, y: -295.1 }, // 4416938602
+  "Piano di Vezzano 1": { x: -18373.6, y: -1274.4 }, // 11280401080
+  "Piano di Vezzano 2": { x: -16190, y: -3319.2 }, // 1267020874
+  Pietralba: { x: -18748.2, y: -6484 }, // 8631872421
+  "Ponte di Arcola": { x: -17421.1, y: -5056 }, // 66586870
+  "Ponzano Superiore": { x: -14787.1, y: -560.8 }, // 601383602
+  "Prati di Vezzano": { x: -18998, y: -3866.6 }, // 6814284196
+  Ressora: { x: -16885.3, y: -5757.1 }, // 1724200899
+  Senato: { x: -14029.9, y: -8378.8 }, // 316529667, Lerici
+  Serralta: { x: -20704, y: 3379 }, // 1445480702
+  Stadano: { x: -16349.5, y: 3078.1 }, // 1267019518
+  Tirolo: { x: -17769.6, y: 2181 }, // 1445480436
+  Trebiano: { x: -16534.3, y: -6562.7 }, // 1193262135
+  Villa: { x: -19057.5, y: 1930.1 }, // 1445480571
 }
 
 test("bounds and heightmap cover the play area", () => {
@@ -287,14 +349,15 @@ test("bounds and heightmap cover the play area", () => {
   assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  // The listed tiles' nodes, from the Magra plain by Sarzana, west of Fosdinovo's edge (12.9 m at
-  // (−11968, −6040)), to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile
-  // holds, are 0 in the joined map.
+  // The listed tiles' nodes, from the floor of the Gulf of La Spezia in Sarzana's box, past its play
+  // area (−11.0 m at (−22856, −8500), issue #20), to the Emilian ridge by Cima Belfiore (1856 m),
+  // none as low as the junk Emilia-Romagna's DTM gives outside its region (−71.8 m); the notch's,
+  // which no tile holds, are 0 in the joined map.
   const listed = listedNodes(hm, MAP.tiles)
   for (let k = 0; k < data.length; k++) {
     const v = data[k]!
     assert.ok(
-      listed[k] === 1 ? Number.isInteger(v) && v > 100 && v < 19000 : v === 0,
+      listed[k] === 1 ? Number.isInteger(v) && v > -150 && v < 19000 : v === 0,
       `node ${k}: ${v}`,
     )
   }
@@ -407,12 +470,17 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
   assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
   const near = (x: number, y: number, ring: ReadonlyArray<number>, d: number) =>
     inRing(x, y, ring) || segsOf(ring, true).some((s) => segmentDistance(s, x, y) < d)
+  // A barrier's walls are its edges cut into pieces of at most 16 m, each end rounded to 0.1 m
+  // (`pushSplit` in wall-pieces.ts): up to 0.071 m off the barrier's line. At 0.05 m a guard rail
+  // along the deck of the Ponte "Magra" (1512164527), opened 1.2 m each side of the track 121716422
+  // under it, read as a terrain wall on the track at (−19137.7, −213.4) (issue #20).
+  const BARRIER_TOL = 0.075
   const buildings = bucketed(WHOLE.buildings, (b) => b.outer, 0.35),
-    barriers = bucketed(WHOLE.barriers, (b) => b.pts, 0.05)
+    barriers = bucketed(WHOLE.barriers, (b) => b.pts, BARRIER_TOL)
   const fixed = (s: Segment) => {
     const on = (x: number, y: number) =>
       buildings(x, y).some((b) => near(x, y, b.outer, 0.35)) ||
-      barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < 0.05))
+      barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < BARRIER_TOL))
     return on(s.ax, s.ay) && on(s.bx, s.by)
   }
   WHOLE.roads.forEach((r, i) => {
@@ -602,8 +670,12 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
   const near = (p: { x: number; y: number }, r: number) =>
     graph.trafficEdges.some((e) => segmentDistance(chord(e), p.x, p.y) < r)
   assert.ok(near(STATION, 30) && near(ALTO, 60))
+  // Sarzana's and Arcola's town nodes stand in their pedestrian centres (OSM highway=pedestrian,
+  // walked as paths): Via Circonvallazione passes 106.1 m north of Sarzana's, a residential street
+  // (way 1116520102) 87.5 m west-south-west of Arcola's.
+  const reach: Readonly<Record<string, number>> = { Sarzana: 110, Arcola: 90 }
   for (const [name, p] of Object.entries(VILLAGES))
-    assert.ok(near(p, 80), `no traffic near ${name}`)
+    assert.ok(near(p, reach[name] ?? 80), `no traffic near ${name}`)
   const traffic = new Set(graph.trafficEdges)
   const seen = new Set([graph.edges[graph.trafficEdges[0]!]!.a])
   for (const stack = [...seen]; stack.length > 0;)
@@ -690,6 +762,19 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
     const ground = (k: number) => dem!.at(r.pts[2 * k]!, r.pts[2 * k + 1]!)
     return Math.abs(ground(b) - ground(a)) / (s[b]! - s[a]!) > max
   }
+  // Sarzana's part's three links drawn straight between two junctions they cannot meet within the
+  // grade, over ground the survey reads gentler (issue #20; the user's choice, after three rounds of
+  // fixes, to list them as known limits): Via Emiliana 135711072 at 59.1% and 205932313 at 53.5%,
+  // each between a junction pinned at the ground and a deck's end whose clearance was fitted later,
+  // and the 16 m secondary 1571048638 in a junction's knot at (−22214, −911), 21.1% where the
+  // survey climbs 15.6%, the road it leaves (42178953) ending 1.65 m under the ground. Each must
+  // still climb past its limit, so a fix drops it from here.
+  const steepKnown = new Map<number, boolean>([
+    [135711072, false],
+    [205932313, false],
+    [1571048638, false],
+  ])
+  const steep: string[] = []
   for (const r of [...WHOLE.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
     const max = limit[r.cls]
     if (max === undefined) continue
@@ -707,13 +792,20 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
       for (let j = i + 1; j < r.z.length; j++)
         if (s[j]! - s[i]! >= 8) {
           const g = Math.abs(r.z[j]! - r.z[i]!) / (s[j]! - s[i]!)
-          assert.ok(
-            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max)),
-            `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
-          )
+          const within: boolean =
+            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max))
+          if (r.cls !== "rail" && steepKnown.has(r.id)) {
+            if (!within) steepKnown.set(r.id, true)
+          } else if (!within)
+            steep.push(
+              `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
+            )
           break
         }
   }
+  assert.deepEqual(steep, [], `${steep.length} links climb past their class grade`)
+  for (const [id, climbs] of steepKnown)
+    assert.ok(climbs, `${id} keeps its class grade now: drop it from the known steep links`)
   const decks = [
     ...WHOLE.roads.filter((r) => r.bridge === true),
     ...MAP.rail.filter((r) => r.bridge === true),
@@ -724,15 +816,32 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         const gap = zAt(d.z, c.j, c.u) - zAt(w.z, c.i, c.t)
         assert.ok(gap >= 2.4, `bridge ${d.id} only ${gap.toFixed(1)} m over water ${w.id}`)
       }
+  // A road under the rail keeps its maxheight (UNDERPASS untagged) plus 0.6 m: a sign gives a lower
+  // clearance under Sarzana's tracks (Via Ghiarettolo's and Via Madonna dei Mari's underpasses at
+  // 2 m, Via Caduti del Lavoro's and Via Penten's at 2.9 m: rail-levels.ts).
   for (const rl of MAP.rail)
     for (const rd of WHOLE.roads)
       if (rl.bridge === true || rd.tunnel === true)
         for (const c of crossings(rl.pts, rd.pts)) {
           const gap = zAt(rl.z, c.i, c.t) - zAt(rd.z, c.j, c.u)
-          assert.ok(gap >= 4.6, `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`)
+          assert.ok(
+            gap >= (rd.maxheight ?? UNDERPASS) + 0.6,
+            `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`,
+          )
         }
   // A road under a road bridge keeps its maxheight (4 m untagged) plus a 1.5 m deck (road-levels.ts).
-  assert.deepEqual(overpassShortfalls(WHOLE.roads), [])
+  // The track bridge 99473194 over the A12's two carriageways at (−15376, −4706), a known limit
+  // (levels.map-test.ts), must still fall short, so a fix drops it from here.
+  const shortfalls = overpassShortfalls(WHOLE.roads),
+    shortKnown = (s: string) => s.startsWith("track bridge 99473194 ")
+  assert.deepEqual(
+    shortfalls.filter((s) => !shortKnown(s)),
+    [],
+  )
+  assert.ok(
+    shortfalls.some(shortKnown),
+    "99473194 clears the A12 now: drop it from the known shortfalls",
+  )
   // A road bridge over the rail clears the ATR 220 (4.185 m over the rail head, 0.12 m over the
   // bed) under its 0.9 m deck, with 0.3 m to spare (rail-levels.ts; the Equi Terme overpass left
   // the roof 0.46 m in the deck).
@@ -852,9 +961,12 @@ test("road names, classes, styles, area kinds and districts", () => {
   // A settlement's buildings, found by geometry rather than by OSM's place nodes (the discs' own
   // centres, so a village OSM leaves without a node, or tags `locality`, still counts against
   // them): those with 10 or more others within 150 m. The rest are farmhouses, mountain huts and
-  // quarry sheds: 9% of lucido's and Fivizzano's part's buildings, 18% of Fosdinovo's.
-  const near = bucketed(centres, (c) => [c.x, c.y], 0)
-  const settled = centres.filter(
+  // quarry sheds: 9% of lucido's and Fivizzano's part's buildings, 18% of Fosdinovo's. Sheds count
+  // neither way: they stand in the fields round a village as among its houses, and the NC5's minor
+  // buildings, every one a shed, are a third of Sarzana's part's (issue #20).
+  const homes = centres.filter((_, k) => WHOLE.buildings[k]!.kind !== "shed")
+  const near = bucketed(homes, (c) => [c.x, c.y], 0)
+  const settled = homes.filter(
     (c) =>
       near(c.x - 150, c.y - 150, c.x + 150, c.y + 150).filter(
         (o) => hypot(o.x - c.x, o.y - c.y) <= 150,
@@ -863,9 +975,11 @@ test("road names, classes, styles, area kinds and districts", () => {
   const covered = settled.filter((c) =>
     MAP.districts.some((d) => hypot(c.x - d.x, c.y - d.y) <= d.r),
   ).length
-  // Most are inside a district disc: 86.8% (lucido's 90.0%, Fivizzano's part's 88.7%, Fosdinovo's
-  // 80.5%, where 24 of its 38 discs stand at the 400 m cap and Ceserano's node is 506 m off its
-  // church).
+  // Most are inside a district disc: 84.2% (41,083 of 48,807 on 2026-11-21), 90.7% outside
+  // Sarzana's part's rectangle, 75.3% inside it, whose plain sprawls between discs at the 600 m
+  // cap (issue #20). Before Sarzana's part, every building counted and the cap at 400 m, 83.5%
+  // (lucido's 90.0%, Fivizzano's part's 88.7%, Fosdinovo's 80.5%, where 24 of its 38 discs stood at
+  // the cap and Ceserano's node is 506 m off its church).
   assert.ok(
     covered >= 0.8 * settled.length,
     `${covered}/${settled.length} settled buildings inside a district disc`,
@@ -912,6 +1026,26 @@ test("road names, classes, styles, area kinds and districts", () => {
       hypot(c.x - brunella.x, c.y - brunella.y) <= brunella.r,
       `(${c.x}, ${c.y}) named the fortress by its rim`,
     )
+  // Issue #20: the Fortezza di Sarzanello, inside Sarzana's town disc, names its hill alone (OSM's
+  // Fortezza Castracani, its area's point among it), every building it names in its disc; the fort
+  // and the peaks name their own districts, found by their OSM ids (five peaks are Monte Grosso).
+  const sarzanello = MAP.districts.find((d) => d.name === "Fortezza di Sarzanello")!
+  const castracani = MAP.pois.find((p) => p.name === "Fortezza Castracani")!
+  assert.equal(districtAt(castracani.x, castracani.y), sarzanello)
+  for (const c of centres.filter((c) => districtAt(c.x, c.y) === sarzanello))
+    assert.ok(
+      hypot(c.x - sarzanello.x, c.y - sarzanello.y) <= sarzanello.r,
+      `(${c.x}, ${c.y}) named the Fortezza di Sarzanello by its rim`,
+    )
+  for (const [id, name] of [
+    [980696353, "Forte Bastia"],
+    [9485751677, "Monte Grosso"],
+    [10555505668, "Monte Boscoleto"],
+  ] as const) {
+    const p = MAP.pois.find((q) => q.id === id)
+    assert.ok(p !== undefined, `${name}'s OSM node`)
+    assert.equal(districtAt(p.x, p.y).name, name)
+  }
   // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
   // disc.
   for (const name of [
@@ -924,6 +1058,28 @@ test("road names, classes, styles, area kinds and districts", () => {
     assert.ok(pass !== undefined, `${name}'s OSM node`)
     assert.equal(districtAt(pass.x, pass.y).name, name)
   }
+  // A landmark's disc holds its own ground against the villages round it (districts.ts's LANDMARKS):
+  // only these overlap a village's, the passes and fortresses inside their villages' discs and the
+  // three the 600 m cap brought within a village's rim (issue #20).
+  const landmark = (d: (typeof MAP.districts)[number]) =>
+    LANDMARKS.some((l) => l.name === d.name && l.x === d.x && l.y === d.y)
+  assert.deepEqual(
+    MAP.districts.flatMap((l) =>
+      landmark(l)
+        ? MAP.districts
+            .filter((v) => !landmark(v) && hypot(l.x - v.x, l.y - v.y) < l.r + v.r)
+            .map((v) => `${l.name} over ${v.name}`)
+        : [],
+    ),
+    [
+      "Passo dei Carpinelli over Casone Carpinelli",
+      "Foce del Cucco over Monte Carboli",
+      "Fortezza della Brunella over Aulla",
+      "Castello di Bigliolo over Fertigliana",
+      "Fortezza di Sarzanello over Sarzana",
+      "Fortezza di Sarzanello over Bradia",
+    ],
+  )
   // The Fortezza della Verrucola is the hamlet's, by the castle rule: its own disc holds it.
   assert.equal(districtAt(468, 9009).name, "Verrucola")
   assert.equal(districtAt(1379, -2603).name, "Vinca", "the SP59 hairpins below Vinca")

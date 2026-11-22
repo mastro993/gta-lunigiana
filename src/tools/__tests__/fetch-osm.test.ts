@@ -115,7 +115,6 @@ test("fetch-osm refuses a test region's part, built from Lunigiana's parts' OSM,
     ["lucido-l", "lunigiana-l"],
     ["lucido-3x", "lunigiana-3x"],
     ["sillara", "bagnone-ridge"],
-    ["sarzana-town", "sarzana-town"],
   ] as const)
     assert.throws(
       () => partToFetch([key]),

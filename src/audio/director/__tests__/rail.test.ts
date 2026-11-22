@@ -279,9 +279,8 @@ test("a train deep in the long tunnel is not heard through 440 m of hill; one in
   const yaw = followYaw(top.angle + Math.PI / 2),
     right = axesAt(yaw).right
   assert.ok(right.x * Math.cos(top.angle) + right.y * Math.sin(top.angle) > 0.99)
-  // At night in still air the background is the stillest, 28 dB, whatever the map's floor (from which the hill's usual wind
-  // grows): the train, 20.1 dB at the ears through its portal 137 m off, is held 7 dB over the masking cull, and so is its
-  // cab's power pack through the portal.
+  // At night in still air the background is the stillest, 28 dB, whatever the hill's usual wind: the train, 20.1 dB at the
+  // ears through its portal 137 m off, is held 7 dB over the masking cull, and so is its cab's power pack through the portal.
   const short = rig(),
     heard = world(top, { trains: [t], sky: skyAt(at(23)), weather: { ...CALM, wind: 0 } })
   short.hear({ ...heard, listener: { ...heard.listener, yaw } })

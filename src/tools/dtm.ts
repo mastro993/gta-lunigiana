@@ -3,12 +3,20 @@
 // geographic GeoTIFF (`loadGeoDtm`, Cesena's). Each gives the height at
 // a point and windows of the terrain grid's nodes (terrain.ts), each node the mean of the heights
 // round it.
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
 import { latLonToGaussBoaga } from "./crs.ts"
-import { assembleTiles, drawEdgesOn, readTile, tileNeed } from "./dtm-tiles.ts"
+import {
+  assembleTiles,
+  decodeTile,
+  drawEdgesOn,
+  tileGrid,
+  tileNeed,
+  tilePath,
+} from "./dtm-tiles.ts"
+import { NONE } from "./fill-chain.ts"
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { REGION, type Region } from "./region.ts"
 import {
@@ -189,12 +197,16 @@ export const loadDtm = (dir: string, region: TerrainOf = REGION): Dem =>
  */
 export const readTiles = (dir: string, region: TerrainOf): DtmData => {
   const tiles = region.tiles.flatMap(({ i, j }) => {
-    const tile = readTile(dir, i, j)
-    if (tile === undefined && !region.test)
-      throw new Error(`no terrain for tile ${i}_${j}: run fetch-rt for the part it belongs to`)
-    return tile === undefined ? [] : [{ key: `${i}_${j}`, tile }]
+    const path = tilePath(dir, i, j)
+    if (!existsSync(path)) {
+      if (!region.test)
+        throw new Error(`no terrain for tile ${i}_${j}: run fetch-rt for the part it belongs to`)
+      return []
+    }
+    const read = () => decodeTile(inflateSync(readFileSync(path)), path)
+    return [{ key: `${i}_${j}`, cells: tileGrid(i, j), read }]
   })
-  const { dtm, held } = assembleTiles(tiles)
+  const dtm = assembleTiles(tiles)
   if (!region.test)
     for (const { i, j } of region.tiles) {
       const need = tileNeed(i, j, region.bounds)
@@ -203,12 +215,12 @@ export const readTiles = (dir: string, region: TerrainOf): DtmData => {
         dr = (need.n0 - dtm.n0) / dtm.cell
       for (let r = 0; r < need.rows; r++)
         for (let c = 0; c < need.cols; c++)
-          if (held[(dr + r) * dtm.cols + dc + c] === 0)
+          if (dtm.sources.codes[(dr + r) * dtm.cols + dc + c] === NONE)
             throw new Error(
               `tile ${i}_${j} has no terrain at EPSG:3003 ${need.e0 + dtm.cell * c}, ${need.n0 + dtm.cell * r}: run fetch-rt for its part`,
             )
     }
-  drawEdgesOn(dtm, held)
+  drawEdgesOn(dtm)
   return dtm
 }
 

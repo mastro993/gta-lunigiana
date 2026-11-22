@@ -3,11 +3,13 @@ import { test } from "node:test"
 
 import {
   anchorOf,
+  byTile,
   LANE,
   laneOffset,
   laneWidth,
   SHOULDER,
   shoulderOf,
+  TILE,
   tileKey,
   tilesRound,
 } from "../kinds.ts"
@@ -65,4 +67,23 @@ test("laneWidth: a main road's lanes tag gives LANE per lane, plus a motorway's 
   assert.equal(laneWidth("primary", 2), 7)
   assert.equal(laneWidth("motorway", 2), 10)
   assert.equal(laneWidth("tertiary", 2), undefined)
+})
+
+test("byTile orders the items by their points' tiles, south to north then west to east, each tile's by index", () => {
+  // Item k at a point in the tile `at[k]`, k metres into it.
+  const at = [
+    [0, 0],
+    [-1, 1],
+    [1, 0],
+    [0, 0],
+    [-1, 0],
+    [0, -1],
+    [1, 0],
+    [0, 1],
+  ] as const
+  const order = byTile(at.length, (k) => ({
+    x: at[k]![0] * TILE + k,
+    y: at[k]![1] * TILE + k,
+  }))
+  assert.deepEqual(Array.from(order), [5, 4, 0, 3, 2, 6, 1, 7])
 })

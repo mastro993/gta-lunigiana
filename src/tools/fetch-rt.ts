@@ -306,7 +306,7 @@ const manifests = parts.map((p) => readManifest(p.key))
 const unique = (lists: ReadonlyArray<ReadonlyArray<string>>) => [...new Set(lists.flat())]
 /** Liguria's DTM crops `fetch-lig` wrote for the parts' tiles (`dtmTiles`): none where it has not run, or a tile has no data. */
 const ligCrops = parts.flatMap((p) =>
-  dtmTiles(p.rects)
+  dtmTiles(p.rects, REGION.ownTerrain ? undefined : REGION.bounds)
     .map(({ i, j }) => join(ROOT, ligDir(p), "dtm", `${i}_${j}.tif`))
     .filter((f) => existsSync(f)),
 )

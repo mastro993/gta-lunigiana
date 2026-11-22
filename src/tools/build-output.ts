@@ -15,44 +15,15 @@ import { provideMap, setTileSource } from "../sim/map/source.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import type { buildWorld } from "./build-world.ts"
-import type { BuildingF, RoadF } from "./features.ts"
+import type { RoadF } from "./features.ts"
 import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { OUTLINE } from "./play-area.ts"
 import { REGION } from "./region.ts"
-import { sampleGrid, type Grid } from "./terrain.ts"
 import { type BuiltMap, type MapCut, stampMap } from "./tile-map.ts"
 import { treeCorner } from "./trees.ts"
 
 /** Surveyed eave over a building's lowest ground, m, outside which the eave is a survey slip and the default height stands. */
 const EAVE = { min: 1.5, max: 45 }
-
-/**
- * Each building's floor (`z0`): the least of the grid sampled at its rings' vertices, on the ground
- * as it stood before the paths' approaches (`before`, the nodes their claims moved): a building stands
- * on that ground, and the stairs down to an underpass run under it. On the grid they carved, Cesena's
- * station (185180766) sank 4.8 m into its plaza, 1.0 m of its 6 m showing, and two buildings by it
- * 2.9 and 4.2 m (68910735, 1270896860), the footways to the underpass 43076054 running on its wall;
- * on the coast an approach's bank lifted a shed 3.0 m, its top under the bank. The grid holds those
- * nodes' levels without them for the reading alone.
- */
-export const floorsOf = (
-  grid: Grid,
-  before: ReadonlyMap<number, number>,
-  buildings: ReadonlyArray<Pick<BuildingF, "outer" | "holes">>,
-): Array<number> => {
-  const after = [...before.keys()].map((n) => grid.z[n]!)
-  for (const [n, z] of before) grid.z[n] = z
-  const floors = buildings.map((b) => {
-    let z0 = Number.MAX_VALUE
-    for (const ring of [b.outer, ...(b.holes ?? [])])
-      for (let i = 0; i < ring.length; i += 2)
-        z0 = Math.min(z0, sampleGrid(grid, ring[i]!, ring[i + 1]!))
-    return z0
-  })
-  let k = 0
-  for (const n of before.keys()) grid.z[n] = after[k++]!
-  return floors
-}
 
 /** The map as built: every layer whole, but the land cover, which the cut rasterises tile by tile. */
 export const assembleMap = (
@@ -62,8 +33,7 @@ export const assembleMap = (
 ): BuiltMap => {
   const { roads, buildings, areas, barriers, pois, districts } = src
   const { grid, roadLines, railLines } = terrain
-  const { verges, kinds } = world
-  const floors = floorsOf(grid, terrain.floors, buildings)
+  const { verges, kinds, floors } = world
   const roadOut = (r: RoadF, i: number) => ({
     id: r.id,
     cls: r.cls,
@@ -96,7 +66,7 @@ export const assembleMap = (
       y0: grid.y0,
       // The lookups' anchor, named only where it is not the first node (`anchorOf`).
       ...(grid.ax === grid.x0 && grid.ay === grid.y0 ? {} : { ax: grid.ax, ay: grid.ay }),
-      data: decimetres(grid),
+      data: grid.dm,
     },
     roads: roads.map(roadOut),
     buildings: buildings.map((b, i) => {
@@ -140,20 +110,6 @@ export const assembleMap = (
   }
   // Rasterised a tile at a time, as the cut asks for it.
   return { ...map, cover: coverBlocks(map) }
-}
-
-/** The grid's nodes in whole decimetres, each checked to fit int16 (a NaN or a height past ±3276.7 m fails the build). */
-export const decimetres = (grid: Grid): Int16Array => {
-  const out = new Int16Array(grid.z.length)
-  for (let k = 0; k < out.length; k++) {
-    const v = Math.round(grid.z[k]! * 10)
-    if (!(v >= -32768 && v <= 32767))
-      throw new Error(
-        `heightmap: ${v} at node (${k % grid.cols}, ${Math.floor(k / grid.cols)}) does not fit int16`,
-      )
-    out[k] = v
-  }
-  return out
 }
 
 /** Decoded tiles the bake keeps at once: past them the first read goes, and is read again if needed. */
@@ -221,22 +177,29 @@ export const writeMap = async (
   const stamped = stampMap(cut.global(bakes), files.values())
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
-  let json = 0
+  let json = 0,
+    all = 0
   const [global, ...tiles] = await writeGzipped(
     (function* () {
       yield [out, stamped.file] as const
       for (const [key, file] of files) {
         const tile = stamped.tile(file)
         json += tile.indexOf(10) + 1
+        all += tile.length
         yield [join(dir, `${key}.bin`), tile] as const
       }
     })(),
   )
   lap("write")
+  // the cut packed the dense layers with no vectors: the coordinates are what the files hold past them and the lines
+  const dense = Object.entries(cut.sizes).reduce(
+    (sum, [part, n]) => sum + (part === "json" ? 0 : n),
+    0,
+  )
   const sizes: Record<string, number> = {}
   for (const [part, n] of Object.entries(stamped.sizes)) sizes[`global ${part}`] = n
   for (const [part, n] of Object.entries(cut.sizes))
-    sizes[`tile ${part}`] = part === "json" ? json : n
+    sizes[`tile ${part}`] = part === "json" ? json : part === "coordinates" ? all - json - dense : n
   for (const [layer, n] of Object.entries(vectorSizes)) sizes[`tile ${layer}`] = n
   return {
     global: stamped.global,

@@ -39,12 +39,17 @@ export interface MapView {
   readonly y: number
 }
 
-/** North-up placement: `scale` px per metre, the map's north-west corner at (ox, oy), and `frame`, the part of the map on screen. */
+/**
+ * North-up placement: `scale` px per metre, the map's north-west corner at (ox, oy), `frame`, the
+ * part of the map on screen, and `room`, the screen inside MARGIN, which the frame fills along each
+ * side the map overflows.
+ */
 export interface Fit {
   readonly scale: number
   readonly ox: number
   readonly oy: number
   readonly frame: Box
+  readonly room: Box
 }
 
 /** The room inside MARGIN, at least 1 px each way. */
@@ -109,6 +114,7 @@ export const fitMap = (screen: Screen, view: MapView = wholeMap(screen.bounds)):
       x1: Math.min(room.x + room.w, ox + (bounds.maxX - bounds.minX) * scale),
       y1: Math.min(room.y + room.h, oy + (bounds.maxY - bounds.minY) * scale),
     },
+    room: { x0: room.x, y0: room.y, x1: room.x + room.w, y1: room.y + room.h },
   }
 }
 

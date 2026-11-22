@@ -13,19 +13,19 @@ let mouths: Array<readonly [number, number]> = []
 let cut: readonly [number, number] = [0, 0]
 /** The bounds' east side, m. */
 let maxX = 0
-editMap((json) => {
-  const tunnels = json.rail.filter((rail) => rail.tunnel === true)
+editMap((map) => {
+  const tunnels = map.rail.filter((rail) => rail.tunnel === true)
   const ends = tunnels.flatMap(({ pts, z }) =>
     [0, z.length - 1].map((k) => [pts[2 * k]!, pts[2 * k + 1]!] as const),
   )
   mouths = ends.filter(([x, y]) => ends.filter(([ox, oy]) => ox === x && oy === y).length === 1)
   cut = mouths.reduce((east, m) => (m[0] > east[0] ? m : east))
-  const { minX, minY, maxY } = json.bounds
-  maxX = json.bounds.maxX
+  const { minX, minY, maxY } = map.bounds
+  maxX = map.bounds.maxX
   // The road tunnels' portals left out: the railway's alone stand.
   return {
     outline: [[minX, minY, cut[0], minY, cut[0], maxY, minX, maxY]],
-    derived: { ...json.derived, mouths: [] },
+    derived: { ...map.derived, mouths: [] },
   }
 })
 const { bakeMouths, standing } = await import("../index.ts")

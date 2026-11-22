@@ -59,10 +59,11 @@ test("rail: a portal at every tunnel mouth inside the map, its dark mouth facing
 })
 
 test("rail: past every terminal of the map's lines two rails drawn where its trains ride, over the drawn run", () => {
-  // Both rails every metre past the Pontremolese's terminal on the north edge, which its two lines end at; past Pieve San
-  // Lorenzo's and the Pontremolese's two on the south edge the drawn run lies in their tunnels, and the Lucca–Aulla line's
-  // terminus at Aulla has none.
-  assert.equal(checkDrawnRuns(), 2 * 2 * 192)
+  // Both rails every metre past the Pontremolese's terminal on the north edge, which its four lines end at, and the
+  // Genova–Pisa's two on the south-east edge, which four end at; past the west edge's westbound track's (two lines) 31 m out of
+  // the tunnel, and none past its other two or Pieve San Lorenzo's, whose drawn run lies in their tunnels; the Lucca–Aulla
+  // line's terminus at Aulla has none.
+  assert.equal(checkDrawnRuns(), 2 * (8 * 192 + 2 * 31))
 })
 
 test("crossings: at every crossing each arm hinged on its housing's face and the road light's plate behind its lens, all clear of the trains", () => {

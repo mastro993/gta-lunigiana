@@ -9,11 +9,11 @@ import { test } from "node:test"
 import { editMap } from "../map/__tests__/edit-map.ts"
 
 let own = 0
-editMap((json) => {
-  const spots = json.spawns.parked
+editMap((map) => {
+  const spots = map.spawns.parked
   own = spots.length
   return {
-    spawns: { ...json.spawns, parked: [...spots.slice(1), ...spots], police: undefined },
+    spawns: { ...map.spawns, parked: [...spots.slice(1), ...spots], police: undefined },
   }
 })
 const { MAP } = await import("../map/index.ts")

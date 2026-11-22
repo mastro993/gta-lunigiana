@@ -1,11 +1,12 @@
-// Issue #12's checks of Regione Liguria's sources on the Sarzana test region (`sarzana-town`,
-// region.ts), over its raw inputs alone, as no map is built for it: the NC5 read through adapter (c)
-// (`readNc5`) stands on the terrain fetch-rt's chain wrote from the LiDAR and Liguria's DTM ed. 2023
-// (`loadDtm`), at least 90% of its buildings 1.5–45 m over their ground, the cathedral a church, and
-// every NC5 building in the play area one building of the map's. `fetch-lig sarzana-town` wrote
-// data/raw/lig/sarzana-town, `fetch-rt --region sarzana-town` data/raw/rt/sarzana-town, and
-// `pnpm fetch-raw` restores both, as it does the Bagnone ridge's terrain for terrain-seams.map-test.ts.
-// A map test: it walks every building.
+// Issue #12's checks of Regione Liguria's sources, on Sarzana's town in the Sarzana part's inputs
+// (issue #20, `sarzana` in region.ts): its window x −14400…−12800 by y −8000…−3600 (TOWN), from the
+// Magra plain's quarries through the old town to the hills below Sarzanello, over the raw inputs
+// and the terrain tiles alone, not the built map: the NC5 read through adapter (c) (`readNc5`) gives
+// one building per polygon of the files whose centroid lies in the window, by its id, and stands on
+// the terrain fetch-rt's chain wrote from the LiDAR and Liguria's DTM ed. 2023 (`loadDtm`), at least
+// 90% of its buildings 1.5–45 m over their ground, the cathedral a church. `fetch-lig sarzana` wrote
+// data/raw/lig/sarzana, `fetch-rt sarzana` the tiles' terrain in data/raw/rt/dtm, and `pnpm
+// fetch-raw` restores both. A map test: it walks every building in the window.
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -16,23 +17,26 @@ import { latLonToGaussBoaga } from "../crs.ts"
 import { local } from "../ctr.ts"
 import { loadDtm } from "../dtm.ts"
 import { centroid, flatRing, fromLocal, type P, pointInRing, toLocal } from "../geometry.ts"
-import { dtmTiles, ligFolders, NC5_LAYERS, type Nc5LayerFile } from "../liguria.ts"
+import { dtmTiles, NC5_LAYERS, type Nc5LayerFile } from "../liguria.ts"
 import { readNc5, referenceOf } from "../nc5.ts"
-import { dtmDir, inRects, ligDir, type Rect, rectsBox, regionFromArgs } from "../region.ts"
+import { dtmDir, inRects, ligDir, PARTS, type Rect, regionFromArgs, tilesOf } from "../region.ts"
 import { localOf, SOURCES, surveyId } from "../survey-ids.ts"
 import { geoTiffRaster, ligRaster, MAX_SWEEPS, sample, unround } from "../terrain-sources.ts"
 import { readUcs } from "../ucs.ts"
 
 const ROOT = join(import.meta.dirname, "../../..")
-const REGION = regionFromArgs(["--region", "sarzana-town"])
-const [PART] = REGION.parts
-const RECTS = PART!.rects
-const NC5 = join(ROOT, ligDir(PART!), "nc5")
-/** The NC5's buildings, clipped to the region: this process's REGION is Lunigiana, whose box is not. */
-const BUILDINGS = readNc5([NC5], rectsBox(RECTS)).buildings
+const REGION = regionFromArgs(["--region", "lunigiana"])
+const PART = PARTS.find((p) => p.key === "sarzana")!
+/** Sarzana's town: the window the checks read, which was the test region `sarzana-town` until the part. */
+const TOWN: Rect = [-14400, -8000, -12800, -3600]
+const RECTS = [TOWN]
+const NC5 = join(ROOT, ligDir(PART), "nc5")
+/** The NC5's buildings, clipped to the town. */
+const BUILDINGS = readNc5([NC5], TOWN).buildings
 if (BUILDINGS.length === 0)
   throw new Error(`no NC5 buildings under ${relative(ROOT, NC5)}: pnpm fetch-raw restores them`)
-const DEM = loadDtm(join(ROOT, dtmDir(REGION)), REGION)
+/** The terrain of the town's tiles alone (`loadDtm` draws the edge on past them). */
+const DEM = loadDtm(join(ROOT, dtmDir(REGION)), { ...REGION, tiles: tilesOf(RECTS) })
 
 /** A layer's file as fetch-lig wrote it. */
 const layerFile = (layer: string) =>
@@ -50,7 +54,7 @@ const minor = (id: number) => -id % 2 ** 32 >= 1e9
 /** The whole plane: the outlines unclipped, for their centroids. */
 const PLANE: Rect = [-Infinity, -Infinity, Infinity, Infinity]
 
-test("every NC5 building and minor building in the play area is one building, by its id", (t) => {
+test("the reader gives every NC5 building and minor building in the window as one building, by its id", (t) => {
   const unclipped = readNc5([NC5], PLANE).buildings
   for (const [layer, base] of [
     [NC5_LAYERS.buildings, 0],
@@ -59,7 +63,7 @@ test("every NC5 building and minor building in the play area is one building, by
     const file = layerFile(layer)
     // fetch-lig checked the pages against the server's count; the file keeps every feature.
     assert.equal(file.features.length, file.numberMatched, layer)
-    // Each polygon of a feature whose outline's centroid lies in the play area (the build keeps a
+    // Each polygon of a feature whose outline's centroid lies in the window (the build keeps a
     // building by its centroid, play-area.ts), but a sliver under 0.5 m², which every survey's
     // reader drops (`flatRing`).
     let slivers = 0
@@ -79,7 +83,7 @@ test("every NC5 building and minor building in the play area is one building, by
     const built = unclipped
       .filter((b) => minor(b.id) === base > 0 && inRects(RECTS, ...centroid(b.outer)))
       .map((b) => b.id)
-    t.diagnostic(`${layer}: ${expected.length} in play, ${slivers} slivers in the file`)
+    t.diagnostic(`${layer}: ${expected.length} in the window, ${slivers} slivers in the file`)
     assert.deepEqual(
       built.sort((a, b) => a - b),
       expected.sort((a, b) => a - b),
@@ -147,23 +151,27 @@ test("Sarzana's cathedral is a church, its station a station, and every id in th
   )
 })
 
-test("the land use's kept classes in the town are the Magra plain's basins and quarries", () => {
-  const [lig] = ligFolders(ROOT, REGION.parts)
-  const areas = readUcs([join(lig!, "uds.json.gz")], rectsBox(RECTS))
-  assert.deepEqual(areas.map((a) => a.kind).sort(), [
-    ...Array.from({ length: 8 }, () => "lake"),
-    "quarry",
-    "quarry",
-  ])
-  // All on the plain south of the old town.
-  assert.ok(areas.every((a) => centroid(a.rings[0]!)[1] < -6800))
+test("the land use's kept classes in the town: the Magra plain's basins and quarries, the hills' woods, olive groves and vineyards", () => {
+  const areas = readUcs([join(ROOT, ligDir(PART), "uds.json.gz")], TOWN)
+  const count = (kind: string) => areas.filter((a) => a.kind === kind).length
+  // Fetched with the woods' (#14) and the groves' and vineyards' (#15) classes kept, which the
+  // test region's file of 2026-11-03 predated (it held the lakes and quarries alone).
+  assert.deepEqual(
+    ["lake", "quarry", "forest", "mixed", "olive", "vineyard"].map(count),
+    [8, 2, 29, 3, 16, 9],
+  )
+  assert.equal(areas.length, 67)
+  // The basins and quarries on the plain south of the old town.
+  for (const a of areas)
+    if (a.kind === "lake" || a.kind === "quarry")
+      assert.ok(centroid(a.rings[0]!)[1] < -6800, `${a.kind} at ${centroid(a.rings[0]!)}`)
 })
 
 test("away from the LiDAR the terrain is Liguria's DTM itself: its bend onto the LiDAR fades", async () => {
-  const dir = join(ROOT, ligDir(PART!), "dtm")
+  const dir = join(ROOT, ligDir(PART), "dtm")
   const crops = dtmTiles(RECTS).map(({ i, j }) => readFileSync(join(dir, `${i}_${j}.tif`)))
   const { raster } = (await ligRaster(crops))!
-  // South of y −6000, 2 km and more from the LiDAR on the hills at the region's north-east corner.
+  // South of y −6000, away from the LiDAR on the hills at the town's north-east corner.
   const off: Array<number> = []
   for (let y = -8000; y <= -6000; y += 50)
     for (let x = -14400; x <= -12800; x += 50) {
@@ -177,10 +185,7 @@ test("away from the LiDAR the terrain is Liguria's DTM itself: its bend onto the
 })
 
 test("unround settles on Liguria's crops, raised 1,500 m too, where 32 bits never did", async () => {
-  const crop = await geoTiffRaster(
-    readFileSync(join(ROOT, ligDir(PART!), "dtm", "-7_-3.tif")),
-    3003,
-  )
+  const crop = await geoTiffRaster(readFileSync(join(ROOT, ligDir(PART), "dtm", "-7_-3.tif")), 3003)
   for (const lift of [0, 1500]) {
     const { sweeps } = unround({ ...crop, z: crop.z.map((v) => v + lift) })
     assert.ok(sweeps < MAX_SWEEPS, `${sweeps} sweeps ${lift} m up`)

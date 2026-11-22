@@ -49,7 +49,7 @@ The JSON line that opens a map file: what is sparse in it, and how many values e
 _Avoid_: header, JSON header
 
 **Section**:
-One packed run of integers after a map file's line, holding one array of the map. A layer may span several sections (a tile's walls: their coordinates, ids and levels).
+One packed run of integers after a map file's line, holding one array of the map, one field of a baked table's entries (the parked spots' flags), or every xy array of a tile's vectors. A layer may span several sections (a tile's walls: their coordinates, ids and levels).
 _Avoid_: part (a part is a piece of a region), chunk, layer, block
 
 **Layout**:
@@ -63,6 +63,12 @@ _Avoid_: map version, schema version
 **Upgrader**:
 What reads a map file one format version back as one of today's, so two builds either side of a format change can be compared.
 _Avoid_: migration, converter
+
+## Map checks
+
+**Known limit**:
+A new part's failure of a map check left after three rounds of fixes, each a rule for every feature alike, which the user accepted (issue #20): the check lists it by OSM id with the reason no rule clears it and asserts that it still fails, so a fix fails the check until the item is dropped; every other failure still fails.
+_Avoid_: exception, exemption, allowlist, known misread; left out (a kind of feature a check's rule passes over, never one feature named by id)
 
 ## Ground
 
@@ -95,12 +101,16 @@ _Avoid_: Z, elevation line
 **Lift**:
 How far a road's surface stands over its profile, by road class.
 
+**Drape**:
+How a road's ribbon at grade is drawn on its road's surface where the terrain would stand through it between its corners: cut along the terrain's folds, each piece on the surface (`drape`); a painted line lies on its ribbon as drawn the same way (`layOver`).
+_Avoid_: Conform, project, snap
+
 **Walkers' verge**:
 How far either side of a deck or a tunnel's line someone on foot is still on its level.
 _Avoid_: Sidewalk, kerb
 
 **Approach**:
-The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground.
+The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground. A path or steps at grade passing under a deck or over a bore is fitted the same way from its clearance there (issue #20), approach or not.
 _Avoid_: Ramp (a motorway or trunk link), access, lead-in
 
 **Twin carriageways**:
@@ -108,8 +118,12 @@ Two carriageways of one road, each its own oneway way, that overlap in plan: the
 _Avoid_: Dual road, double road, parallel roads
 
 **Twin track**:
-A track running beside another of its kind (both on bridges, both in tunnels or both at grade) within 6 m and 15° of parallel: the one fitted later keeps to the other's level.
+A track running beside another of its kind (both on bridges, both in tunnels or both at grade) on one formation, no gap over 6 m between the tracks lying from one to the other, whatever their headings (farther apart, within 15° of parallel and parting by a 2:3 bank): the one fitted later keeps to the other's level.
 _Avoid_: Double track, parallel line
+
+**Knot**:
+A sample of a deck's profile where its shipped line bends to keep to its twin track, or one of the deck's ends: the deck runs straight from knot to knot.
+_Avoid_: Vertex (OSM's), bend (any change of grade)
 
 **Ground model**:
 The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
@@ -156,6 +170,10 @@ A road vehicle's level as read toward a point: along its pitch out to its bumper
 **Mouth**:
 An end of a tunnel's line that no other line in a tunnel goes on from or runs through: where a road or the railway enters the hill.
 _Avoid_: Portal (that is what stands there), entrance, tunnel end
+
+**Hill's face**:
+The slope the terrain model reads over a cutting before a tunnel's mouth, where the ground falls away along the line more steeply than any pass's grade limit (20%): a rail tunnel's mouth takes the ground at its foot, unless the ground past the foot climbs back by half the face's height (a gully's floor, crossed on a bank).
+_Avoid_: Head wall (that is what stands there), cutting
 
 **Portal**:
 The arched face wall and its throat that stand at a mouth the hill rises high enough over.
@@ -207,6 +225,10 @@ _Avoid_: Coast (a sea piece's shore edges), shoreline
 A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on, and the closures across a river's or a lake's mouth, where the water goes on into the river (`coastOf`).
 _Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
 
+**Bank**:
+A still water's edges that a body in it heads for to get out (`Pool.banks`, from `edgesOf` and `coastOf` in `banks.ts`): a lake's edges less the cuts along a tile's side or the map's bounds, the sea's coast, or all its edges where it has none. `shoreward` gives the way to the nearest one; in a river the way out (`bankX`, `bankY`) runs square across the reach instead. Not a road's or a track's bank of earth, which Twin track, Hill's face and Head wall mean.
+_Avoid_: Shore (the water's edge walls), coast (the sea's alone)
+
 **Shore line**:
 The coastline less each segment that closes a river or a lake across its mouth (`shoreLines`): what the sea floor rises to, so a river's mouth holds no sill.
 _Avoid_: Shore (the water's edge walls), coast
@@ -254,7 +276,7 @@ An end of a railway line (`LINES`) on the play area's outline, where the track r
 _Avoid_: Terminus (a terminal inside the map), end station
 
 **Terminus**:
-An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends.
+An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends. One station's termini end one line from a terminal.
 _Avoid_: Terminal (on the outline), dead end, head station
 
 **Buffer stop**:

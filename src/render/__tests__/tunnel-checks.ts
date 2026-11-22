@@ -7,12 +7,15 @@
 // as drawn: portal-checks.ts), a passage's road on under its house.
 import assert from "node:assert/strict"
 
+import { segDist2 } from "../../sim/collide.ts"
 import { ROAD_LIFT } from "../../sim/map/ground.ts"
 import { MAP, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { tileVectors } from "../../sim/map/tiles.ts"
 import { boreOf, isBored } from "../bores.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS, chunkOf } from "../chunks.ts"
+import { DRAPE_POKE } from "../drape.ts"
+import { emptySink } from "../geometry.ts"
 import { terrainY, yOf } from "../ground.ts"
 import { bridgeHex, roadHex, roadPieces } from "../lines.ts"
 import {
@@ -101,6 +104,149 @@ export const checkRibbon = (road: Road): number => {
     )
   }
   return points.length
+}
+
+/** The step (m) of the lattice `checkLaid` reads, on the terrain mesh's grid: its nodes and folds among the points. */
+const LATTICE = 0.25
+
+/** How far round each mouth (m) `checkTunnels` checks the roads at grade lie over the terrain: past the cells held behind it. */
+const LAID_REACH = 12
+
+/**
+ * The highest step (m) in ribbon `tris` (three space) within `reach` m of map point (x, y), and
+ * where: a corner of one of them lying on another's side, seen from above, off that side's height
+ * there, a crack the terrain shows through (`drape` once cut a triangle along a side the triangle
+ * across it drew straight).
+ */
+const stepIn = (
+  tris: ReadonlyArray<Tri>,
+  x: number,
+  y: number,
+  reach: number,
+): { readonly by: number; readonly at: string } => {
+  const near = bucketed(tris)
+  let worst = { by: 0, at: "none" }
+  for (const tri of tris)
+    for (const [vx, vh, vz] of tri) {
+      const vy = -vz
+      if (Math.hypot(vx - x, vy - y) > reach) continue
+      for (const other of near(vx, vy))
+        for (let k = 0; k < 3; k++) {
+          const [px, ph, pz] = other[k]!,
+            [qx, qh, qz] = other[(k + 1) % 3]!,
+            ex = qx - px,
+            ey = -(qz - pz),
+            l2 = ex * ex + ey * ey,
+            t = ((vx - px) * ex + (vy + pz) * ey) / l2
+          if (l2 === 0 || t <= 1e-6 || t >= 1 - 1e-6) continue
+          if (Math.abs(ex * (vy + pz) - ey * (vx - px)) > 1e-6 * Math.sqrt(l2)) continue
+          // Only across the side: where a sharp bend's mitre folds a ribbon over itself, its quads
+          // overlap, each on its own section's level.
+          const side = (sx: number, sy: number) => ex * (sy + pz) - ey * (sx - px),
+            [ox, , oz] = other[(k + 2) % 3]!,
+            cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3,
+            cy = -(tri[0][2] + tri[1][2] + tri[2][2]) / 3
+          if (side(cx, cy) * side(ox, -oz) >= 0) continue
+          const by = Math.abs(vh - (ph + (qh - ph) * t))
+          if (by > worst.by) worst = { by, at: `at (${vx.toFixed(2)}, ${vy.toFixed(2)})` }
+        }
+    }
+  return worst
+}
+
+/**
+ * Round map point (x, y), within `reach` m, the roads at grade among `roads` lie over the terrain
+ * mesh and their painted lines over them: at every point of a LATTICE m lattice on the mesh's grid
+ * within a road's carriageway (0.1 m in from its edges) that the road's ribbon covers, the mesh
+ * stands no more than `DRAPE_POKE` over that ribbon as drawn, and wherever one of its lines is
+ * drawn, the line stands 1 cm or more over it; and no ribbon steps where its triangles meet
+ * (`stepIn`). A ribbon read at its corners alone stood 0.56 m under the mesh on the footway
+ * 1462688623 by the west mouth of Sarzana's service tunnel 376037643, and the centre line of
+ * Fivizzano's SS63 sank 0.13 m under its ribbon by the west mouth of its underpass 145347886.
+ * Returns how many points it checked.
+ */
+export const checkLaid = (
+  roads: ReadonlyArray<Road>,
+  x: number,
+  y: number,
+  reach: number,
+): number => {
+  const laid = roads.flatMap((road) => {
+    if (road.bridge === true || road.tunnel === true) return []
+    // Its segments within reach and 20 m on, drawn as a chunk draws them: those past them, which it
+    // draws for their mitres, lie beyond the points checked.
+    const piece = roadPieces(road)[0]!,
+      pts = piece.pts
+    let k0 = -1,
+      k1 = -1
+    for (let k = 0; 2 * k + 3 < pts.length; k++)
+      if (
+        segDist2(x, y, pts[2 * k]!, pts[2 * k + 1]!, pts[2 * k + 2]!, pts[2 * k + 3]!).d2 <=
+        (reach + road.w / 2 + 20) ** 2
+      ) {
+        if (k0 < 0) k0 = k
+        k1 = k
+      }
+    if (k0 < 0) return []
+    const sink = emptySink()
+    piece.draw(() => sink, k0, k1)
+    const ribbon = trianglesOf(sink.decal, roadHex(road))
+    return [
+      {
+        road,
+        step: stepIn(ribbon, x, y, reach),
+        ribbon: bucketed(ribbon),
+        lines: bucketed(trianglesOf(sink.decal, PALETTE.marbleWhite)),
+      },
+    ]
+  })
+  const step = laid.reduce(
+    (worst, { road, step }) =>
+      step.by > worst.by ? { by: step.by, at: `${road.cls} ${road.id} ${step.at}` } : worst,
+    { by: 0, at: "none" },
+  )
+  const { x0, y0 } = MAP.heightmap
+  let points = 0,
+    poke = { by: 0, at: "" },
+    sunk = { by: 0, at: "" }
+  for (
+    let px = x0 + Math.ceil((x - reach - x0) / LATTICE) * LATTICE;
+    px <= x + reach;
+    px += LATTICE
+  )
+    for (
+      let py = y0 + Math.ceil((y - reach - y0) / LATTICE) * LATTICE;
+      py <= y + reach;
+      py += LATTICE
+    ) {
+      if (Math.hypot(px - x, py - y) > reach) continue
+      const where = `at (${px.toFixed(2)}, ${py.toFixed(2)})`
+      for (const { road, ribbon, lines } of laid) {
+        let inside = false
+        for (let k = 0; k + 3 < road.pts.length && !inside; k += 2)
+          inside =
+            segDist2(px, py, road.pts[k]!, road.pts[k + 1]!, road.pts[k + 2]!, road.pts[k + 3]!)
+              .d2 <=
+            (road.w / 2 - 0.1) ** 2
+        const own = ribbon(px, py).flatMap((tri) => heightIn(tri, px, py) ?? [])
+        if (own.length === 0) continue
+        const top = Math.max(...own)
+        if (inside) {
+          points++
+          const by = terrainY(px, py) - top
+          if (by > poke.by) poke = { by, at: `${road.cls} ${road.id} ${where}` }
+        }
+        for (const line of lines(px, py).flatMap((tri) => heightIn(tri, px, py) ?? [])) {
+          const by = top + 0.01 - line
+          if (by > sunk.by) sunk = { by, at: `${road.cls} ${road.id} ${where}` }
+        }
+      }
+    }
+  assert.ok(
+    poke.by <= DRAPE_POKE + 1e-3 && sunk.by <= 1e-3 && step.by <= 1e-3,
+    `round (${x.toFixed(1)}, ${y.toFixed(1)}): the terrain ${poke.by.toFixed(3)} m over the ribbon of ${poke.at || "none"}; a painted line ${(0.01 - sunk.by).toFixed(3)} m over its ribbon, on ${sunk.at || "none"}; a step of ${step.by.toFixed(3)} m in the ribbon of ${step.at}`,
+  )
+  return points
 }
 
 /** Whether triangle `tri` (three space) holds point `p`, within 1 cm of its plane. */
@@ -224,8 +370,11 @@ const chunksOver = (minX: number, minY: number, maxX: number, maxY: number): Arr
  * bridges' colour, at each with a head wall the head wall's opening faces out of its bank at the
  * bore's width and clear height, in that colour, its top under the bank, and either stands on no
  * other road nor the track (`checkClear`); at each open one no portal stands, for a reason
- * `whyOpen` finds by geometry; and the chunks over each road in a tunnel, 60 m round, built from
- * the pieces of the map's tiles, keep exactly their cut of a whole-map build. Returns the counts.
+ * `whyOpen` finds by geometry; round each, LAID_REACH m, the roads at grade lie over the terrain and
+ * their painted lines over them (`checkLaid`: the ground behind a mouth is held at the bore's floor,
+ * as much as 7 m under the roads over a shallow bore); and the chunks over each road in a tunnel, 60
+ * m round, built from the pieces of the map's tiles, keep exactly their cut of a whole-map build.
+ * Returns the counts.
  */
 export const checkTunnels = (whole: Vectors): TunnelCounts => {
   const { roads } = whole,
@@ -253,11 +402,29 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
   let portals = 0,
     heads = 0
   const open: Record<Open, number> = { buried: 0, housed: 0, low: 0, crowded: 0 }
+  // The roads at grade by the 64 m cells their boxes meet, for the ones round each mouth.
+  const cells = new Map<string, Array<Road>>()
+  for (const road of roads.items) {
+    if (road.bridge === true || road.tunnel === true) continue
+    const xs = road.pts.filter((_, k) => k % 2 === 0),
+      ys = road.pts.filter((_, k) => k % 2 === 1)
+    for (let i = Math.floor(Math.min(...xs) / 64); i <= Math.floor(Math.max(...xs) / 64); i++)
+      for (let j = Math.floor(Math.min(...ys) / 64); j <= Math.floor(Math.max(...ys) / 64); j++) {
+        const list = cells.get(`${i},${j}`)
+        if (list === undefined) cells.set(`${i},${j}`, [road])
+        else list.push(road)
+      }
+  }
   for (const [n, mouth] of baked.entries()) {
     const end = found[n]!,
       road = MAP.roads[mouth.road]!,
       line = roads.items[roads.ids.indexOf(mouth.road)]!,
       back = "back" in mouth ? mouth.back : 0
+    const round = new Set<Road>()
+    for (let i = Math.floor((mouth.x - 40) / 64); i <= Math.floor((mouth.x + 40) / 64); i++)
+      for (let j = Math.floor((mouth.y - 40) / 64); j <= Math.floor((mouth.y + 40) / 64); j++)
+        for (const near of cells.get(`${i},${j}`) ?? []) round.add(near)
+    checkLaid([...round], mouth.x, mouth.y, LAID_REACH)
     if (back === 0) {
       assert.deepEqual([mouth.x, mouth.y], [end.x, end.y], `road ${road.id}'s mouth`)
       assert.ok(

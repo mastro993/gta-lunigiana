@@ -25,6 +25,7 @@ import { join } from "node:path"
 
 import { TILE } from "../sim/map/kinds.ts"
 import { cropOf, localBoxOf } from "./dtm-mosaic.ts"
+import { CELL, partTiles } from "./dtm-tiles.ts"
 import { clipRing, gaussBoagaBox } from "./geometry.ts"
 import { ligDir, type Part, type Rect, tilesOf } from "./region.ts"
 
@@ -310,13 +311,26 @@ const DTM_TILE = 512
 const DTM_PAD = 10
 
 /**
- * The 2 km tiles whose DTM crops fetch-lig asks for a part's `rects`: every tile the local box round
- * fetch-rt's crop of them (`cropOf`, their EPSG:3003 box plus its margin) meets, a notch between
- * rectangles included, as the chain fills the whole crop. Each crop is its tile's EPSG:3003 box
- * plus DTM_PAD (`dtmCropBox`), so together they cover the crop.
+ * The 2 km tiles whose DTM crops fetch-lig asks for a part's `rects`: every tile the cells fetch-rt
+ * fills for it meet, so that the chain finds Liguria's DTM under each of them. For a Lunigiana
+ * part, its tiles' cells in a map whose terrain spans `bounds` (`partTiles`: each square cut to
+ * them, HALO round it), which reach past its rectangles where the box grows past them, into the
+ * next row (Sarzana's part grew Fosdinovo's row −4 to its whole squares, issue #20); for a test
+ * region with terrain of its own (no `bounds`), the local box round its rectangles' crop
+ * (`cropOf`, their EPSG:3003 box plus its margin), a notch between rectangles included. Each crop
+ * is its tile's EPSG:3003 box plus DTM_PAD (`dtmCropBox`), so together they cover those cells.
  */
-export const dtmTiles = (rects: ReadonlyArray<Rect>): ReturnType<typeof tilesOf> =>
-  tilesOf([localBoxOf(cropOf(rects))])
+export const dtmTiles = (
+  rects: ReadonlyArray<Rect>,
+  bounds?: Parameters<typeof partTiles>[1],
+): ReturnType<typeof tilesOf> =>
+  bounds === undefined
+    ? tilesOf([localBoxOf(cropOf(rects))])
+    : tilesOf(
+        partTiles(rects, bounds).map(({ need: { e0, n0, cols, rows } }) =>
+          localBoxOf({ e0, n0, cols: CELL * (cols - 1) + 1, rows: CELL * (rows - 1) + 1 }),
+        ),
+      )
 
 /** The EPSG:3003 box of tile (i, j)'s DTM crop: the tile's own box plus DTM_PAD. */
 export const dtmCropBox = (i: number, j: number): Rect =>

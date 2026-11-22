@@ -108,7 +108,7 @@ test("the scatters of the tiles, merged by id, are the scatter of their whole bo
   const scatter = treeScatter(FEATURES, LUCIDO)
   const tiles = [-1, 0, 1].flatMap((j) => [-1, 0, 1].map((i) => scatter(tileBox(i, j))))
   const whole = scatter([-2000, -2000, 4000, 4000])
-  const merged = mergeTrees(tiles)
+  const merged = mergeTrees(tiles, (n) => new Int32Array(n))
   assert.deepEqual(Array.from(merged.ids), Array.from(whole.ids))
   assert.deepEqual(Array.from(merged.trees), Array.from(whole.trees))
   // Each pair's spot holds one tree, owned by the tile of its rounded point.
@@ -405,7 +405,10 @@ test("an olive keeps its place and id as the region's box grows, and the scatter
   assert.ok(whole.ids.length > 700, `${whole.ids.length} olives`)
   assert.deepEqual(treeScatter(features, grown)([1000, 1000, 3000, 3000]), whole)
   const scatter = treeScatter(features, LUCIDO)
-  const merged = mergeTrees([0, 1].flatMap((j) => [0, 1].map((i) => scatter(tileBox(i, j)))))
+  const merged = mergeTrees(
+    [0, 1].flatMap((j) => [0, 1].map((i) => scatter(tileBox(i, j)))),
+    (n) => new Int32Array(n),
+  )
   assert.deepEqual(Array.from(merged.ids), Array.from(whole.ids))
   assert.deepEqual(Array.from(merged.trees), Array.from(whole.trees))
 })

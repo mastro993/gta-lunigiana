@@ -24,13 +24,17 @@
 //   metres), else the SP59 from Monzone to Vinca out of the global map file. It reports, as one JSON
 //   line, the slowest frame and the 99th percentile, the slowest frame within 1 s of each tile-seam
 //   crossing, the most tiles resident at once, the tiles resident at the end and the heap after GC.
-// The port defaults to 9333.
+// Every mode fails (exit 1, no report) once the game stops: at once when the page logs the halt
+// ("game stopped" and the error, which the game loop catches, so no exception reaches CDP), else
+// when the Stopped card is up at the end (a tile gone for good logs nothing).
+// The port defaults to 9333. src/tools/playtest-cli.ts parses the command line, and
+// src/tools/playtest-drive.ts holds the drive's route, page script and report.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
-import { parseArgs } from "node:util"
 
 import { evaluate, openTab, press, type Tab } from "./cdp.ts"
+import { type Command, type Day, parseCli, type Spot, USAGE } from "./playtest-cli.ts"
 import {
   defaultRoute,
   driveReport,
@@ -40,72 +44,6 @@ import {
   frameStats,
   lengthOf,
 } from "./playtest-drive.ts"
-
-const USAGE = `usage: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s] [--date YYYY-MM-DD]
-       node src/tools/playtest.ts heap <url> [--port N] [--seconds s] [--at x,y] [--date YYYY-MM-DD]
-       node src/tools/playtest.ts drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,x2,y2,…]
-shots and drive need a dev build (pnpm exec vite: window.gta); heap works on dev and production builds`
-
-/** A place to shoot: x east and y north in map metres, at `zoom` texels per metre when set; or the full map. */
-type Spot =
-  | {
-      readonly kind: "spot"
-      readonly name: string
-      readonly x: number
-      readonly y: number
-      readonly zoom?: number
-    }
-  | { readonly kind: "map" }
-
-/** A parsed command line. */
-export type Command =
-  | {
-      readonly command: "shots"
-      readonly url: string
-      readonly outdir: string
-      readonly spots: ReadonlyArray<Spot>
-      readonly port: number
-      readonly waitS: number
-      /** Unset: the day the game starts on. */
-      readonly date?: Day
-    }
-  | {
-      readonly command: "heap"
-      readonly url: string
-      readonly port: number
-      readonly seconds: number
-      /** Unset: where the game starts the player. */
-      readonly at?: { readonly x: number; readonly y: number }
-      /** Unset: the day the game starts on. */
-      readonly date?: Day
-    }
-  | {
-      readonly command: "drive"
-      readonly url: string
-      readonly port: number
-      /** m/s along the route. */
-      readonly speed: number
-      /** Unset: the route's length at `speed`. */
-      readonly seconds?: number
-      /** Flat x, y pairs in map metres; unset: `defaultRoute()`. */
-      readonly route?: ReadonlyArray<number>
-    }
-
-/** A calendar day. */
-interface Day {
-  readonly year: number
-  readonly month: number
-  readonly day: number
-}
-
-/** Parses `YYYY-MM-DD`. */
-const parseDay = (text: string): Day => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
-  const [year, month, day] = [match?.[1], match?.[2], match?.[3]].map(Number)
-  if (match === null || month! < 1 || month! > 12 || day! < 1 || day! > 31)
-    throw new Error(`bad --date "${text}": want YYYY-MM-DD`)
-  return { year: year!, month: month!, day: day! }
-}
 
 /**
  * The script each new document runs first so the game starts on `date`: the page's clock moved there at this time of day, running
@@ -123,90 +61,6 @@ export const startOnScript = (date: Day): string => `(() => {
 
 /** The page script that stops the game's clock at noon (Rome) under a clear sky, settled (a dev build's sky store, `gta.sky`; a production build's clock runs on). */
 const NOON_SCRIPT = `window.gta?.sky !== undefined && (gta.sky.setRate(0), gta.sky.setTime(12 * 3600), gta.sky.force("clear"), gta.sky.settle())`
-
-/** Parses `map` or `<name>:<x>,<y>[,<texels/m>]`; the name becomes a file name, so it holds only letters, digits, `_` and `-`. */
-export const parseSpot = (text: string): Spot => {
-  if (text === "map") return { kind: "map" }
-  const match = /^([\w-]+):([^,]+),([^,]+)(?:,([^,]+))?$/.exec(text)
-  const [x, y, zoom] = [match?.[2], match?.[3], match?.[4]].map((v) =>
-    v === undefined ? undefined : Number(v),
-  )
-  if (match === null || !Number.isFinite(x) || !Number.isFinite(y))
-    throw new Error(`bad spot "${text}": want <name>:<x>,<y>[,<texels/m>] or map`)
-  if (zoom !== undefined && !(zoom > 0)) throw new Error(`bad zoom in "${text}": want texels/m > 0`)
-  return { kind: "spot", name: match[1]!, x: x!, y: y!, ...(zoom === undefined ? {} : { zoom }) }
-}
-
-const positive = (text: string | undefined, fallback: number, flag: string): number => {
-  const value = text === undefined ? fallback : Number(text)
-  if (!(value > 0) || !Number.isFinite(value)) throw new Error(`bad ${flag} "${text}"`)
-  return value
-}
-
-const parseRoute = (text: string): Array<number> => {
-  const route = text.split(",").map((v) => (v.trim() === "" ? Number.NaN : Number(v)))
-  if (route.length < 4 || route.length % 2 !== 0 || !route.every(Number.isFinite))
-    throw new Error(`bad --route "${text}": want x1,y1,x2,y2,… (two points or more)`)
-  return route
-}
-
-/** Parses the arguments after the script's name; throws on a bad line (the CLI prints the usage after the error). */
-export const parseCli = (argv: ReadonlyArray<string>): Command => {
-  const { values, positionals } = parseArgs({
-    args: [...argv],
-    allowPositionals: true,
-    options: {
-      port: { type: "string" },
-      wait: { type: "string" },
-      seconds: { type: "string" },
-      speed: { type: "string" },
-      route: { type: "string" },
-      date: { type: "string" },
-      at: { type: "string" },
-    },
-  })
-  const port = positive(values.port, 9333, "--port")
-  if (!Number.isInteger(port) || port > 65_535) throw new Error(`bad --port "${values.port}"`)
-  const [command, url, ...rest] = positionals
-  if (url !== undefined && !URL.canParse(url)) throw new Error(`bad url "${url}"`)
-  if (command === "shots" && url !== undefined && rest.length >= 2) {
-    const [outdir, ...spots] = rest as [string, ...Array<string>]
-    return {
-      command,
-      url,
-      outdir,
-      spots: spots.map(parseSpot),
-      port,
-      waitS: positive(values.wait, 6, "--wait"),
-      ...(values.date === undefined ? {} : { date: parseDay(values.date) }),
-    }
-  }
-  if (command === "heap" && url !== undefined && rest.length === 0) {
-    const at = values.at?.split(",").map((v) => (v.trim() === "" ? Number.NaN : Number(v)))
-    if (at !== undefined && (at.length !== 2 || !at.every(Number.isFinite)))
-      throw new Error(`bad --at "${values.at}": want x,y`)
-    return {
-      command,
-      url,
-      port,
-      seconds: positive(values.seconds, 10, "--seconds"),
-      ...(at === undefined ? {} : { at: { x: at[0]!, y: at[1]! } }),
-      ...(values.date === undefined ? {} : { date: parseDay(values.date) }),
-    }
-  }
-  if (command === "drive" && url !== undefined && rest.length === 0)
-    return {
-      command,
-      url,
-      port,
-      speed: positive(values.speed, 40, "--speed"),
-      ...(values.seconds === undefined
-        ? {}
-        : { seconds: positive(values.seconds, 0, "--seconds") }),
-      ...(values.route === undefined ? {} : { route: parseRoute(values.route) }),
-    }
-  throw new Error("missing or extra arguments")
-}
 
 /**
  * The page script for a spot: shows only the canvas, pins the zoom when the spot has one (and frees
@@ -253,6 +107,39 @@ const framesScript = (seconds: number): string => `new Promise((done) => {
   requestAnimationFrame(tick)
   setTimeout(() => done(deltas), ${seconds * 1000 + 5000})
 })`
+
+/**
+ * The text of the game's halt in a `Runtime.consoleAPICalled` event: a frame threw and the loop
+ * stopped (`crashed` in src/hud/title.ts, or src/main.ts's loop once the game had stopped), which logs
+ * "game stopped" and the error with console.error; else undefined. The loop catches what a frame
+ * throws, so no `Runtime.exceptionThrown` comes.
+ */
+export const haltOf = (params: Record<string, unknown>): string | undefined => {
+  const { type, args = [] } = params as {
+    type?: string
+    args?: ReadonlyArray<{ readonly value?: unknown; readonly description?: string }>
+  }
+  const [first, ...rest] = args
+  if (
+    type !== "error" ||
+    typeof first?.value !== "string" ||
+    !first.value.startsWith("game stopped")
+  )
+    return undefined
+  return [first.value, ...rest.map((arg) => arg.description ?? String(arg.value))].join(" ")
+}
+
+/**
+ * The Stopped card's reason once the game has stopped (`stopped` in src/hud/title.ts: a frame threw,
+ * or a tile it needs will never come, which logs nothing), else "": the card is back over the game
+ * with its error shown.
+ */
+export const STOPPED_SCRIPT = `(() => {
+  const error = document.getElementById("title-error")
+  return document.getElementById("title")?.hidden === false && error !== null && !error.hidden
+    ? error.textContent
+    : ""
+})()`
 
 /** The card's state: its error, "ready" once it says "Press any key", else "". */
 const READY_SCRIPT = `(() => {
@@ -332,7 +219,10 @@ const shoot = async (tab: Tab, path: string): Promise<void> => {
   console.log("shot", path)
 }
 
-const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>): Promise<void> => {
+const shots = async (
+  tab: Tab,
+  command: Extract<Command, { command: "shots" }>,
+): Promise<undefined> => {
   const seconds = await load(
     tab,
     command.url,
@@ -365,9 +255,10 @@ const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>):
     await sleep(command.waitS * 1000)
     await shoot(tab, join(command.outdir, `${spot.name}.png`))
   }
+  return undefined
 }
 
-const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): Promise<void> => {
+const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): Promise<string> => {
   await load(
     tab,
     command.url,
@@ -391,15 +282,13 @@ const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): P
       command.seconds * 1000 + 10_000,
     ),
   )
-  console.log(
-    JSON.stringify({
-      url: command.url,
-      firstFrameS: Math.round(firstFrame / 10) / 100,
-      slowestFrameMs: tenths(slowest),
-      p99FrameMs: tenths(p99),
-      heapMB: await heapAfterGc(tab),
-    }),
-  )
+  return JSON.stringify({
+    url: command.url,
+    firstFrameS: Math.round(firstFrame / 10) / 100,
+    slowestFrameMs: tenths(slowest),
+    p99FrameMs: tenths(p99),
+    heapMB: await heapAfterGc(tab),
+  })
 }
 
 /** Puts the player at (x, y) facing `angle` and waits until the resident tiles hold still for 1 s (20 s at most). */
@@ -415,7 +304,10 @@ const settle = async (tab: Tab, x: number, y: number, angle: number): Promise<vo
   }
 }
 
-const drive = async (tab: Tab, command: Extract<Command, { command: "drive" }>): Promise<void> => {
+const drive = async (
+  tab: Tab,
+  command: Extract<Command, { command: "drive" }>,
+): Promise<string> => {
   const route = command.route ?? defaultRoute()
   const length = lengthOf(route),
     seconds = command.seconds ?? length / command.speed
@@ -434,41 +326,64 @@ const drive = async (tab: Tab, command: Extract<Command, { command: "drive" }>):
   )
   const { slowest, p99, seams, slow, maxTiles } = driveReport(frames)
   const tiles = await evaluate<Array<string>>(tab, "gta.tiles()")
-  console.log(
-    JSON.stringify({
-      url: command.url,
-      speed: command.speed,
-      routeM: Math.round(length),
-      seconds: tenths((frames.at(-1)?.[0] ?? 0) / 1000),
+  return JSON.stringify({
+    url: command.url,
+    speed: command.speed,
+    routeM: Math.round(length),
+    seconds: tenths((frames.at(-1)?.[0] ?? 0) / 1000),
+    slowestFrameMs: tenths(slowest),
+    p99FrameMs: tenths(p99),
+    seamFrameMs: tenths(seams.reduce((m, seam) => Math.max(m, seam.slowest), 0)),
+    seams: seams.map(({ axis, at, t, slowest }) => ({
+      axis,
+      at,
+      t: tenths(t / 1000),
       slowestFrameMs: tenths(slowest),
-      p99FrameMs: tenths(p99),
-      seamFrameMs: tenths(seams.reduce((m, seam) => Math.max(m, seam.slowest), 0)),
-      seams: seams.map(({ axis, at, t, slowest }) => ({
-        axis,
-        at,
-        t: tenths(t / 1000),
-        slowestFrameMs: tenths(slowest),
-      })),
-      framesOver30Ms: slow.map(({ t, x, y, dt }) => ({
-        t: tenths(t / 1000),
-        x: x === null ? null : Math.round(x),
-        y: y === null ? null : Math.round(y),
-        ms: tenths(dt),
-      })),
-      maxTiles,
-      tiles,
-      heapMB: await heapAfterGc(tab),
-    }),
-  )
+    })),
+    framesOver30Ms: slow.map(({ t, x, y, dt }) => ({
+      t: tenths(t / 1000),
+      x: x === null ? null : Math.round(x),
+      y: y === null ? null : Math.round(y),
+      ms: tenths(dt),
+    })),
+    maxTiles,
+    tiles,
+    heapMB: await heapAfterGc(tab),
+  })
 }
 
-/** Runs `command` in a new tab of the Chrome on its port, and closes the tab. */
+/** Rejects with the game's halt as soon as the page logs one (`haltOf`), its text on stderr at once. */
+const halted = (tab: Tab): Promise<never> =>
+  new Promise((_, fail) => {
+    tab.on("Runtime.consoleAPICalled", (params) => {
+      const halt = haltOf(params)
+      if (halt === undefined) return
+      console.error("page:", halt)
+      fail(new Error(`the game stopped while the bot ran: ${halt.split("\n")[0]}`))
+    })
+  })
+
+/**
+ * Runs `command` in a new tab of the Chrome on its port, and closes the tab. It fails, printing no
+ * report, as soon as the game halts, or when the Stopped card is up at the end (a halt that logs
+ * nothing): a report from a stopped game measures nothing.
+ */
 const run = async (command: Command): Promise<void> => {
   const tab = await openTab(command.port)
   try {
-    if (command.command === "shots") await shots(tab, command)
-    else if (command.command === "heap") await heap(tab, command)
-    else await drive(tab, command)
+    const stop = halted(tab)
+    const work =
+      command.command === "shots"
+        ? shots(tab, command)
+        : command.command === "heap"
+          ? heap(tab, command)
+          : drive(tab, command)
+    // Whichever loses the race fails later (the work once the tab is closed, a halt after the work): nothing is left to hear it.
+    for (const late of [stop, work]) late.catch(() => undefined)
+    const report = await Promise.race([work, stop])
+    const reason = await evaluate<string>(tab, STOPPED_SCRIPT)
+    if (reason !== "") throw new Error(`the game stopped while the bot ran: ${reason}`)
+    if (report !== undefined) console.log(report)
   } finally {
     await tab.close()
   }

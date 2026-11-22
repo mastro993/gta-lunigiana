@@ -8,7 +8,7 @@
  */
 import { Ops, type Random } from "@typeonce/ritmo-math"
 
-import { edgeIndex } from "./edges.ts"
+import { edgeIndex, isWalkEdge } from "./edges.ts"
 import { type Lane, laneOf, peel, roadOf, type Step, stepKey } from "./lanes.ts"
 import { graph, MAP, type RoadClass, type RoadInfo, roadClassOf, vergeOf } from "./map/index.ts"
 import { residentsAlong } from "./population/density.ts"
@@ -16,7 +16,7 @@ import { VEHICLE_MODELS, type VehicleModel } from "./vehicles.ts"
 
 // The edge lookups live in ./edges.ts (density reads them without a cycle) and the lane geometry in
 // ./lanes.ts (the build bakes the lane tables with it); route stays their public home.
-export { distanceToEdge, edgeIndex } from "./edges.ts"
+export { distanceToEdge, edgeIndex, isTrafficEdge, isWalkEdge } from "./edges.ts"
 export { type Lane, laneOf, lanePoint, roadOf, type Step, stepKey } from "./lanes.ts"
 
 /**
@@ -66,8 +66,6 @@ const CRUISE: Readonly<Partial<Record<RoadClass, number>>> = {
 
 /** Cruising speed of AI traffic on `road`, m/s (`CRUISE`). */
 export const cruiseSpeed = (road: RoadInfo): number => CRUISE[roadClassOf(road)] ?? 5
-
-const walkSet: ReadonlySet<number> = new Set(graph.walkEdges)
 
 /** Whether heading `angle` points along `edge` travelled a -> b (rather than b -> a). */
 export const facesForward = (edge: number, angle: number): boolean => {
@@ -156,7 +154,7 @@ const wayAhead = (step: Step): number => {
     const { step: s, gone } = queue[i]!
     const node = endNode(s.edge, s.forward)
     const on =
-      gone < WALK_AHEAD ? graph.adjacency[node]!.filter((e) => walkSet.has(e) && !seen.has(e)) : []
+      gone < WALK_AHEAD ? graph.adjacency[node]!.filter((e) => isWalkEdge(e) && !seen.has(e)) : []
     if (on.length === 0) most = Math.max(most, residentsAlong(s.edge))
     for (const e of on) {
       seen.add(e)
@@ -174,7 +172,7 @@ const WALK_FLOOR = 0.5
 
 /** The walk edge to take after arriving at `node` along `arrived`: weighted by the residents the way leads to, turning back only at dead ends. */
 export const nextWalkEdge = (node: number, arrived: number, random: Random.Random): Step => {
-  const options = graph.adjacency[node]!.filter((e) => e !== arrived && walkSet.has(e)).map((e) =>
+  const options = graph.adjacency[node]!.filter((e) => e !== arrived && isWalkEdge(e)).map((e) =>
     leaving(node, e),
   )
   return random.weighted(options, (step) => wayAhead(step) + WALK_FLOOR) ?? leaving(node, arrived)

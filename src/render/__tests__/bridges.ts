@@ -85,11 +85,15 @@ const approachTo = (
  * how many crossings it made. They come on along the road leading onto it (`approachTo`), setting out on its level.
  * The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
  * the walker's footing is settled as `FindFooting` settles it (`settleFooting`) and it stands where the renderer draws it on that.
+ * Every pass off its deck fails but the `known` ("<id> a -> b" or "<id> b -> a"), each of which must still leave it.
  */
 export const assertBridgesCarry = (
   roads: ReadonlyArray<Road>,
   around: ReadonlyArray<Road>,
+  known: ReadonlyArray<string> = [],
 ): number => {
+  // Each pass's first point off the deck, by "<id> a -> b" or "<id> b -> a".
+  const off = new Map<string, string>()
   const { wheels } = VEHICLES.carabinieri
   // The straight approach out of a tunnel runs through the hillside (the old marble road up the Solco di Equi bends between its tunnels and bridges).
   const tunnelEnd = (x: number, y: number) =>
@@ -143,24 +147,32 @@ export const assertBridgesCarry = (
             Math.atan2(by - ay, bx - ax),
           )
       }
-      for (let i = 0; i + 1 < pts.length; i++) {
+      const pass = `${r.id} ${reverse ? "b -> a" : "a -> b"}`
+      for (let i = 0; i + 1 < pts.length && !off.has(pass); i++) {
         const [ax, ay, az] = pts[i]!,
           [bx, by, bz] = pts[i + 1]!,
           len = Math.hypot(bx - ax, by - ay)
-        for (let s = 0; s < len; s += 0.4) {
+        for (let s = 0; s < len && !off.has(pass); s += 0.4) {
           const x = ax + ((bx - ax) * s) / len,
             y = ay + ((by - ay) * s) / len
           place(x, y, Math.atan2(by - ay, bx - ax))
           const deck = az + ((bz - az) * s) / len + ROAD_LIFT[roadClassOf(r)],
             car = contacts!.reduce((a, b) => a + b) / contacts!.length
-          assert.ok(
-            Math.abs(car - deck) < 0.5 && Math.abs(feet - yOf(deck)) < 0.5,
-            `road ${r.id} ${reverse ? "b -> a" : "a -> b"} at ${x.toFixed(1)},${y.toFixed(1)}: deck ${deck.toFixed(2)}, wheels ${car.toFixed(2)}, walker ${(feet - yOf(0)).toFixed(2)} m a.s.l.`,
-          )
+          if (Math.abs(car - deck) >= 0.5 || Math.abs(feet - yOf(deck)) >= 0.5)
+            off.set(
+              pass,
+              `road ${pass} at ${x.toFixed(1)},${y.toFixed(1)}: deck ${deck.toFixed(2)}, wheels ${car.toFixed(2)}, walker ${(feet - yOf(0)).toFixed(2)} m a.s.l.`,
+            )
         }
       }
       passes++
     }
   }
+  assert.deepEqual(
+    [...off].filter(([pass]) => !known.includes(pass)).map(([, line]) => line),
+    [],
+  )
+  for (const pass of known)
+    assert.ok(off.has(pass), `road ${pass} stays on its deck now: drop it from the known passes`)
   return passes
 }

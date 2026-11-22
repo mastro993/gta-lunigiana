@@ -82,6 +82,8 @@ export interface RailF {
   readonly tunnel?: true
   /** OSM `maxspeed`, km/h. */
   readonly maxspeed?: number
+  /** OSM `layer`, where it tags one: a road on a lower one runs under the track (`underRail`). */
+  readonly layer?: number
   readonly pts: ReadonlyArray<V>
 }
 export interface BuildingF {
@@ -312,7 +314,7 @@ export const extractWater = (
     })
 }
 
-/** `railway=rail` ways cut by `clip`, with their bridge, tunnel and speed-limit tags. */
+/** `railway=rail` ways cut by `clip`, with their bridge, tunnel, speed-limit and layer tags. */
 export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
@@ -322,6 +324,7 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
         ...(/^\d+(\.\d+)?$/.test(w.tags.maxspeed ?? "") ? { maxspeed: +w.tags.maxspeed! } : {}),
+        ...(/^-?\d+$/.test(w.tags.layer ?? "") ? { layer: +w.tags.layer! } : {}),
         pts,
       })),
     )
@@ -358,8 +361,9 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 }
 
 /**
- * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere but where one
- * shares half the smaller one's area with a surveyed building (`apartFrom`), each clipped to the
+ * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere and its castles
+ * and forts everywhere, but where one shares half the smaller one's area with a surveyed building
+ * (`apartFrom`), each clipped to the
  * built terrain's box and kept (`held`) where the centre of its clipped outline is in the play area
  * (an outline edge inside the box may cut through a house, which then stands whole or not at all;
  * one across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
@@ -409,9 +413,21 @@ export const extractBuildings = (
       ...(c.holes === undefined ? {} : { holes: c.holes }),
     }
   })
+  // A castle or fort OSM maps stays where a survey maps the ground: a survey may keep one among its
+  // monuments rather than its buildings (the NC5's Fortezza di Sarzanello, issue #20).
+  const forts = fortified(osm)
+  // The survey's mapped areas by their boxes: every OSM building against every sheet's area made
+  // 10 GB of garbage on Lunigiana, and grew with both.
+  const { mapped } = survey,
+    mappedIn = staticGrid(mapped.length, (k) => ringBox(mapped[k]!), 256)
+  const inMapped = ([x, y]: readonly [number, number]): boolean => {
+    let hit = false
+    mappedIn(x, y, x, y, (k) => (hit ||= pointInRing(x, y, mapped[k]!)))
+    return hit
+  }
   const unmapped = apartFrom(
     survey.buildings,
-    fromOsm.filter((b) => !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring))),
+    fromOsm.filter((b) => forts.has(b.id) || !inMapped(centroid(b.outer))),
   )
   const all = [...unmapped, ...fromCtr],
     held = all.map((b) => inPlay(...centroid(b.outer)))
@@ -426,6 +442,18 @@ export const extractBuildings = (
     ),
     beyond: all.filter((_, k) => !held[k]),
   }
+}
+
+/** The ids of OSM's castles and forts (`historic=castle|fort`, `building=castle|fortress`), ways and relations. */
+const fortified = (osm: Osm): ReadonlySet<number> => {
+  const fort = (t: Tags) =>
+    t.historic === "castle" ||
+    t.historic === "fort" ||
+    t.building === "castle" ||
+    t.building === "fortress"
+  return new Set(
+    [...osm.ways.values(), ...osm.relations.values()].flatMap((e) => (fort(e.tags) ? [+e.id] : [])),
+  )
 }
 
 const osmBuildings = (osm: Osm): Array<BuildingF> => {
@@ -608,11 +636,28 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
     for (let k = 0; k < ring.length; k += 2) sum += ground(ring[k]!, ring[k + 1]!)
     return sum / (ring.length / 2) < UNTYPED_OLIVES_BELOW ? "olive" : undefined
   }
+  // Each named watercourse's vertices, for the untagged water its namesake runs through (`riverOf`).
+  const courses = new Map<string, Array<P>>()
+  for (const w of osm.ways.values())
+    if (WATERCOURSES.has(w.tags.waterway ?? "") && w.tags.name !== undefined)
+      courses.set(w.tags.name, [...(courses.get(w.tags.name) ?? []), ...ringOf(osm, w.nds)])
+  /**
+   * A lake tagged `t`, as `kind`, is its namesake's river polygon when it has no `water=*` and a
+   * watercourse of its very name runs through it (a vertex inside `ring`): OSM's lower Calcandola,
+   * way 814811500, held as a lake at its lowest edge node dried the stream through it (issue #20).
+   */
+  const riverOf = (kind: AreaKind | undefined, t: Tags, ring: ReadonlyArray<number>) =>
+    kind === "lake" &&
+    t.water === undefined &&
+    t.name !== undefined &&
+    (courses.get(t.name) ?? []).some(([x, y]) => pointInRing(x, y, ring))
+      ? "river"
+      : kind
   for (const w of osm.ways.values()) {
     const tagged = areaKind(w.tags)
     if (tagged === undefined || isBuilding(w.tags) || !closed(w)) continue
     const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
-    const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+    const kind = ring === undefined ? undefined : riverOf(kindOf(tagged, ring), w.tags, ring)
     if (ring !== undefined && kind !== undefined)
       areas.push({
         kind,
@@ -628,7 +673,7 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
     for (const outer of assembleRings(osm, rel, "outer").map((r) => ringOf(osm, r))) {
       const flat = outer.flatMap(([x, y]) => [x, y])
       const ring = flatRing(clipRing(outer, TERRAIN_BOX), true)
-      const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+      const kind = ring === undefined ? undefined : riverOf(kindOf(tagged, ring), rel.tags, ring)
       if (ring === undefined || kind === undefined) continue
       const holes = inners
         .filter((h) => pointInRing(h[0]![0], h[0]![1], flat))

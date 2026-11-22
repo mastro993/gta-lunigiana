@@ -64,6 +64,28 @@ export const anchorOf = (hm: {
   return { x, y, i: (x - hm.x0) / hm.cell, j: (y - hm.y0) / hm.cell }
 }
 
+/**
+ * The items 0 … count − 1 in the order of the tiles their points `at` lie in (south to north, then
+ * west to east), each tile's in index order. A bake whose items each read the tiles round them runs
+ * through them so, as the build keeps only a few tiles decoded (`RESIDENT` in
+ * src/tools/build-output.ts): in the items' own order it decoded a tile again for almost every item.
+ */
+export const byTile = (
+  count: number,
+  at: (k: number) => { readonly x: number; readonly y: number },
+): Int32Array => {
+  const ti = new Int32Array(count),
+    tj = new Int32Array(count)
+  for (let k = 0; k < count; k++) {
+    const { x, y } = at(k)
+    ti[k] = Math.floor(x / TILE)
+    tj[k] = Math.floor(y / TILE)
+  }
+  return Int32Array.from({ length: count }, (_, k) => k).sort(
+    (a, b) => tj[a]! - tj[b]! || ti[a]! - ti[b]! || a - b,
+  )
+}
+
 /** How many rings round a tile `tilesRound` searches before it gives up: farther than any map's tiles reach. */
 const RINGS = 64
 
@@ -152,11 +174,19 @@ export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
 export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 
 /**
- * A bridge deck or tunnel within this height (m) of where an actor was is the one it is on
- * (`groundZ` in `./ground-model.ts`). The map build reads it too: the walls under the decks stand
- * farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
+ * A bridge deck or tunnel within this height (m) of where an actor was holds it: it stands on that
+ * one, or where several are (a fork, two spans' joint) on their blend (`groundZ` in
+ * `./ground-model.ts`). The map build reads it too: the walls under the decks stand farther than
+ * ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
  */
 export const ON_DECK = 0.5
+
+/**
+ * The clear height of an underpass or a road tunnel whose way has no `maxheight` tag, m: what the
+ * map build keeps under a bridge (src/tools/road-levels.ts) and a tunnel's bore is drawn to
+ * (src/render/bores.ts).
+ */
+export const UNDERPASS = 4
 
 /**
  * Two grounds this near in height (m) are one level: bodies meet, a body meets a train's car, and a
@@ -328,6 +358,18 @@ export const isWood = (kind: string): kind is Wood => woods.has(kind)
 /** Whether an area of `kind` holds water: a river's polygon (its bed, as wide as it spreads), a lake or the sea; a river's gravel (`pebble`) and a beach's sand do not. */
 export const isWaterArea = (kind: string): kind is "river" | "lake" | "sea" =>
   kind === "river" || kind === "lake" || kind === "sea"
+
+/** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
+export const reachOf = (water: { readonly bed: number; readonly w: number }): number =>
+  Math.max(water.bed, water.w / 2)
+
+/**
+ * A river polygon's water is its waterways' where they run in it, each part of a reach or a 2 m
+ * sample segment inside it this long at least, m: a stream ending on its outline (OSM's riverbank
+ * node) runs in none of it, though rounding left 0.1 m of it inside, which held the Magra's polygon
+ * on the plain by (−15600, −5800) at a dead end's 3.2 m for 150 m round it, 1.9 m over the river.
+ */
+export const IN_POLYGON = 1
 
 /**
  * Track on no line, drawn and driven by no train: a loop rejoins other track at both ends

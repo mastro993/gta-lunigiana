@@ -35,7 +35,7 @@ test("gridTiles gives each tile its 501 × 501 nodes cut to the grid, neighbours
 
 test("cellTile names the tile whose window holds all four nodes of the cell read at a point", () => {
   // Every tile of the box has a window, listed or not: a point in a notch is read in a tile off the
-  // list (a corner of Lunigiana's box is one, found from the list: its north-west and south-east today).
+  // list (a corner of Lunigiana's box is one, found from the list: its south-east today).
   const { i0, i1, j0, j1 } = tileRange(BOUNDS),
     box: Array<{ i: number; j: number }> = []
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.push({ i, j })
@@ -85,7 +85,7 @@ test("gridTiles gives an L its listed tiles alone, and listedNodes every node th
 test("extendEdges gives each node no listed tile holds the listed node the game reads there, and leaves the rest", () => {
   const z = Float64Array.from({ length: lLattice.cols * lLattice.rows }, (_, k) => k)
   const listed = listedNodes(lLattice, L.tiles)
-  extendEdges({ ...lLattice, z }, listed, L.tiles)
+  extendEdges(lLattice, z, listed, L.tiles)
   for (let k = 0; k < z.length; k++) if (listed[k] === 1) assert.equal(z[k], k, `node ${k}`)
   const at = (x: number, y: number) => z[lNode(x, y)]
   // Beside the notch's west side, the leg's edge (tile -1_1); beside its south side, the foot's (0_0)

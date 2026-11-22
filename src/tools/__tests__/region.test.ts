@@ -19,7 +19,6 @@ import {
   rectsBox,
   regionFromArgs,
   regionOfPart,
-  tilesOf,
   ucsParts,
 } from "../region.ts"
 
@@ -52,34 +51,46 @@ test("a region's bounds, its built terrain, are the box round its parts' rectang
   }
   const lunigiana = regionFromArgs([])
   assert.equal(lunigiana.parts, PARTS)
-  // Aulla's rectangle to the west, its and Fivizzano's to the north, lucido's rectangle and
-  // Fosdinovo's to the south, Magliano's to the east
-  assert.deepEqual(lunigiana.bounds, { minX: -22100, minY: -6100, maxX: 10600, maxY: 13000 })
-  // Two notches: ground in the box no part's rectangle holds, west of Fosdinovo (south of Aulla) and
-  // east of lucido
+  // Sarzana's rectangle to the west and south, its and Fivizzano's to the north, Magliano's to the
+  // east
+  assert.deepEqual(lunigiana.bounds, { minX: -23100, minY: -8500, maxX: 10600, maxY: 13000 })
+  // One notch: ground in the box no part's rectangle holds, south of lucido and Fosdinovo and east
+  // of lucido (Sarzana's part filled the one west of Fosdinovo)
   const rects = PARTS.flatMap((p) => p.rects)
-  assert.ok(!inRects(rects, -15000, 0) && !inRects(rects, 8000, 0))
-  assert.ok(inRects(rects, 0, 0) && inRects(rects, -4000, 0) && inRects(rects, -8000, 8000))
+  assert.ok(!inRects(rects, 8000, 0) && !inRects(rects, 0, -8000) && !inRects(rects, -8000, -8000))
+  assert.ok(inRects(rects, 0, 0) && inRects(rects, -15000, 0) && inRects(rects, -8000, 8000))
 })
 
 test("a region's tiles are those its parts' rectangles meet, and its tree anchor is its first part's south-west corner", () => {
   const keys = (id: string) => regionFromArgs(["--region", id]).tiles.map(({ i, j }) => `${i}_${j}`)
-  // Lunigiana's 153 of the box's 198 (i −12…5, j −4…6), south to north, then west to east:
-  // Fosdinovo's i −6…−3 and lucido's i −2…2 up to j 0, then the whole rows j 1…6, Aulla's
-  // rectangle's i −12…−3 and Fivizzano's i −3…5 from y 3900, where they meet Fosdinovo's and
-  // lucido's. Its notches, the 45 tiles no rectangle meets: i −12…−7 for j −4…0, west of Fosdinovo
-  // and south of Aulla, and i 3…5 for j −4…0, east of lucido.
+  // Lunigiana's 190 of the box's 216 (i −12…5, j −5…6), south to north, then west to east:
+  // Sarzana's i −12…−6 from j −5, then Fosdinovo's i −6…−3 and lucido's i −2…2 from j −4, then the
+  // whole rows j 1…6, Aulla's rectangle's i −12…−3 and Fivizzano's i −3…5 from y 3900, where they
+  // meet Sarzana's, Fosdinovo's and lucido's. Its notch, the 26 tiles no rectangle meets: i −5…5 for
+  // j −5, south of Fosdinovo and lucido, and i 3…5 for j −4…0, east of lucido.
   const lunigiana = keys("lunigiana")
   const { i0, i1, j0, j1 } = tileRange(regionFromArgs([]).bounds)
-  assert.deepEqual([i0, i1, j0, j1], [-12, 5, -4, 6])
-  assert.equal(lunigiana.length, 153)
-  assert.deepEqual(lunigiana.slice(0, 6), ["-6_-4", "-5_-4", "-4_-4", "-3_-4", "-2_-4", "-1_-4"])
-  assert.deepEqual(lunigiana.slice(43, 48), ["1_0", "2_0", "-12_1", "-11_1", "-10_1"])
-  assert.deepEqual(lunigiana.slice(62, 65), ["5_1", "-12_2", "-11_2"])
+  assert.deepEqual([i0, i1, j0, j1], [-12, 5, -5, 6])
+  assert.equal(lunigiana.length, 190)
+  assert.deepEqual(lunigiana.slice(0, 8), [
+    "-12_-5",
+    "-11_-5",
+    "-10_-5",
+    "-9_-5",
+    "-8_-5",
+    "-7_-5",
+    "-6_-5",
+    "-12_-4",
+  ])
+  assert.deepEqual(lunigiana.slice(81, 84), ["2_0", "-12_1", "-11_1"])
   assert.equal(lunigiana.at(-1), "5_6")
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++)
-      assert.equal(lunigiana.includes(`${i}_${j}`), j >= 1 || (i >= -6 && i <= 2), `${i}_${j}`)
+      assert.equal(
+        lunigiana.includes(`${i}_${j}`),
+        j >= 1 || (j >= -4 && i <= 2) || i <= -6,
+        `${i}_${j}`,
+      )
   assert.deepEqual(keys("cesena"), ["-1_-1", "0_-1", "-1_0", "0_0"])
   assert.deepEqual(regionFromArgs([]).anchor, { x: -2900, y: -6100 })
   assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
@@ -163,21 +174,9 @@ test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles
     assert.ok(!regionFromArgs(["--region", key]).ownTerrain, key)
 })
 
-test("sarzana-town: one part, 1.6 × 4.4 km of Sarzana on 6 tiles, with terrain of its own, its Liguria sources in data/raw/lig", () => {
-  const town = regionFromArgs(["--region", "sarzana-town"])
-  assert.ok(town.ownTerrain && !town.ownBuildings && town.test)
-  assert.deepEqual(
-    town.parts.map((p) => [p.key, p.rects, p.mask]),
-    [["sarzana-town", [[-14400, -8000, -12800, -3600]], undefined]],
-  )
-  assert.deepEqual(
-    town.tiles.map(({ i, j }) => `${i}_${j}`),
-    ["-8_-4", "-7_-4", "-8_-3", "-7_-3", "-8_-2", "-7_-2"],
-  )
-  assert.equal(dtmDir(town), "data/raw/rt/sarzana-town")
-  assert.equal(ligDir(town.parts[0]!), "data/raw/lig/sarzana-town")
+test("ligDir is a part's folder under data/raw/lig: Sarzana's, the part with most of its ground in Liguria", () => {
+  assert.equal(ligDir(partOf("sarzana")), "data/raw/lig/sarzana")
   assert.equal(ligDir(partOf("lucido")), "data/raw/lig/lucido")
-  assert.deepEqual(tilesOf(town.parts[0]!.rects), town.tiles)
 })
 
 test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one region with buildings of its own", () => {
@@ -193,7 +192,6 @@ test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one 
     "lunigiana-l",
     "lunigiana-3x",
     "bagnone-ridge",
-    "sarzana-town",
     "magra-coast",
   ])
     assert.ok(!regionFromArgs(["--region", key]).ownBuildings, key)
@@ -215,14 +213,14 @@ test("magra-coast: one part, 6 × 4 km of the coast on 9 tiles, with terrain, OS
   assert.equal(ligDir(coast.parts[0]!), "data/raw/lig/magra-coast")
   assert.deepEqual(osmFiles(coast), ["data/raw/osm/magra-coast.osm.gz"])
   assert.deepEqual(ucsParts(coast), [])
-  for (const key of ["lunigiana", "cesena", "lunigiana-l", "sarzana-town", "pontremoli-town"])
+  for (const key of ["lunigiana", "cesena", "lunigiana-l", "pontremoli-town"])
     assert.ok(!regionFromArgs(["--region", key]).ownOsm, key)
 })
 
 test("ucsParts: the parts whose Tuscan land cover a build reads, none for a region with terrain of its own", () => {
   assert.deepEqual(ucsParts(regionFromArgs([])), PARTS)
   assert.deepEqual(ucsParts(regionFromArgs(["--region", "lunigiana-l"])), PARTS)
-  for (const key of ["bagnone-ridge", "sarzana-town", "magra-coast"])
+  for (const key of ["bagnone-ridge", "magra-coast"])
     assert.deepEqual(ucsParts(regionFromArgs(["--region", key])), [], key)
 })
 
@@ -249,9 +247,10 @@ test("osmFile is a part's OSM extract under data/raw/osm, and osmFiles every ext
     "data/raw/osm/fivizzano.osm.gz",
     "data/raw/osm/fosdinovo.osm.gz",
     "data/raw/osm/aulla.osm.gz",
+    "data/raw/osm/sarzana.osm.gz",
   ])
   // A test region is built from Lunigiana's inputs, its OSM included, but for its own buildings or OSM.
-  for (const key of ["lunigiana", "lunigiana-l", "lunigiana-3x", "bagnone-ridge", "sarzana-town"])
+  for (const key of ["lunigiana", "lunigiana-l", "lunigiana-3x", "bagnone-ridge"])
     assert.deepEqual(osmFiles(regionFromArgs(["--region", key])), lunigiana, key)
   assert.deepEqual(osmFiles(regionFromArgs(["--region", "pontremoli-town"])), [
     "data/raw/osm/pontremoli-town.osm.gz",

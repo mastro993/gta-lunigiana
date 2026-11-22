@@ -27,11 +27,12 @@ const part = (rects: ReadonlyArray<Rect>, mask?: ReadonlyArray<number>): Part =>
 const L = [part([[0, 0, 200, 100]]), part([[0, 100, 100, 300]])]
 const L_RING = [0, 0, 200, 0, 200, 100, 100, 100, 100, 300, 0, 300]
 
-/** Lucido's rectangle, the region's first part, and Fivizzano's, Fosdinovo's and Aulla's masks, the parts round it. */
+/** Lucido's rectangle, the region's first part, and Fivizzano's, Fosdinovo's, Aulla's and Sarzana's masks, the parts round it. */
 const LUCIDO = partOf("lucido"),
   FIVIZZANO = partOf("fivizzano"),
   FOSDINOVO = partOf("fosdinovo"),
-  AULLA = partOf("aulla")
+  AULLA = partOf("aulla"),
+  SARZANA = partOf("sarzana")
 const [LX0, LY0, LX1, LY1] = LUCIDO.rects[0]!
 
 /** A flat ring's area, positive counter-clockwise. */
@@ -46,12 +47,14 @@ test("one rectangle's outline runs S, E, N, W from its south-west corner: lucido
   assert.deepEqual(outlineOf([LUCIDO]), [[LX0, LY0, LX1, LY0, LX1, LY1, LX0, LY1]])
 })
 
-test("the region's outline is one ring round lucido's rectangle and Fivizzano's, Fosdinovo's and Aulla's masks, from Fosdinovo's south-west corner", () => {
+test("the region's outline is one ring round lucido's rectangle and Fivizzano's, Fosdinovo's, Aulla's and Sarzana's masks, from Sarzana's lowest south-west vertex", () => {
   assert.deepEqual(OUTLINE, outlineOf(PARTS))
   assert.equal(OUTLINE.length, 1)
   const ring = OUTLINE[0]!
-  const [fx0, fy0] = FOSDINOVO.rects[0]!
-  assert.deepEqual(ring.slice(0, 4), [fx0, fy0, FOSDINOVO.mask![2], fy0])
+  // Sarzana's south edge, y −8500, from where its mask leaves Lerici east of x −17000 to the
+  // rectangle's south-east corner.
+  const [, sy0, sx1] = SARZANA.rects[0]!
+  assert.deepEqual(ring.slice(0, 4), [-16893.4, sy0, sx1, sy0])
   // The parts meet along their seams alone, so the union's area is theirs summed.
   assert.ok(
     Math.abs(
@@ -59,7 +62,8 @@ test("the region's outline is one ring round lucido's rectangle and Fivizzano's,
         areaOf(rectRing(LUCIDO.rects[0]!)) -
         areaOf(FIVIZZANO.mask!) -
         areaOf(FOSDINOVO.mask!) -
-        areaOf(AULLA.mask!),
+        areaOf(AULLA.mask!) -
+        areaOf(SARZANA.mask!),
     ) < 1,
   )
 })
@@ -293,14 +297,13 @@ test("outside, clipPieces keeps what the area leaves out, and clipBeyond what of
   assert.ok(Math.abs(notch!.from - Math.hypot(50, 50)) < 1e-9, `${notch!.from}`)
   // along the outline is in, so not out
   assert.deepEqual(clipPieces(rings, [v(100, 150, "a"), v(100, 250, "b")], true), [])
-  // From past the box's west side across its notch west of Fosdinovo into Fosdinovo: the notch's
-  // stretch, from the box's side to Fosdinovo's, 100 m along the line
-  const { minX } = regionFromArgs([]).bounds,
-    [fx0] = FOSDINOVO.rects[0]!
-  assert.ok(minX < fx0 && !inPlay((minX + fx0) / 2, 0))
-  const [beyond, ...more] = clipBeyond([v(minX - 100, 0, "a"), v(0, 0, "b"), v(0, 1000, "c")])
+  // From past the box's south side north across the ground south of lucido into lucido: that
+  // stretch, from the box's side to lucido's, 100 m along the line
+  const { minY } = regionFromArgs([]).bounds
+  assert.ok(minY < LY0 && !inPlay(0, (minY + LY0) / 2))
+  const [beyond, ...more] = clipBeyond([v(0, minY - 100, "a"), v(0, 0, "b"), v(1000, 0, "c")])
   assert.deepEqual(more, [])
-  assert.deepEqual(beyond!.pts, [v(minX, 0), v(fx0, 0)])
+  assert.deepEqual(beyond!.pts, [v(0, minY), v(0, LY0)])
   assert.ok(Math.abs(beyond!.from - 100) < 1e-9, `${beyond!.from}`)
   // wholly in the play area, nothing
   assert.deepEqual(clipBeyond([v(0, 0, "a"), v(LX1, LY1, "b")]), [])

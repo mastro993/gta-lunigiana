@@ -1,10 +1,12 @@
 // The historic stone cores' discs (runbook step 5 in issue #3), which `genericStyle` in features.ts
 // makes stone: hand-traced on Regione Toscana's orthophotos with the built buildings over them
-// (`pnpm ortho`).
+// (`pnpm ortho`), and in Liguria, where no recent Regione Toscana flight reaches, on the built
+// buildings (Regione Liguria's NC5) with OSM's walls, gates and castles (Sarzana's part, issue #20).
 
 /**
  * Historic stone cores (x, y, r), traced on the 2010 orthophoto (dense irregular blocks around the
- * church or castle); newer houses along the main roads are plaster.
+ * church or castle), or in Liguria on the NC5's footprints and OSM's walls; newer houses along the
+ * main roads are plaster.
  */
 export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [-20, -300, 170], // Monzone Alto
@@ -139,4 +141,63 @@ export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [-6585, 11430, 40], // Bastia, the borgo west of the castle
   [-6530, 11410, 35], // Bastia, the castle and the borgo south of it
   [-6490, 11425, 10], // Bastia, the houses east of the castle
+  // Sarzana's part (#20): each core an outline traced on the built buildings (Regione Liguria's NC5
+  // in Liguria) with OSM's city walls, gates and castles over them, each disc the smallest, to 5 m,
+  // holding its slice of the outline's buildings (cut along the outline's long axis), but where a
+  // comment says it was grown. rt_ofc.2k10 reaches Santo Stefano, Caprigliola, Albiano and Bibola;
+  // Sarzana, Ponzano Superiore, Falcinello, Trebiano and Bolano only rt_ofc.10k78 (1978, CC BY),
+  // which shows the old fabric but is misregistered on the hills, so the line is the buildings'; no
+  // RT photo reaches Vezzano or Arcola, traced on the NC5 footprints and OSM alone (Regione
+  // Liguria's AGEA photos carry no licence and were not used). Sarzana's walled town runs from
+  // Porta Parma to Porta Romana and the Fortezza Firmafede (OSM's gates and outline), inside the
+  // streets named after its bastions and the squares on its walls and moats (Piazza San Giorgio,
+  // Piazza Cesare Battisti). Caprigliola's, Trebiano's, Bolano's and Bibola's discs hold most of
+  // their hamlet, which carries stone (HAMLET); Ponzano Superiore's (71 of 135, grown the least, 5
+  // m) and Falcinello's (73 of 136, grown 20 m: 15 m, the least, carries 70, so a rebuild that
+  // flipped two would lose it) only once grown. Albiano Magra's old village is round San Martino,
+  // 500 m north-east of its OSM node on the plain. Ponte di Arcola and Romito Magra, 20th-century
+  // towns on the plain, take no disc.
+  [-13710, -5385, 95], // Sarzana, the walls' north-west: Porta Parma, the Torrione Genovese and Via Bertoloni
+  [-13660, -5300, 70], // Sarzana, the walls' north row on Via Torrione Stella Nord by the Torrione San Carlo
+  [-13605, -5485, 95], // Sarzana, the walls' west round Piazza San Giorgio, Via Gramsci and Via Landinelli
+  [-13505, -5350, 90], // Sarzana, Piazza Matteotti and the Pieve di Sant'Andrea up to Via Torrione San Francesco
+  [-13480, -5550, 95], // Sarzana, Via Mazzini and Via Landinelli round the cathedral
+  [-13405, -5430, 80], // Sarzana, Via Mascardi, Via Fiasella and Via Cattani
+  [-13365, -5625, 90], // Sarzana, Piazza Garibaldi and Via Mazzini down to Porta Romana and the Testaforte
+  [-13305, -5515, 75], // Sarzana, Piazza della Cittadella and Piazza Firmafede under the fortress's west front
+  [-13245, -5560, 40], // Sarzana, the Fortezza Firmafede's keep and its south bastion
+  [-13195, -5510, 45], // Sarzana, the Fortezza Firmafede's north and east wings
+  [-17060, 345, 50], // Santo Stefano di Magra, the walls' south-west corner on Via Piave and the Borgo storto
+  [-16995, 390, 55], // Santo Stefano di Magra, the Borgo dritto and the Borgo storto mid-town
+  [-16940, 425, 55], // Santo Stefano di Magra, round the church and the Oratorio di San Leonardo up to Via Poggio
+  [-14790, -620, 75], // Ponzano Superiore, the ring's south half round Palazzo Remedi: its outline's 70 m grown to carry the hamlet
+  [-14775, -505, 75], // Ponzano Superiore, the ring's north half up to Piazza Aia di Croce: its outline's 70 m grown to carry the hamlet
+  [-13540, -1075, 85], // Falcinello, the rows along Via Volpara and Via Borgo Di Sotto: its outline's 65 m grown to carry the hamlet
+  [-13490, -1035, 80], // Falcinello, the borgo round the church: its outline's 60 m grown to carry the hamlet
+  [-13450, -975, 55], // Falcinello, the borgo up Via Torricella to Via S. Rocco: its outline's 35 m grown to carry the hamlet
+  [-19275, -2135, 60], // Vezzano Inferiore, the borgo's west end round the Torre Pentagonale
+  [-19195, -2115, 55], // Vezzano Inferiore, the borgo along Via Vittorio Emanuele III
+  [-19115, -2110, 50], // Vezzano Inferiore, the borgo's east end above Via Cornia
+  [-19910, -2285, 45], // Vezzano Superiore, the borgo's south end on Via Gramsci and Via Magenta
+  [-19875, -2215, 45], // Vezzano Superiore, the borgo up Via Castello
+  [-17975, -5300, 50], // Arcola, the Castello and the Torre Pentagonale with the rings south of them
+  [-18005, -5255, 45], // Arcola, the borgo's western rings
+  [-17910, -5270, 45], // Arcola, the borgo's east side on Via Eraldo Bernabò
+  [-17935, -5215, 50], // Arcola, the borgo's north rings round San Nicolò
+  [-17860, -5210, 30], // Arcola, the rows down Via Eraldo Bernabò below the borgo
+  [-17830, -5165, 30], // Arcola, the rows at Via Eraldo Bernabò's foot by Via Luigi Valentini
+  [-16610, -6575, 60], // Trebiano, the borgo under the castle on Via Sottocastello and Via Rocca
+  [-16555, -6550, 60], // Trebiano, the borgo's east on Via di Mezzo, Via Sanbernardo and Vicolo Scolastico
+  [-15880, 1500, 40], // Caprigliola, the walls' west end on Via Borgo Dritto and Via Sotto 'l Po
+  [-15815, 1475, 45], // Caprigliola, the borgo round San Niccolò and the Torre rotonda
+  [-15760, 1430, 40], // Caprigliola, the walls' east end on Via Borgo Pozzo and Salita La Grottola
+  [-17155, 1680, 45], // Albiano Magra, the old village up Via S. Antonio and Via della Torre
+  [-17150, 1625, 40], // Albiano Magra, the ring of Borgo chiuso above San Martino
+  [-18875, 2810, 65], // Bolano, the rows of Via Borgo Chiusura below Via Dietro le Mura
+  [-18770, 2875, 80], // Bolano, the borgo round Santa Maria Assunta
+  [-11905, 3370, 80], // Bibola, the ring borgo round the castle's ruins and San Bartolomeo
+  // The fortresses OSM maps where a survey keeps none among its buildings, built from OSM since
+  // issue #20, each one footprint centred on its centroid, as Castello dell'Aquila's.
+  [-12700, -5170, 40], // the Fortezza di Sarzanello (way 89665866, 1,839 m², 37.3 m to its farthest corner)
+  [-12550, 5235, 35], // the Fortezza della Brunella, Aulla (relation 9701877's outer way 698125674, 1,588 m², 33.3 m)
 ]

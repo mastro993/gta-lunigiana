@@ -54,9 +54,9 @@ test("the index box holds every cell the part's tiles need, past where its recta
 
 test("a test region with terrain of its own keeps its rectangles' box: it mosaics them, not tiles", () => {
   assert.deepEqual(indexBox(NORTH, { ...GROWN, ownTerrain: true }), rectsIndexBox(NORTH))
-  const sarzana = partOf("sarzana-town")
-  assert.deepEqual(indexBox(sarzana), rectsIndexBox(sarzana))
-  assert.equal(regionFromArgs(["--region", "sarzana-town"]).ownTerrain, true)
+  const coast = partOf("magra-coast")
+  assert.deepEqual(indexBox(coast), rectsIndexBox(coast))
+  assert.equal(regionFromArgs(["--region", "magra-coast"]).ownTerrain, true)
 })
 
 test("checkIndexBox takes an index over today's box or more, and refuses one over its rectangles' box alone", () => {

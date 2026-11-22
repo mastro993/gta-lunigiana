@@ -152,9 +152,10 @@ const Talkers = Game.Inspector(
 test("parties: neighbours stop in the street to talk face to face, then go their ways", () => {
   let pairs = 0,
     natural = 0
-  // Many chats at the start are broken off by the traffic, a horn or a crash: of the 18 pairs over seeds 1-24, 9 ran their
-  // course. Seed 12 has one pair, which runs its course; seed 20 three, one of which does.
-  for (const seed of [12, 20]) {
+  // Many chats at the start are broken off by the traffic, a horn or a crash: of the 17 pairs over seeds 1-24, 7 ran their
+  // course. Seed 7 has one pair, which runs its course; seed 9 two, both of which do. The first fill's draws pick among the
+  // edges round the start in the order the lookups hand them, counted from the region's anchor, so a part far off moves none.
+  for (const seed of [7, 9]) {
     const made = makeRuntime({
       seed,
       services: Game.Runtime.services(

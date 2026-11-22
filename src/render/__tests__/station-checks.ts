@@ -263,12 +263,14 @@ export const checkCanopies = ({ all, stations }: Stations): void => {
   // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, and Aulla's Rometta's, whose
   // platforms run along their buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's
   // have grass or a forecourt, and Aulla Lunigiana's platforms on the map stop north of its building, where 24C60's survey
-  // ends.
+  // ends; and since Sarzana's part Vezzano Ligure's (the four lines calling there each list it), a platform running along
+  // its building; Santo Stefano di Magra's and Sarzana's platforms run along none.
   const canopied = new Set([
       "Minucciano-Pieve-Casola",
       "Gragnola",
       "Fivizzano-Gassano",
       "Fivizzano-Rometta-Soliera",
+      "Vezzano Ligure",
     ]),
     name = (s: number) => MAP.railway.stations[s]!.name
   assert.deepEqual(

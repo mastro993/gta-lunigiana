@@ -1,17 +1,16 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { staticGrid } from "../../sim/collide.ts"
 import { latLonToGaussBoaga } from "../crs.ts"
 import {
   type P,
+  boxesMeet,
   clipRing,
+  endsUnder,
   fromLocal,
   gaussBoagaBox,
   hash01,
-  segIndex,
-  staticPoints,
-  staticSegs,
+  nearBoxes,
 } from "../geometry.ts"
 import { partOf } from "../region.ts"
 
@@ -56,61 +55,60 @@ test("gaussBoagaBox is the EPSG:3003 box round the corners, widened by pad on ev
   assert.ok(box[2]! - box[0]! > 7800 && box[3]! - box[1]! > 10_000)
 })
 
-test("staticSegs visits the segments segIndex visits, in the same order, at the same distances", () => {
-  // 400 segments up to 30 m long over a 200 m square on both sides of the origin, short and
-  // degenerate ones among them, in three parts (one empty), asked at 2000 points over it and past
-  // its edges.
-  const xy: Array<number> = []
-  for (let k = 0; k < 400; k++) {
-    const ax = 200 * hash01(k, 1) - 100,
-      ay = 200 * hash01(k, 2) - 100,
-      len = k % 10 === 0 ? 0 : 30 * hash01(k, 3),
-      angle = 2 * Math.PI * hash01(k, 4)
-    xy.push(ax, ay, ax + len * Math.cos(angle), ay + len * Math.sin(angle))
+test("nearBoxes is true for every box that meets one of its boxes, and false far from them all", () => {
+  /** A box from a pseudo-random point in a 2 km square, up to 300 m a side, k its seed. */
+  const box = (k: number, at = 0): [number, number, number, number] => {
+    const x = at + 2000 * hash01(k, 1) - 1000,
+      y = at + 2000 * hash01(k, 2) - 1000
+    return [x, y, x + 300 * hash01(k, 3), y + 300 * hash01(k, 4)]
   }
-  const index = segIndex<number>()
-  for (let k = 0; k < 400; k++)
-    index.add(xy[4 * k]!, xy[4 * k + 1]!, xy[4 * k + 2]!, xy[4 * k + 3]!, 3, k)
-  const packed = staticSegs([xy.slice(0, 4 * 150), [], xy.slice(4 * 150)], 3)
-  let hits = 0
-  for (let n = 0; n < 2000; n++) {
-    const x = 240 * hash01(n, 5) - 120,
-      y = 240 * hash01(n, 6) - 120
-    const want: Array<ReadonlyArray<number>> = [],
-      got: Array<ReadonlyArray<number>> = []
-    index.within(x, y, (s, d2) => want.push([s.data, d2, s.ax, s.ay, s.bx, s.by]))
-    packed(x, y, (...seen) => got.push(seen))
-    assert.deepEqual(got, want)
-    hits += got.length
+  const boxes = Array.from({ length: 40 }, (_, k) => box(k))
+  const near = nearBoxes(boxes)
+  let meeting = 0
+  for (let k = 100; k < 3100; k++) {
+    const q = box(k)
+    if (!boxes.some((b) => boxesMeet(b, q))) continue
+    meeting++
+    assert.ok(near(...q), `box ${k} meets one`)
   }
-  assert.ok(hits > 500, `the points meet segments (${hits})`)
-  staticSegs([[]], 3)(0, 0, () => assert.fail("no segments, no visit"))
+  assert.ok(meeting > 1000, `${meeting} boxes met one`)
+  for (let k = 0; k < 100; k++) assert.equal(near(...box(k, 5000)), false, `box ${k} far off`)
 })
 
-test("staticPoints visits the points staticGrid visits as boxes, in the same order", () => {
-  // 3000 points (x, y, scale) over 300 × 200 m, some on one spot, asked over boxes of every size,
-  // some past the points' box.
-  const xy: Array<number> = []
-  for (let i = 0; i < 3000; i++)
-    xy.push(Math.round(300 * hash01(i, 1)) - 150, Math.round(200 * hash01(i, 2)) + 40, i)
-  const boxes = staticGrid(
-      3000,
-      (i) => [xy[3 * i]!, xy[3 * i + 1]!, xy[3 * i]!, xy[3 * i + 1]!],
-      16,
+// Regression: the build dropped the culvert OSM maps under Via Pratolino's bridge (878660856), and
+// the ditch 864556128 started under its deck without crossing it, so the deck never capped it.
+test("endsUnder finds the ends of a line lying within reach of another, square to it between its ends", () => {
+  const deck = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 20, y: 0 },
+  ]
+  // A ditch starting 2.7 m off the deck's middle and running away from it; its end 40 m off.
+  const ditch = [
+    { x: 12, y: 2.7 },
+    { x: 12, y: 42.7 },
+  ]
+  assert.deepEqual(endsUnder(ditch, deck, 3), [{ x: 12, y: 2.7, sa: 0, sb: 12 }])
+  assert.deepEqual(endsUnder(ditch, deck, 2.5), [], "out of reach")
+  // Ending past the deck's end, beyond its abutment: not under it.
+  const beyond = [
+    { x: 21, y: 30 },
+    { x: 21, y: 1 },
+  ]
+  assert.deepEqual(endsUnder(beyond, deck, 3), [])
+  // Both ends under it.
+  assert.deepEqual(
+    endsUnder(
+      [
+        { x: 2, y: -1 },
+        { x: 6, y: 2 },
+      ],
+      deck,
+      3,
     ),
-    points = staticPoints(xy, 3, 16)
-  let hits = 0
-  for (let n = 0; n < 500; n++) {
-    const x = 400 * hash01(n, 3) - 200,
-      y = 300 * hash01(n, 4) - 10,
-      r = 40 * hash01(n, 5)
-    const want: Array<number> = [],
-      got: Array<number> = []
-    boxes(x - r, y - r, x + r, y + r, (i) => want.push(i))
-    points(x - r, y - r, x + r, y + r, (i) => got.push(i))
-    assert.deepEqual(got, want)
-    hits += got.length
-  }
-  assert.ok(hits > 5000, `the boxes meet points (${hits})`)
-  staticPoints([], 3, 16)(-1, -1, 1, 1, () => assert.fail("no points, no visit"))
+    [
+      { x: 2, y: -1, sa: 0, sb: 2 },
+      { x: 6, y: 2, sa: 5, sb: 6 },
+    ],
+  )
 })

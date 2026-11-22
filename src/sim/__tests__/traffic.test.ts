@@ -7,6 +7,7 @@ import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
 import { ONE_LEVEL } from "../map/kinds.ts"
+import { FROZEN_BEYOND, STEP_REACH } from "../map/tiles.ts"
 import { roadOf } from "../route.ts"
 import { steerLimit } from "../systems/physics.ts"
 import {
@@ -147,6 +148,21 @@ test("AI level: on a deck a driver passes over what stands on the ground under i
   // A car standing on the deck in line, 1.95 m to the left of the path's axis: it reaches into the path on the deck.
   const beside = { front: 20, across: 1.95, off: 1.95, wide: 0.83, circle: 0 }
   assert.equal(onPathLevel(east(-20, DECK), beside, DECK + 0.1, deckOver), true)
+})
+
+test("AI level: what would be read farther than STEP_REACH - FROZEN_BEYOND out, where the host may keep no tile, is on the driver's level unread; nearer, read as before", () => {
+  // Flat road at 100 m, and something on a deck over it (DECK): on the driver's level only where it is not read.
+  const sight = STEP_REACH - FROZEN_BEYOND,
+    within = (x: number, y: number) => {
+      assert.ok(Ops.hypot(x, y) <= sight, `read the ground ${Ops.hypot(x, y).toFixed(0)} m out`)
+      return 100
+    }
+  assert.equal(onPathLevel(east(0, 100), ahead(20), DECK, within), false, "a person 20 m out")
+  assert.equal(onPathLevel(east(0, 100), ahead(sight - 1), DECK, within), false, "1 m in")
+  assert.equal(onPathLevel(east(0, 100), ahead(sight + 1), DECK, within), true, "1 m past")
+  // A car standing in line 1 m in: where it reaches into the path lies on its body, read without the ground.
+  const car = { x: sight - 1, y: 0, angle: 0, ground: DECK, rise: 0, reach: 2 }
+  assert.equal(onPathLevel(east(0, 100), ahead(sight - 1, 0.83), car, within), false)
 })
 
 test("AI level: a train's car crossing under a deck is read where it reaches into the path, under the deck, however far its middle lies off it", () => {

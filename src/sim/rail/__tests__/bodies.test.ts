@@ -121,3 +121,83 @@ test("bodies: a place picked across the track at grade is kept on the picker's s
     down = beside(TUNNEL, -10)
   assert.deepEqual(ownSide(up, down), down)
 })
+
+// Regression: ownSide took the lines round the walk in the order their grid met them, which the
+// lines' lowest corner moves as parts join, and kept the place off the first that barred it: beside
+// two tracks side by side at Aulla, the farther one, so the place lay 0.8 m off the nearer one's
+// centreline, inside a train's envelope.
+test("bodies: a place picked across two lines side by side at grade is kept 3 m off the nearer, on the picker's side", () => {
+  const grade = (line: number, s: number) => {
+    const at = pointAt(LINES[line]!, s)
+    return !at.bridge && !at.tunnel
+  }
+  // Every 25 m of every line at grade, 8 m off either side, with another line at grade 2.5 to 6 m beyond it.
+  const cases = LINES.flatMap((line) =>
+    Array.from({ length: Math.floor(line.length / 25) }, (_, k) => 25 * k).flatMap((s) => {
+      if (!grade(line.index, s)) return []
+      const at = pointAt(line, s),
+        nx = -Ops.sin(at.angle),
+        ny = Ops.cos(at.angle)
+      return ([1, -1] as const).flatMap((side) => {
+        const from = { x: at.x + nx * side * 8, y: at.y + ny * side * 8 }
+        const near = linesNear(from.x, from.y, 30).filter((p) => grade(p.line, p.s)),
+          mine = near.find((p) => p.line === line.index)
+        const beyond = near.some(
+          (p) =>
+            mine !== undefined &&
+            p.distance - mine.distance > 2.5 &&
+            p.distance < mine.distance + 6,
+        )
+        return beyond ? [{ from, to: { x: at.x - nx * side * 20, y: at.y - ny * side * 20 } }] : []
+      })
+    }),
+  )
+  // Those within 1 km of the one nearest Monzone station: Aulla's, where the Pontremolese and the line to Lucca run side by side.
+  const station = pointAt(line, (MONZONE.s0 + MONZONE.s1) / 2),
+    off = (p: { readonly x: number; readonly y: number }) => (c: (typeof cases)[number]) =>
+      Ops.hypot(c.from.x - p.x, c.from.y - p.y)
+  const nearest = cases.reduce((a, b) => (off(station)(b) < off(station)(a) ? b : a)).from,
+    there = cases.filter((c) => off(nearest)(c) < 1000)
+  assert.ok(there.length >= 20, `${there.length} places beside two lines`)
+  for (const { from, to } of there) {
+    const kept = ownSide(from, to),
+      clear = Math.min(
+        ...linesNear(kept.x, kept.y, 10)
+          .filter((p) => grade(p.line, p.s))
+          .map((p) => p.distance),
+      )
+    assert.ok(
+      clear > 2.95,
+      `from (${from.x.toFixed(1)}, ${from.y.toFixed(1)}): ${clear.toFixed(2)} m off a line`,
+    )
+  }
+})
+
+// Regression: ownSide asked whether the line was on a bridge beside the place picked, not where the walk meets it: a cow 8 m off
+// the track walked to a place across it 3 m off a bridge's first metres, and crossed the track at grade 2 m short of the bridge.
+test("bodies: a place picked across the track beside a bridge is kept on the picker's side when the walk crosses the track at grade", () => {
+  const level = (s: number) => {
+    const at = pointAt(line, s)
+    return at.bridge ? "bridge" : at.tunnel ? "tunnel" : "grade"
+  }
+  // The start of a bridge 10 m long or more, the line at grade for 20 m before it, nearest Monzone station.
+  const mid = (MONZONE.s0 + MONZONE.s1) / 2
+  const starts = Array.from({ length: Math.floor(line.length) }, (_, s) => s).filter(
+    (s) =>
+      level(s) === "bridge" &&
+      [1, 5, 10, 15, 20].every((d) => level(s - d) === "grade") &&
+      [2, 5, 10].every((d) => level(s + d) === "bridge"),
+  )
+  assert.ok(starts.length > 0, "a bridge on the line")
+  const start = starts.reduce((a, b) => (Math.abs(b - mid) < Math.abs(a - mid) ? b : a))
+  // From 8 m off the track 12 m short of the bridge to 4 m off it on the other side 2 m onto the bridge: the walk crosses the
+  // track 2.7 m short of the bridge.
+  for (const side of [1, -1]) {
+    const from = beside(start - 12, 8 * side),
+      kept = ownSide(from, beside(start + 2, -4 * side))
+    assert.ok(leftOf(kept) * side > 2.95, `${leftOf(kept).toFixed(2)} m left of the centreline`)
+  }
+  // Under the bridge, the walk crossing the track where it is on the deck: it stands.
+  const under = beside(start + 6, -4)
+  assert.deepEqual(ownSide(beside(start + 6, 8), under), under)
+})

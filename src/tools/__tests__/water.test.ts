@@ -6,9 +6,10 @@ import { test } from "node:test"
 
 import type { WaterF } from "../features.ts"
 import { ringBox } from "../geometry.ts"
+import { resample } from "../profile-fit.ts"
 import { PIER_DECK, pierDeck } from "../shore.ts"
 import { type CarvedArea, stillLevel } from "../water-areas.ts"
-import { BRIDGE_CLEAR, capUnderDecks, dropPerched, waterProfiles } from "../water.ts"
+import { BRIDGE_CLEAR, capUnderDecks, dropPerched, PERCH, waterProfiles } from "../water.ts"
 
 /** A stream east along y = 0 for 100 m, its surface 99.75 m over ground carved down to 90 m. */
 const STREAM: WaterF = {
@@ -74,6 +75,26 @@ test("dropPerched: no sample after a dropped one steps back up over it", () => {
   )
 })
 
+// Regression: a stream falling into the Magra's polygon by Caprigliola (way 789354420) dropped to
+// its ground, and its next samples, perched too, each to their own, which the polygon's carve left
+// rising under them: it stepped 0.1 m back up (32.5 m after 32.4 at (−16584.6, 2908.5)).
+test("dropPerched: no perched sample after a dropped one steps back up over it while its ground lies under it", () => {
+  const [p] = waterProfiles([STREAM], (x) => 100 - x / 2)
+  const before = Float64Array.from(p!.z),
+    at = p!.x.indexOf(40)
+  // From x 40 on, the carved ground lies 3 m under the surface (perched, dropped to 2.75 m under
+  // it), but at x 42 1.9 m under it (perched still): 0.1 m over x 40's ground, under its dropped
+  // surface, its own top 0.1 m over that.
+  const carved = Float64Array.from(before, (z, k) => z - (k < at ? 1.15 : k === at + 1 ? 1.9 : 3))
+  dropPerched([STREAM], [p!], [], [carved])
+  p!.z.forEach((z, k) =>
+    assert.ok(k === 0 || z <= p!.z[k - 1]!, `x = ${p!.x[k]}: ${z} after ${p!.z[k - 1]}`),
+  )
+  assert.equal(p!.z[at], carved[at]! + STREAM.depth / 2, "dropped to its top")
+  assert.equal(p!.z[at + 1], p!.z[at], "held at the dropped surface, over its own top")
+  assert.equal(p!.z[at + 2], carved[at + 2]! + STREAM.depth / 2, "under it, dropped to its own")
+})
+
 // The hold above stops where the ground rises past the dropped surface: pinned to its own ground
 // there, a stream onto the Magra's gravel (way 791364133), past the dip a path at grade takes it
 // under, rippled 0.3 m up and down.
@@ -95,6 +116,138 @@ test("dropPerched: a surface more than PERCH over a lake's level is not the lake
   p.x.forEach((x, k) =>
     assert.equal(p.z[k], x > 21 && x < 59 ? 97.5 : CARVED + STREAM.depth / 2, `x = ${x}`),
   )
+})
+
+/**
+ * A ditch east along y = 0 onto the vertex at y 0 of a river of `size` south along x = 0, after
+ * `dropPerched`: the river's surface falls 1 m in 100 from 98 m there over its floor; the ditch's,
+ * flat at 100 m to x −14, falls to 98 m at its end, as the settling ponds it, over `ground` at x.
+ */
+const joining = (size: Pick<WaterF, "w" | "bed">, ground: (x: number) => number) => {
+  const river: WaterF = {
+    id: 3,
+    kind: "river",
+    ...size,
+    depth: 2.5,
+    pts: [
+      { x: 0, y: 100, id: "n" },
+      { x: 0, y: 0, id: "mouth" },
+      { x: 0, y: -100, id: "s" },
+    ],
+    from: 0,
+  }
+  const ditch: WaterF = {
+    ...STREAM,
+    depth: 1,
+    pts: [
+      { x: -40, y: 0, id: "w" },
+      { x: 0, y: 0, id: "mouth" },
+    ],
+  }
+  const p = resample(ditch.pts, 2, (x) => (x <= -14 ? 100 : 98 - (2 * x) / 14)),
+    q = resample(river.pts, 2, (_, y) => 98 + y / 100)
+  dropPerched(
+    [ditch, river],
+    [p, q],
+    [],
+    [Float64Array.from(p.x, ground), Float64Array.from(q.z, (z) => z - 1.25)],
+  )
+  p.z.forEach((z, k) =>
+    assert.ok(k === 0 || z <= p.z[k - 1]!, `x = ${p.x[k]}: ${z} after ${p.z[k - 1]}`),
+  )
+  return p
+}
+
+// Regression: the ditch 819040162 drops down the Vara's bank at Fornola, its samples just off the
+// Vara's channel dropped to their own top on the bank its 25 m carve lowers, and those in the
+// channel after them, no longer running downhill, to their own top on the Vara's floor: it met the
+// Vara 0.8 m under it (12.5 m, the Vara 13.3 there).
+test("dropPerched: a sample in the channel of the wider water it flows into, no longer running downhill, drops no lower than the level it meets that water at", () => {
+  // The ditch's ground: its own top up to x −16, the Vara's bank at x −14, 13.5 m off its line
+  // (perched, 1.1 m over its top), and the Vara's floor in its channel.
+  const p = joining({ w: 25, bed: 13.5 }, (x) => (x < -15 ? 99.5 : x < -13 ? 98.4 : 96.75))
+  assert.equal(p.z[p.x.indexOf(-14)], 98.9, "dropped to its top off the channel")
+  p.x.forEach((x, k) => {
+    if (x > -14) assert.equal(p.z[k], 98, `x = ${x}: the Vara's level where they meet`)
+  })
+})
+
+// Regression: the stream 797866067 drops down the Aulella's bank by (2978, 3967), past its channel
+// (7 m off its line) but within its reach (13 m), to its own top under the Aulella's level: it met
+// the Aulella 1.0 m under it (0.5 m with the channel alone held).
+test("dropPerched: within the reach of the wider water it flows into, past its channel, a sample drops no lower than the level it meets that water at", () => {
+  // The Aulella's valley bed, its floor 1.25 m under its surface out to 6 m, rising to its gravel
+  // 0.625 m over it at 13 m; the ditch's ground its own top up to x −16 and 98.4 m at x −14.
+  const floor = 98 - 1.25,
+    gravel = 98 + 2.5 / 4
+  const p = joining({ w: 12, bed: 13 }, (x) =>
+    x < -15 ? 99.5 : x < -13 ? 98.4 : floor + ((gravel - floor) * Math.max(0, -x - 6)) / 7,
+  )
+  assert.equal(p.z[p.x.indexOf(-14)], 98.9, "dropped to its top beyond the reach")
+  assert.equal(p.z[p.x.indexOf(-12)], 98.9, "held at the dropped surface over its own ground")
+  p.x.forEach((x, k) => {
+    if (x >= -8) assert.equal(p.z[k], 98, `x = ${x}: the Aulella's level where they meet`)
+  })
+})
+
+/**
+ * A ditch east along y = 0 from x −40, continuing at x 0 into a ditch of its size on to x 40 (listed
+ * after it), after `dropPerched` over `ground(x, z)` under each sample at x, its surface z: the
+ * first's surface, flat at 100 m to x −14, falls to 98 m at its end, as the settling ponds it; the
+ * second's falls 1 m in 100 from 98 m. Neither stands over its ground at its end, or under the
+ * other's level where they meet.
+ */
+const continuing = (ground: (x: number, z: number) => number) => {
+  const size = { kind: "stream", w: 2, bed: 3, depth: 1, from: 0 } as const
+  const ditch: WaterF = {
+    id: 1,
+    ...size,
+    pts: [
+      { x: -40, y: 0, id: "w" },
+      { x: 0, y: 0, id: "joint" },
+    ],
+  }
+  const next: WaterF = {
+    id: 2,
+    ...size,
+    pts: [
+      { x: 0, y: 0, id: "joint" },
+      { x: 40, y: 0, id: "e" },
+    ],
+  }
+  const p = resample(ditch.pts, 2, (x) => (x <= -14 ? 100 : 98 - (2 * x) / 14)),
+    q = resample(next.pts, 2, (x) => 98 - x / 100)
+  const under = [p, q].map((r) => Float64Array.from(r.x, (x, k) => ground(x, r.z[k]!)))
+  dropPerched([ditch, next], [p, q], [], under)
+  ;[p, q].forEach((r, i) =>
+    r.z.forEach((z, k) => {
+      assert.ok(k === 0 || z <= r.z[k - 1]!, `x = ${r.x[k]}: ${z} after ${r.z[k - 1]}`)
+      assert.ok(z <= under[i]![k]! + size.depth / 2 + PERCH, `x = ${r.x[k]}: ${z} perched`)
+    }),
+  )
+  assert.equal(p.z.at(-1), q.z[0], "the ditch meets the way it continues into at its level")
+  return [p, q] as const
+}
+
+// Regression: the stream 789354818 by (−18769, 7946) drops into a hollow 4 m before the way of its
+// size it continues into (789354814), and its last sample, within PERCH of its own top, falls to the
+// dropped surface: it met that way 0.7 m under its start (288.14 m, the way 288.88).
+test("dropPerched: within the reach of a water no wider than it that it flows into, a sample drops no lower than the level it meets that water at", () => {
+  // The ditch perched over a hollow 2 m before its end (1.2 m over its top there), its last sample
+  // 0.6 m over its own; each other sample 0.2 m over its top.
+  const [p] = continuing((x, z) => (x === -2 ? 96.6 : x === 0 ? 96.9 : z - 0.7))
+  assert.equal(p.z[p.x.indexOf(-2)], 98, "held at the level of the way it continues into")
+})
+
+// The water a piece flows into drops first: dropped after it, the way of its size that a ditch
+// continues into stood perched under the level the ditch was held at (index order or the widest
+// first, ties by index, both took the ditch first): 180 samples on Lunigiana stood more than PERCH
+// over their top.
+test("dropPerched: a water drops before the pieces flowing into it read the level they meet it at", () => {
+  // From x −2 on, the ground lies 2 m under both surfaces at the joint (perched, dropped to 96.5 m).
+  const [p, q] = continuing((x, z) => (x >= -2 ? 96 : z - 0.7))
+  assert.equal(q.z[0], 96.5, "the way it continues into dropped to its top")
+  assert.equal(p.z[p.x.indexOf(-2)], 96.5, "held at the dropped level")
 })
 
 /** A river south along x = 0 from y 0 to y −200, the sea south of y −190 (its mouth 10 m in it). */
@@ -141,6 +294,114 @@ test("waterProfiles: no surface stands under the sea's level, and a river reachi
   assert.equal(inland!.z.at(-1), 5)
   const [low] = waterProfiles([RIVER], ground, (_x, y) => y < -210)
   assert.equal(low!.z.at(-1), 0, "under the sea's level, raised to it")
+})
+
+/** A river piece along `pts` ((x, y, node id) each), 4 m wide, 1 m deep. */
+const along = (id: number, pts: ReadonlyArray<readonly [number, number, string]>): WaterF => ({
+  id,
+  kind: "river",
+  w: 4,
+  bed: 3,
+  depth: 1,
+  pts: pts.map(([x, y, node]) => ({ x, y, id: node })),
+  from: 0,
+})
+
+// Regression: a braid of the Vara at (−21347, 1960) and a stream onto the Magra's gravel at Aulla
+// (way 791364133), each continuing a way that ends lower than the water it rejoins, were ponded up
+// to that water's level, then lowered at their start to the way they continue, and again for ever:
+// the settling stopped after its 20 rounds with each 0.55 and 0.05 m higher past its first sample.
+test("waterProfiles: a way ponded up to the water it joins backs up the way it continues, so both stand at that level where they meet", () => {
+  // The river at x = 0 stands at 7 m where the braid rejoins it, at (0, −100); the braid's way
+  // falls from 10 m to 5 m on its own ground, and the way continuing it runs over ground at 5.5 m.
+  const river = along(1, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ]),
+    braid = along(2, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(3, [
+      [100, 0, "n"],
+      [0, -100, "c"],
+    ])
+  const ground = (x: number, y: number) =>
+    x === 0 ? 7.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 5.5
+  const [r, b, o] = waterProfiles([river, braid, on], ground)
+  for (const [name, p] of [
+    ["river", r!],
+    ["braid", b!],
+    ["the way on", o!],
+  ] as const)
+    p.z.forEach((z, k) =>
+      assert.ok(k === 0 || z <= p.z[k - 1]!, `${name} ${k}: ${z} after ${p.z[k - 1]}`),
+    )
+  const atC = r!.z[r!.vertexSample[1]!]!
+  assert.equal(atC, 7, "the river where the braid rejoins it")
+  assert.deepEqual([b!.z.at(-1), o!.z[0], o!.z.at(-1)], [atC, atC, atC], "ponded to it")
+  assert.equal(b!.z[0], 10, "the braid's head over it, as its ground has it")
+})
+
+// The hold above is the water's a way joins, never a way's own ground: held at the level each way
+// it continued into ended at, the Canale Lunense by Santo Stefano di Magra (351750746) would stand
+// 1.2 m over the 28.9 m the way before it ends at, along its whole 290 m.
+test("waterProfiles: a way continuing another over higher ground, which no water holds up, is lowered to it and holds nothing up", () => {
+  // The way before ends at 5 m; the two after it run over ground at 6.5 m to a river at 4 m.
+  const before = along(1, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(2, [
+      [100, 0, "n"],
+      [50, -50, "m"],
+    ]),
+    further = along(3, [
+      [50, -50, "m"],
+      [0, -100, "c"],
+    ]),
+    river = along(4, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ])
+  const ground = (x: number, y: number) =>
+    x === 0 ? 4.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 6.5
+  const [b, o, f] = waterProfiles([before, on, further, river], ground)
+  assert.equal(b!.z.at(-1), 5, "the way before, as its ground has it")
+  assert.deepEqual([o!.z[0], o!.z.at(-1), f!.z[0]], [5, 5, 5], "lowered to it")
+  assert.equal(f!.z.at(-1), 4, "its tail to the river's level")
+})
+
+// Regression: a ditch on the coast's plain (135653574), ponded up to the canal it reaches 1 m over
+// its ground, ran under a footbridge whose clearance capped its head at 0 m, after the settling:
+// it rose from 0 to 1 m down its 14 m.
+test("capUnderDecks: a way ponded up to the water it joins, capped under a deck, falls on from the cap", () => {
+  // The braid's scene above, with a deck over the way on 10 m from its head, its top 7.5 m: the
+  // water under it 2.5 m lower, at 5 m, under the river's 7 m it is ponded to.
+  const ground = (x: number, y: number) =>
+    x === 0 ? 7.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 5.5
+  const river = along(1, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ]),
+    braid = along(2, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(3, [
+      [100, 0, "n"],
+      [0, -100, "c"],
+    ])
+  const wp = waterProfiles([river, braid, on], ground)
+  capUnderDecks([river, braid, on], wp, [
+    { water: 2, at: 10, half: 3, deck: 7.5, clear: BRIDGE_CLEAR },
+  ])
+  const o = wp[2]!
+  o.z.forEach((z, k) => assert.ok(k === 0 || z <= o.z[k - 1]!, `${k}: ${z} after ${o.z[k - 1]}`))
+  assert.equal(o.z[o.s.findIndex((s) => s >= 10)], 5, "under the deck")
 })
 
 test("capUnderDecks and dropPerched keep the water at the sea's level or over it", () => {

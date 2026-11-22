@@ -68,33 +68,40 @@ new map needs no weather data of its own.
 | Field | What it is | On the shipped map |
 |---|---|---|
 | `lat`, `lon` | the map's origin (`MAP.origin`, degrees north and east): the sun and the moon are worked out for it, and the latitude picks the climate | 44.16175 N, 10.13 E |
-| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 98.4 m |
-| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | −3.130 (toward the west, 0.65° south of it) |
+| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 18.5 m |
+| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | −2.911 (toward the west, 13.2° south of it) |
 
 - **Baked at build time.** The fit reads every height node the map's listed tiles hold
-  (`listedNodes`): on the shipped map 31.6 of the 39.0 million in its box, the rest lying in its 45
-  unlisted tiles, the two notches west of Fosdinovo's part (south of Aulla's) and east of lucido's.
-  The game holds them only in the tiles near the player, so the build runs `placeFrom` over the
-  heightmap (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
+  (`listedNodes`): on the shipped map 41.8 of the 45.3 million in its box, the rest lying in its 26
+  unlisted tiles, one notch in an L: the 11 along the box's south edge east of Sarzana's part
+  (x −10000…10600, y −8500…−8000) and the 15 east of lucido's south half. The game holds them only
+  in the tiles near the player, so the build runs `placeFrom` over the heightmap
+  (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
   (`MAP.place`). A region whose parts leave tiles of its box unlisted, an L's notch, has no ground
   there, and its heightmap joined from the tiles holds 0 ([map.md](map.md#pipeline)).
   `src/sim/map/global.ts` calls `providePlace({ ...MAP.origin, ...MAP.place })` right after
   decoding, as the host hands the map file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
-  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 98 m, downslope −3.13, the shipped map's own place
-  rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
-  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
-  the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference (the slope's
-  direction compared round the circle, modulo 2π: Aulla's part turned it to −3.130 rad, 0.011 rad
-  short of ±π, where a later part may tip its sign while hardly turning it);
-  `place.map-test.ts` (`pnpm test:map`) fits them again over the listed tiles' nodes of the
-  heightmap joined from the tiles, the floor their 5th-percentile height, and `place.test.ts` checks
-  that a notch holding 0 moves neither the floor nor the slope.
-- **Absolute or over the floor.** Temperature, precipitation and snow follow the height above sea
-  level, so a high map is colder and snowier. What relief sets counts from the floor instead: the
-  low-ground fog, the cloud base, the wind's growth on exposed ground, the drying air and the
-  audio's wind law. Otherwise a coastal plain would sit in the "valley" fog all day and an Alpine
-  map in a gale everywhere.
+  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 18.5 m, downslope −2.91, the shipped map's own
+  place rounded (the floor to the decimetre: 18.5 m lies half a metre from both 18 and 19, outside
+  the test's bound), so a map-free page hears and shows what the game does. `mapfree.test.ts`
+  asserts that the sky modules decode no map, and that once the map is decoded `place()` is the
+  map's origin and the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the
+  reference (the slope's direction compared round the circle, modulo 2π: Aulla's part turned it to
+  −3.130 rad, 0.011 rad short of ±π, where a later part may tip its sign while hardly turning it,
+  and Sarzana's back to −2.911); `place.map-test.ts` (`pnpm test:map`) fits them again over the
+  listed tiles' nodes of the heightmap joined from the tiles, the floor their 5th-percentile
+  height, and `place.test.ts` checks that a notch holding 0 moves neither the floor nor the slope.
+- **Absolute or over the floor.** Temperature, precipitation, snow and the wind's growth with
+  height follow the height above sea level, so a high map is colder, snowier and windier. What
+  relief sets counts from the floor instead, and still moves when a part moves the floor: the
+  low-ground fog, the cloud base and the drying air (the air's temperature on the floor), so a
+  coastal plain does not sit in the "valley" fog all day. The wind's growth on exposed ground and
+  the audio's wind law counted from the floor too until Sarzana's part, whose plain took it from
+  98.4 m to 18.5 m and blew lucido's meadow on Monte dei Bianchi 3.1 dB harder. The user chose then
+  (issue #20) to count both from the sea, at the heights the 98.4 m floor had put them
+  ([Wind](#wind), [audio.md](audio.md#masking-and-proximity)): the earlier parts blow as they did
+  before that part, and no later part moves the wind.
 - **Why a plane.** The night's drainage breeze blows down the map's slope and the day's breeze up
   it; on a coastal plain the plane's fall is roughly the land and sea breeze. The earlier,
   Lunigiana-only weather took the Lucido's axis (2.5 rad) by hand.
@@ -103,7 +110,7 @@ new map needs no weather data of its own.
   `REFERENCE_PLACE` follows the shipped map. Fivizzano's lower valleys (issue #17, its lowest ground
   105 m against lucido's 147) took the floor from lucido's 230.3 m to 213.6 m and the downslope from
   2.127 rad (toward the north-north-west) to 2.982 (toward the west). On lucido the low-ground fog,
-  the cloud base, the wind's growth with height and the audio's wind law now count from 16.7 m
+  the cloud base, the wind's growth with height and the audio's wind law came to count from 16.7 m
   lower, and the night's breeze blows west rather than north-north-west (the day's east rather than
   south-south-east). What follows the height above sea level, the air's temperature and the rain, is
   as it was; the snow line moves only with the map's top, Fivizzano's 1856 m against lucido's 1799 m
@@ -111,18 +118,28 @@ new map needs no weather data of its own.
   days a year rather than 56.7 (seed 1). Fosdinovo's part (issue #18) brought the Magra plain by
   Sarzana, its lowest ground 18.1 m, and the low Bardine valley: the floor fell to 162.3 m and the
   downslope turned to 2.918 rad (toward the west, 13° north of it rather than 9°). On lucido the
-  fog, the cloud base, the wind's growth and the audio's wind law now count from 68.0 m under its
+  fog, the cloud base, the wind's growth and the audio's wind law came to count from 68.0 m under its
   own floor (51.3 m under Fivizzano's 213.6). The map's top stays 1856 m, but the snow line's floor,
   the lowest ground less 50 m, fell from 55 m to −32 m, so in a cold spell the line can come down 87
   m further, and has that much more to climb back: level ground at 1100 m holds snow 57.5 days a
   year rather than 57.1 (seed 1, 2026-11-07). Aulla's part (issue #19) brought the Magra's and the
   lower Aulella's valley floors, which hold two thirds of the nodes now under the floor: the floor
   fell to 98.4 m and the downslope turned to −3.130 rad (toward the west, 0.65° south of it). On
-  lucido the fog, the cloud base, the wind's growth and the audio's wind law now count from 131.9 m
-  under its own floor. The map's top stays 1856 m; its lowest listed node is now 12.9 m at (−11968,
-  −6040), on the Magra plain by Sarzana in the strip west of x −11500 that Aulla's grown box adds to
-  Fosdinovo's tiles, so the snow line's floor falls from −32 m to −37 m. Level ground at 1100 m
-  holds snow 57.5 days a year, as before, and 123 at 1750 m (seed 1, 2026-11-18).
+  lucido the fog, the cloud base, the wind's growth and the audio's wind law came to count from
+  131.9 m under its own floor. The map's top stays 1856 m; its lowest listed node is now 12.9 m at
+  (−11968, −6040), on the Magra plain by Sarzana in the strip west of x −11500 that Aulla's grown
+  box adds to Fosdinovo's tiles, so the snow line's floor falls from −32 m to −37 m. Level ground at
+  1100 m holds snow 57.5 days a year, as before, and 123 at 1750 m (seed 1, 2026-11-18). Sarzana's
+  part (issue #20) brought the lower Val di Magra: its rectangle holds 2,008,211 (96.2 %) of the
+  2,086,527 nodes now under the floor, 821,462 of them on its plain at 2–10 m (39.4 % of them). The
+  floor fell to 18.5 m and the downslope turned to −2.911 rad (toward the west, 13.2° south of it;
+  over the map less the part's rectangle the fit is 99.9 m and −2.995). On lucido the fog and the
+  cloud base now count from 211.8 m under its own floor; the wind's growth and the audio's wind law
+  did too, until the user chose to count them from the sea (above). The map's top stays 1856 m; its
+  lowest listed node is now −11.0 m, the sea's floor in the Gulf of La Spezia in tile −12_−5, the
+  box's south-west corner outside the play area, so the snow line's floor falls from −37 m to −61 m.
+  Level ground at 1100 m holds snow 57.6 days a year rather than 57.5, and 123 at 1750 m (seed 1,
+  build b5513ccf5f74b243, 2026-11-21).
 
 ## The sun and the moon
 
@@ -190,12 +207,12 @@ two nearest mid-month values.
 anchor latitude, held beyond them, the lapse rate and the range's fit. The normals on the 15th,
 before any weather (°C, maximum / minimum as the mean ± half the range):
 
-| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 98 m | 1000 m | 1800 m |
+| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 18.5 m | 1000 m | 1800 m |
 |---|---|---|---|---|---|---|
-| January | 14.4 / 8.3 | 12.3 / 5.1 | 8.1 / 0.0 | 9.4 / 1.8 | 5.6 / −1.7 | 2.3 / −4.8 |
-| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 18.5 / 8.2 | 12.9 / 3.5 | 8.0 / −0.6 |
-| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 30.1 / 18.4 | 24.5 / 13.5 | 19.5 / 9.2 |
-| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 20.1 / 11.0 | 15.2 / 6.9 | 10.8 / 3.2 |
+| January | 14.4 / 8.3 | 12.3 / 5.1 | 8.1 / 0.0 | 9.8 / 2.1 | 5.6 / −1.7 | 2.3 / −4.8 |
+| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 19.0 / 8.6 | 12.9 / 3.5 | 8.0 / −0.6 |
+| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 30.6 / 18.8 | 24.5 / 13.5 | 19.5 / 9.2 |
+| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 20.6 / 11.4 | 15.2 / 6.9 | 10.8 / 3.2 |
 
 ### The day's cycle
 
@@ -414,7 +431,7 @@ make of the days.
 | `windy` | Windy | 0.2 | 0 | 0 | 11 | south-west | 1.8 | 0 | −2 |
 | `snow` | Snow | 1 | 1.5 | 0 | 4 | south-west | 1.6 | 0.4 | −2.5 |
 
-- **Wind**: on the map's low ground at 10 m. Toward the north-east is a south-westerly off the sea,
+- **Wind**: at 10 m on low ground, up to 98 m a.s.l. ([Wind](#wind)). Toward the north-east is a south-westerly off the sea,
   which brings the rain; toward the south-west a cold northerly or north-easterly. The breeze blows
   up the map's slope while the sun is up and down it at night, along
   `place().downslope`. A windy day's 11 m/s (21.4 knots) blows over the 20 knots the odds count,
@@ -547,10 +564,10 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
   test holds it there so it gets no worse ([Known limits](#known-limits)).
 - **The far south's coasts** (38 N, sea level) see 0.19 a year, and no place sees snow at sea level
   from June to September.
-- **The shipped map** (seed 1): snowfall 5.7 days a year on its floor (98 m; 6.0 at the 162 m floor
-  before Aulla's part and 6.3 at the 214 m one before Fosdinovo's), 10.5 at 600 m, 18.1 at 1000 m,
-  29.8 at 1400 m and 46.7 on its top (1856 m); snow lies on level ground 57.5 days a year at 1100 m
-  and 123 at 1750 m (asserted 25–70 and 90–170).
+- **The shipped map** (seed 1): snowfall 5.2 days a year on its floor (18.5 m; 5.7 at the 98 m
+  floor before Sarzana's part, 6.0 at the 162 m one before Aulla's and 6.3 at the 214 m one before
+  Fosdinovo's), 10.5 at 600 m, 18.1 at 1000 m, 29.8 at 1400 m and 46.7 on its top (1856 m); snow
+  lies on level ground 57.6 days a year at 1100 m and 123 at 1750 m (asserted 25–70 and 90–170).
 
 ## The climate sources record
 
@@ -644,8 +661,8 @@ and how snow-covered the ground is there, each 0 to 1.
   degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
   (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
   at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
-  m (−37 m on the shipped map, whose lowest node is 12.9 m on the Magra plain), so all the map can
-  lie white. The rates are design values fitted to
+  m (−61 m on the shipped map, whose lowest node is −11.0 m, the sea's floor in the Gulf of La
+  Spezia in tile −12_−5), so all the map can lie white. The rates are design values fitted to
   Capozzi et al.'s snow-cover days ([Snow](#snow)).
 - **Aspect and slope.** The line stands 440 m lower (`SNOW_ASPECT`) for each unit of the ground's
   normal that points north, higher on a south face: a 30° north face (its normal 0.5 north) holds
@@ -736,7 +753,7 @@ floor; `fogAt(z)` blends each in over 50 m of height.
   gone by 0.55) and the air calm (wind under 2 m/s, gone by 3.5): it forms from 01:00, is thickest
   from 05:00 and burns off from 09:00 to 11:00. Which mornings bring it follows the weather seed,
   so another game has fog on other days. On a fog morning it stands 23 m over the floor at density
-  0.16 at 02:00, 75 m at 0.5 at 03:00, 150 m at 1 from 05:00 to 09:00 (312 m on the shipped map),
+  0.16 at 02:00, 75 m at 0.5 at 03:00, 150 m at 1 from 05:00 to 09:00 (168.5 m on the shipped map),
   75 m at 0.5 at 10:00, and is gone at 11:00.
 - **The fog regime** is a low stratus: the low ground's fog reaches 450 × fog m over the floor,
   405 m at its 0.9.
@@ -748,28 +765,42 @@ floor; `fogAt(z)` blends each in over 50 m of height.
 
   | Regime | Cloud base over the floor (m) | On the shipped map (m) | Density |
   |---|---|---|---|
-  | clear | 2325 | 2487 | 0 |
-  | fair | 1950 | 2112 | 0 |
-  | cloudy | 1425 | 1587 | 0.19 |
-  | overcast | 975 | 1137 | 0.60 |
-  | fog | 350 | 512 | 1.00 |
-  | rain | 900 | 1062 | 0.60 |
-  | storm | 1150 | 1312 | 0.60 |
-  | windy | 2100 | 2262 | 0 |
-  | snow | 848 | 1010 | 0.63 |
+  | clear | 2325 | 2343.5 | 0 |
+  | fair | 1950 | 1968.5 | 0 |
+  | cloudy | 1425 | 1443.5 | 0.19 |
+  | overcast | 975 | 993.5 | 0.60 |
+  | fog | 350 | 368.5 | 1.00 |
+  | rain | 900 | 918.5 | 0.60 |
+  | storm | 1150 | 1168.5 | 0.60 |
+  | windy | 2100 | 2118.5 | 0 |
+  | snow | 848 | 866.6 | 0.63 |
 
 ## Wind
 
-`Weather` holds the wind on the map's low ground at 10 m (`wind`, m/s), the way the air moves
-(`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
-`windAt(weather, z)` gives the air's velocity at a height, stronger on exposed ground: ×1 on the
-map's floor, rising in a straight line to ×2.5 at 1550 m over it (`WIND_UP`); on the shipped map
-×1.42 at 600 m and ×1.85 at 1040 m. That is a national design value, ×2–2.5 on crests: the
-Aeronautica Militare's exposed capes, islands and hill stations see a wind over 20 knots 2.7–3.9
-times as often as its lowland airports, by month. The earlier local fit took the same ×2.5 from
-Passo della Cisa (about 6.1 m/s at 1048 m) against Sarzana-Luni (3.0 m/s on the coast). Over 30
-simulated years (seeds 1–4) the low-ground wind averages 2.5 m/s in October and 2.3–2.7 by month.
-Text for people (the dev menu) names where the wind blows from, the opposite of `windAngle`.
+`Weather` holds the wind at 10 m on low ground, up to 98 m a.s.l. (`wind`, m/s), the way the air
+moves (`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
+`windAt(weather, z)` gives the air's velocity at a height, stronger on exposed ground: ×1 up to 98
+m above the sea, rising in a straight line to ×2.5 at 1648 m (`WIND_UP`): ×1.49 at 600 m and
+×1.91 at 1040 m on any map. It drifts the clouds, slants the rain and the snow, sways the trees
+and is the dev menu's wind. That is a national design value, ×2–2.5 on crests: the Aeronautica
+Militare's exposed capes, islands and hill stations see a wind over 20 knots 2.7–3.9 times as
+often as its lowland airports, by month. The earlier local fit took the same ×2.5 from Passo della
+Cisa (about 6.1 m/s at 1048 m) against Sarzana-Luni (3.0 m/s on the coast). Over 30 simulated
+years (seeds 1–4) the low-ground wind averages 2.5 m/s in October and 2.3–2.7 by month. Text for
+people (the dev menu) names where the wind blows from, the opposite of `windAngle`.
+
+- **From the sea, not the floor.** The growth counted from the map's floor until Sarzana's part
+  (issue #20) took the floor from 98.4 m to 18.5 m and so blew lucido harder: the meadow on Monte
+  dei Bianchi (316 m) ×1.288 rather than ×1.210. The user chose then to count it from the sea,
+  from 98 m, about the floor before that part, so the earlier parts blow as they did (the meadow
+  ×1.211) and no later part moves it; the fog and the cloud base still count from the floor
+  ([The map's place](#the-maps-place)). On the other regions, averaged over the 64 m nodes of
+  their play area: Cesena (floor 26.5 m, 94.5 % of its play area under 98 m) ×1.017 → ×1.001, its
+  spawn (30 m) ×1.004 → ×1; the L (floor 173.1 m, so even its lowest ground blows ×1.073 the
+  weather's `wind`) ×1.116 → ×1.188, its spawn (209 m) ×1.035 → ×1.108; the coast (floor −15 m,
+  its sea floor; 85.0 % of its play area under 98 m) ×1.043 → ×1.015, its spawn (8 m) ×1.023 → ×1
+  (2026-11-21). `weather.test.ts` checks the law under the shipped floor, a floor at the sea and
+  one at 1000 m.
 
 ## Lightning and the storm cell
 
@@ -988,7 +1019,7 @@ levels are in [audio.md](audio.md).
 - **Thunder** waits until its sound reaches the ears, at 340.4 m/s: a crack and a boom near, a low
   rumble far. At most two roll at once.
 - **Wind** blows as much harder as the weather's low-ground wind (tuned on 3 m/s, a cloudy
-  day's), in its gusts, and rises with the ears' height over the map's floor.
+  day's), in its gusts, and rises with the ears' height above the sea, from 18 m.
 - **Birds** sing by the sun, a dawn chorus before sunrise and a last round at dusk, and fall quiet
   in rain; the tawny owl calls once it is dark. **Crickets** sing where the air at the ears is 10 °C
   or warmer and dry.
@@ -1009,7 +1040,7 @@ Where each part of the weather is set:
 | `src/sim/sky/plan.ts` | the day plan: `CALM_START`, `LEAD`, `CONVECTIVE`, `AMOUNT`, `HOURS`, `HEAVIEST`, `RUNS_ON`, `WINDY_HOURS`, `FOG_FORMS`, `STRATUS` |
 | `src/sim/sky/regimes.ts` | `REGIME_SPECS`: each regime's targets; `RAINS_FROM` |
 | `src/sim/sky/weather.ts` | `EASE`, `TOWARD`, `BREEZE_TURNS`; wetting and drying (`WETTING`, `PRECIP_FULL`, `DRYING`, `DRIZZLE`); the snow line (`SNOWING`, `MELTING`); the storm (`UPWIND`, `DRIFT`, `FLASHES`, `BOLTS`, `SCATTER`, `OVERHEAD`, `IN_VIEW`, `STRIP`, `REDRAWS`) |
-| `src/sim/sky/local.ts` | the snow edge (`EDGE`, `FEATHER`), its aspect and slope (`SNOW_ASPECT`, `ROCK_NORMAL_Y`, `SNOW_SETTLES`, `SNOW_REACH`), the meltwater band (`MELT_BAND`, `MELT_FULL`), the fog (`FOG_TOP`, `BASE`, `CLOUD_FOG`), the wind's growth over the floor (`WIND_UP`) |
+| `src/sim/sky/local.ts` | the snow edge (`EDGE`, `FEATHER`), its aspect and slope (`SNOW_ASPECT`, `ROCK_NORMAL_Y`, `SNOW_SETTLES`, `SNOW_REACH`), the meltwater band (`MELT_BAND`, `MELT_FULL`), the fog (`FOG_TOP`, `BASE`, `CLOUD_FOG`), the wind's growth with height above the sea (`WIND_UP`) |
 | `src/sim/sky/readout.ts` | the readout's thresholds |
 | `src/sim/tyres.ts`, `src/sim/handling.ts` | wet and snow grip (`WET`, `SNOW`), the `weatherGrip` knob and its presets |
 | `src/render/sky/` | the look: `light.ts` (dimming, lamps, night), `post.ts` (fog, grades), `surface.ts` (snow, `CANOPY_SNOW`, wet, clouds, sway), `precipitation.ts`, `lightning.ts`, `lamps.ts`, `night-lights.ts` |
@@ -1064,10 +1095,10 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   against `celsiusAt`, the buffers at 30 mm/h), `src/sim/map/__tests__/ground-model.test.ts` and
   `src/render/__tests__/terrain.test.ts` (`facingAt` the terrain mesh's own faces, level on roads;
   the litter out of leaf), `leaves.test.ts` and `trees.test.ts` (the woods' leaves), the audio's
-  `director/__tests__/weather.test.ts` (the wind's height law from the map's floor, the usual wind
-  against the weather's own), and the HUD's `clock.test.ts`, `sky.test.ts` (Auto heads for and
-  settles on the day's plan), `debug-sky.test.ts` (the odds and seed text, the odds readout equal
-  to `oddsAt`, the regime's countdown) and `title.test.ts`.
+  `director/__tests__/weather.test.ts` (the wind's height law above the sea, whatever the map's
+  floor, the usual wind against the weather's own), and the HUD's `clock.test.ts`, `sky.test.ts`
+  (Auto heads for and settles on the day's plan), `debug-sky.test.ts` (the odds and seed text, the
+  odds readout equal to `oddsAt`, the regime's countdown) and `title.test.ts`.
 
 `pnpm check` runs them all.
 

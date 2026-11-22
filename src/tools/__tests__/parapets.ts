@@ -2,7 +2,7 @@
 // along every drivable bridge's parapets, a car on the deck meets a wall wherever no road on the
 // deck's level reaches the parapet, and a car on any road meets no parapet in its carriageway.
 import { isDrivable, ONE_LEVEL } from "../../sim/map/kinds.ts"
-import { segIndex } from "../geometry.ts"
+import { segIndex } from "../spatial-index.ts"
 
 /** A road as shipped: its class, width, whether it is a bridge, and its line. */
 export interface ShippedRoad {
@@ -22,7 +22,7 @@ interface DriveWalls {
 
 /** Where a bridge's parapets stand past half its carriageway, m (`lines.ts` draws them there). */
 const PARAPET = 0.25
-/** How far apart the check reads the parapet line, m: the build's own step (`OPEN_STEP` in walls.ts). */
+/** How far apart the check reads the parapet line, m: the build's own step (`OPEN_STEP` in wall-pieces.ts). */
 const STEP = 0.25
 /** A wall this near a point of the parapet line stands on it, m: the walls lie on 0.1 m, and a deck's line on 0.1 m tilts a short segment's parapet a little. */
 const ON = 0.3

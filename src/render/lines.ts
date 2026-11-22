@@ -18,7 +18,8 @@ import {
   shoulderOf,
   type Water,
 } from "../sim/map/index.ts"
-import { channelOf, reachOf } from "../sim/water/channel.ts"
+import { reachOf } from "../sim/map/kinds.ts"
+import { channelOf } from "../sim/water/channel.ts"
 import { borePiece, isBored } from "./bores.ts"
 import type { Flowing, Piece, SinkAt } from "./geometry.ts"
 import { surfaceY, yOf } from "./ground.ts"
@@ -124,7 +125,8 @@ export const twoPieces = (road: RoadInfo): boolean => road.bridge === true || is
  * Road `road`'s pieces: its ribbons (with their painted lines on the main and provincial roads,
  * `roadLines`), then its deck on a bridge or its bore in a tunnel (none through a building
  * passage, under its house). On a deck or in a tunnel the ribbons follow the road's profile, where
- * the sim stands wheels and feet, under the hill or over the ground.
+ * the sim stands wheels and feet, under the hill or over the ground; at grade the ribbon lies on the
+ * road's surface over the terrain's folds (`drape`) and its lines on it as drawn (`over`).
  */
 export const roadPieces = (road: Road): Array<Piece> => {
   const cls = roadClassOf(road),
@@ -138,6 +140,7 @@ export const roadPieces = (road: Road): Array<Piece> => {
       hex: roadHex(road),
       y: (x, y, z) => surfaceY(z, x, y, lift, lifted),
       profile: lifted,
+      ...(lifted ? {} : { drape: true }),
     },
   ]
   for (const { right, dashed } of roadLines(road))
@@ -149,6 +152,7 @@ export const roadPieces = (road: Road): Array<Piece> => {
       ...(dashed ? { dash: 3 } : {}),
       y: (x, y, z) => surfaceY(z, x, y, lift + 0.02, lifted),
       profile: lifted,
+      ...(lifted ? {} : { over: 0.02 }),
       // Not under a level crossing's panels, which lie as high over the road (render/rail).
       skip: underPanel,
     })

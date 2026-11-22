@@ -45,9 +45,9 @@ export interface BuiltMap extends Omit<
   readonly areas: ReadonlyArray<Area>
   readonly barriers: ReadonlyArray<Barrier>
   /**
-   * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in
-   * build-output.ts fits them to int16); a node no listed tile holds is the edge's (`extendEdges` in
-   * grid-tiles.ts), which no tile writes and the place leaves out.
+   * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetre` in
+   * terrain.ts fits them to int16: the finished grid's own array); a node no listed tile holds is
+   * the edge's (`extendEdges` in grid-tiles.ts), which no tile writes and the place leaves out.
    */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
@@ -56,10 +56,10 @@ export interface BuiltMap extends Omit<
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
-    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's), NaN for one that stands at every level. */
+    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's, a wall's under a deck or of a house or a barrier over a bore), NaN for one that stands at every level. */
     readonly levels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   }
-  /** Flat (x, y, scale) triples, in id order. */
+  /** Flat (x, y, scale) triples, in id order: x and y whole metres, the scale whole decimetres (trees.ts `TreeList`). */
   readonly trees: ArrayLike<number>
   /** Each tree's id, ascending: its lattice cell's number, or its bank cell's past them (trees.ts). */
   readonly treeIds: ArrayLike<number>
@@ -90,6 +90,12 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
   return (s: number) => items.subarray(starts[s], starts[s + 1])
 }
 
+/** `trees`' (x, y, scale) triples with the scale in metres: the decimetres the build holds, read as the tile file takes them. */
+const metres = (trees: Float64Array): Float64Array => {
+  for (let k = 2; k < trees.length; k += 3) trees[k] = trees[k]! / 10
+  return trees
+}
+
 /** A map cut into its tiles, and the global map: both completed by the bakes, each missing one empty (the provisional map). */
 export interface MapCut {
   /** Tile `key`'s gunzipped file with `bakes`, as `tiles` makes it: one at a time, for the bake to read. */
@@ -106,7 +112,7 @@ export interface MapCut {
   readonly global: (bakes?: Partial<Bakes>) => Omit<MonzoneMap, "hash">
   /** The whole map's vectors, for the bakes that read them all (the water before its floors). */
   readonly whole: Pick<BuiltMap, "roads" | "buildings" | "water">
-  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
+  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty, `coordinates` none). */
   readonly sizes: Readonly<Record<string, number>>
 }
 
@@ -310,7 +316,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
           walk: flatOf(map.walls.levels.walk, walk, 1),
           drive: flatOf(map.walls.levels.drive, drive, 1),
         },
-        trees: flatOf(map.trees, trees, 3),
+        trees: metres(flatOf(map.trees, trees, 3)),
         ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,
         vectors: NO_VECTORS,

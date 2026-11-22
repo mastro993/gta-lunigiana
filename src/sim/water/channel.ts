@@ -19,6 +19,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { segDist2, staticGrid } from "../collide.ts"
 import { atGrade, terrainZ } from "../map/ground.ts"
 import { MAP, type Water } from "../map/index.ts"
+import { reachOf } from "../map/kinds.ts"
 
 /** Jarrett's n = 0.39 S^0.38 R^−0.16 folded into Manning's V = R^(2/3) S^(1/2) / n: V = R^DEPTH S^GRADE / ROUGH. */
 const ROUGH = 0.39,
@@ -72,9 +73,6 @@ const railBedNear = (x: number, y: number, reach: number): number | undefined =>
   return low
 }
 
-/** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
-export const reachOf = (water: Pick<Water, "bed" | "w">): number => Math.max(water.bed, water.w / 2)
-
 /** Depth (m) and mean speed (m/s) at a vertex are `stage` × q^STAGE and `speed` × q^SPEED, q the discharge per km² (m³/s). */
 export const STAGE = 1 / (1 + DEPTH),
   SPEED = 1 - STAGE
@@ -115,9 +113,14 @@ const zAlong = (s: Float64Array, z: ArrayLike<number>, at: number): number => {
 
 /**
  * The bed of `water` under its centreline per vertex (m a.s.l.): the terrain drawn there, `depth`/2
- * under the culvert's dip under an at-grade road, and under the track no higher than that nor `depth`
- * under the rail bed. It reads the terrain along the whole water, so the build bakes it into the map
- * (`Water.floor`), which `channelOf` reads; `bake.map-test.ts` checks it is current.
+ * under the culvert's dip under an at-grade road or under ground standing more than `depth`/2 over
+ * the water's surface (the carve's own gravel stands at most `depth`/4 over it: a road's fill over
+ * the channel, or the bank the 4 m grid reads under a narrow stream's line, 9 of Lunigiana's 1,164
+ * such vertices lying 13–506 m from any road or track), and under the track no higher than that
+ * nor `depth` under the rail bed. It reads the terrain along the whole water, so the build bakes it
+ * into the map (`Water.floor`), which `channelOf` reads; `bake.map-test.ts` checks it is current.
+ * A stream beside a road on the plain below Arcola (373093516) ran under the road's fill, its bed
+ * that fill 1.2–2.5 m over its surface, and a spate stood on the verge of the bridge 373320292.
  */
 export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
   const { pts, z } = water,
@@ -127,9 +130,10 @@ export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
     const x = pts[2 * i]!,
       y = pts[2 * i + 1]!,
       under = terrainZ(x, y)
-    if (atGrade(x, y) > under + ON_ROAD) return zi - water.depth / 2
+    const bed =
+      atGrade(x, y) > under + ON_ROAD || under > zi + water.depth / 2 ? zi - water.depth / 2 : under
     const rail = railBedNear(x, y, nearTrack)
-    return rail === undefined ? under : Math.min(under, zi - water.depth / 2, rail - water.depth)
+    return rail === undefined ? bed : Math.min(bed, zi - water.depth / 2, rail - water.depth)
   })
 }
 

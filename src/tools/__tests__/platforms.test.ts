@@ -73,7 +73,7 @@ test("buildPlatforms makes a strip between two close tracks, or one under 1.2 m 
     ...base,
     // A second track 5 m off: the strip between them is 1.6 m once clipped, wide enough, but between tracks.
     tracks: [...base.tracks, { pts: [-50, 5, 150, 5], group: 1 }],
-    polygons: [{ src: "between", rings: [box(0, 0.6, 40, 4.4)] }],
+    polygons: [{ src: "between", rings: [box(0, 0.6, 80, 4.4)] }],
   })
   assert.equal(two.length, 1)
   assert.equal(two[0]!.walkway, true)
@@ -81,10 +81,10 @@ test("buildPlatforms makes a strip between two close tracks, or one under 1.2 m 
   assert.ok(Math.abs(two[0]!.top[0]! - bed(two[0]!.axis[0]!) - 0.14) < 0.006)
   const narrow = buildPlatforms({
     ...base,
-    polygons: [{ src: "narrow", rings: [box(0, 1, 40, 2.6)] }],
+    polygons: [{ src: "narrow", rings: [box(0, 1, 140, 2.6)] }],
   })
   assert.equal(narrow[0]!.walkway, true, `${narrow[0]!.width.toFixed(2)} m wide`)
-  const wide = buildPlatforms({ ...base, polygons: [{ src: "wide", rings: [box(0, 1, 40, 4)] }] })
+  const wide = buildPlatforms({ ...base, polygons: [{ src: "wide", rings: [box(0, 1, 60, 4)] }] })
   assert.equal(wide[0]!.walkway, false, `${wide[0]!.width.toFixed(2)} m wide`)
 })
 
@@ -98,15 +98,25 @@ test("buildPlatforms makes a piece no edge of which comes within reach of a trai
     near = off(2.1)
   assert.equal(far.walkway, true, `${far.clear.toFixed(2)} m off`)
   assert.equal(near.walkway, false, `${near.clear.toFixed(2)} m off`)
+  // Regression: OSM's line for Sarzana's platform 4 made a band between a loop 3 m off and a siding no train calls along: a
+  // platform with no edge by a train's door. Within reach of a siding alone, a piece is a walkway too.
+  const siding = buildPlatforms({
+    ...base,
+    tracks: [...base.tracks, { pts: [-50, 12, 150, 12], group: 1, siding: true }],
+    polygons: [{ src: "by a siding", rings: [box(0, 2.6, 40, 10.2)] }],
+  })[0]!
+  assert.equal(siding.walkway, true, `${siding.clear.toFixed(2)} m off the siding`)
 })
 
-test("buildPlatforms leaves out ground more than 1 m under the platform's top, and pieces under 4 m²", () => {
+// Regression: the tip of Vezzano Ligure's island platform, cut off past the neck its converging tracks leave it, was a 33 m²
+// platform of its own, with room for neither a name board nor two lamps.
+test("buildPlatforms leaves out ground more than 1 m under the platform's top, and pieces under 100 m²", () => {
   const out = buildPlatforms({
     ...base,
-    // The back of the platform, past y 6, drops to a forecourt 2 m down; a 1.5 m² corner stands apart.
+    // The back of the platform, past y 6, drops to a forecourt 2 m down; a 33 m² tip stands apart.
     polygons: [
       { src: "forecourt", rings: [box(0, 1, 40, 10)] },
-      { src: "corner", rings: [box(60, 2, 61, 3.5)] },
+      { src: "tip", rings: [box(60, 2, 72, 4.75)] },
     ],
     terrain: (x, y) => bed(x) - (y > 6 ? 2 : 0),
   })

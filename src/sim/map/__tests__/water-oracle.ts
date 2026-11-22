@@ -2,14 +2,16 @@
 // and river polygons included (#73): one broad phase over the whole map's rivers and water areas,
 // verbatim but for the sea's rules since (#13: still water's cuts are no shore, the sea's pieces
 // share their coast, every piece's here, less its closures across a river's or a lake's mouth,
-// and no river stands under the sea), which
+// and no river stands under the sea) and a river polygon's water read on its waterways where they
+// run in it (#20), which
 // ground.map-test.ts holds the tiled `waterAt` and `waterUnder` to, to the bit, over the map joined
 // back from its tiles (`wholeMap`).
 import { Ops } from "@typeonce/ritmo-math"
 
-import { pointInRing, segDist2, staticGrid } from "../../collide.ts"
-import { channelOf, reachOf, SEA_LEVEL, SPEED, STAGE } from "../../water/channel.ts"
+import { insideSpans, pointInRing, segDist2, staticGrid } from "../../collide.ts"
+import { channelOf, SEA_LEVEL, SPEED, STAGE } from "../../water/channel.ts"
 import { type Area, isWaterArea, MAP, TILE, type Water } from "../index.ts"
+import { IN_POLYGON, reachOf } from "../kinds.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
 interface Reach {
@@ -41,7 +43,7 @@ interface Pool {
   readonly level?: number
   /** Still water's banks, flat (ax, ay, ex, ey) each: its shore, every sea piece's coast for the sea, else all its edges. */
   readonly banks: ReadonlyArray<number>
-  /** A river polygon's reaches (indices), when it has no `level`. */
+  /** A river polygon's reaches inside it (indices in `parts`), when it has no `level`. */
   readonly reaches: ReadonlySet<number>
 }
 
@@ -74,7 +76,7 @@ interface PoolSurface {
   readonly speed: number
 }
 
-/** Where along which reach a point's water comes from (-1: a lake's), and the water area it lies in. */
+/** Where along which reach a point's water comes from (-1: a lake's; in a river polygon, a reach of `parts`), and the water area it lies in. */
 interface Hit {
   readonly i: number
   readonly t: number
@@ -182,6 +184,36 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
     }
     return out
   })
+  // The river polygons' reaches inside them, cut at their edges: a river polygon's water is its
+  // waterways' where they run in it (`insideOf` in water/rivers.ts).
+  const parts: Array<Reach> = []
+  /** Adds the parts of `own` inside `rings` to `parts` (all of `own` where none lies inside), and gives their indices. */
+  const partsOf = (own: ReadonlyArray<Reach>, rings: ReadonlyArray<ReadonlyArray<number>>) => {
+    const spans = insideSpans(rings, IN_POLYGON),
+      at = (a: number, b: number, t: number) => a + (b - a) * t
+    const inside = own.flatMap((r) =>
+      spans(r.ax, r.ay, r.bx, r.by).map(([t0, t1]): Reach =>
+        t0 === 0 && t1 === 1
+          ? r
+          : {
+              ...r,
+              ax: at(r.ax, r.bx, t0),
+              ay: at(r.ay, r.by, t0),
+              bx: at(r.ax, r.bx, t1),
+              by: at(r.ay, r.by, t1),
+              bedA: at(r.bedA, r.bedB, t0),
+              bedB: at(r.bedA, r.bedB, t1),
+              stageA: at(r.stageA, r.stageB, t0),
+              stageB: at(r.stageA, r.stageB, t1),
+              speedA: at(r.speedA, r.speedB, t0),
+              speedB: at(r.speedA, r.speedB, t1),
+            },
+      ),
+    )
+    const first = parts.length
+    parts.push(...(inside.length > 0 ? inside : own))
+    return Array.from({ length: parts.length - first }, (_, k) => first + k)
+  }
   const pools: ReadonlyArray<Pool> = areas
     .filter((a) => isWaterArea(a.kind) && (a.level !== undefined || a.waters !== undefined))
     .map((a): Pool => {
@@ -205,12 +237,30 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
         ...(a.level === undefined ? {} : { level: a.level }),
         banks: a.level === undefined ? [] : shore.length > 0 ? shore : edges.all,
         reaches: new Set(
-          a.level === undefined ? reaches.flatMap((r, i) => (own.has(r.piece) ? [i] : [])) : [],
+          a.level === undefined
+            ? partsOf(
+                reaches.filter((r) => own.has(r.piece)),
+                a.rings,
+              )
+            : [],
         ),
       }
     })
     .sort((a, b) => (a.level === undefined ? 1 : 0) - (b.level === undefined ? 1 : 0))
   const poolNear = staticGrid(pools.length, (i) => pools[i]!.box, 64)
+  const partNear = staticGrid(
+    parts.length,
+    (i) => {
+      const r = parts[i]!
+      return [
+        Math.min(r.ax, r.bx),
+        Math.min(r.ay, r.by),
+        Math.max(r.ax, r.bx),
+        Math.max(r.ay, r.by),
+      ]
+    },
+    32,
+  )
 
   /** The water area (x, y) lies in, a lake before a river polygon; undefined outside them all. */
   const poolAt = (x: number, y: number): Pool | undefined => {
@@ -221,7 +271,7 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
     return found < 0 ? undefined : pools[found]
   }
 
-  /** The nearest reach of a river polygon's own waterways, however far: the first found on a tie. */
+  /** The nearest reach of a river polygon's own waterways inside it, however far: the first found on a tie. */
   const nearestOf = (pool: Pool, x: number, y: number): Hit => {
     const own = pool.reaches
     let best = -1,
@@ -229,9 +279,9 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
       bestT = 0
     // A box `look` m round the point holds every reach within `look` m of it.
     for (let look = LOOK; ; look *= 2) {
-      near(x - look, y - look, x + look, y + look, (i) => {
+      partNear(x - look, y - look, x + look, y + look, (i) => {
         if (!own.has(i)) return
-        const r = reaches[i]!,
+        const r = parts[i]!,
           { d2, t } = segDist2(x, y, r.ax, r.ay, r.bx, r.by)
         if (d2 < bestD2 || (d2 === bestD2 && i < best)) [best, bestD2, bestT] = [i, d2, t]
       })
@@ -291,7 +341,7 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
       const [bankX, bankY] = shoreward(pool!, x, y)
       return { depth, level, vx: 0, vy: 0, bankX, bankY }
     }
-    const r = reaches[hit.i]!,
+    const r = (pool === undefined ? reaches : parts)[hit.i]!,
       t = hit.t
     const mean = (r.stageA + (r.stageB - r.stageA) * t) * (q > 0 ? Ops.pow(q, STAGE) : 0),
       bed = r.bedA + (r.bedB - r.bedA) * t,
@@ -343,7 +393,7 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
     surface: (pool: Pool, x: number, y: number): PoolSurface => {
       if (pool.level !== undefined) return { bed: pool.level, stage: 0, ux: 1, uy: 0, speed: 0 }
       const { i, t } = nearestOf(pool, x, y),
-        r = reaches[i]!
+        r = parts[i]!
       return {
         bed: r.bedA + (r.bedB - r.bedA) * t,
         stage: r.stageA + (r.stageB - r.stageA) * t,

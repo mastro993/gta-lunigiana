@@ -12,6 +12,7 @@ import { mapForSearch } from "../maps.ts"
 import { css, PALETTE } from "../render/palette.ts"
 import { districtAt, inPlay, MAP } from "../sim/map/index.ts"
 import { fetchFile } from "../stream.ts"
+import { placeLabels } from "./labels.ts"
 import { makeMapDetail } from "./map-detail.ts"
 import {
   type Box,
@@ -39,91 +40,50 @@ export interface Place {
   readonly major: boolean
 }
 
-/** The kinds of place the full map names, in the order their labels are placed. */
-const RANKS: ReadonlyArray<string> = ["place=town", "place=village", "place=hamlet", "natural=peak"]
+/**
+ * The kinds of place the full map names, in the order their labels are placed, each with its
+ * label's look: the name's size and the dot's, px, and their colour. Towns and villages are yellow
+ * capitals, hamlets and peaks smaller and white.
+ */
+const RANKS = [
+  { kind: "place=town", size: 16, dot: 6, hex: PALETTE.signYellow },
+  { kind: "place=village", size: 14, dot: 6, hex: PALETTE.signYellow },
+  { kind: "place=hamlet", size: 11, dot: 4, hex: PALETTE.marbleWhite },
+  { kind: "natural=peak", size: 11, dot: 4, hex: PALETTE.marbleWhite },
+] as const
+const rankOf = (kind: string) => RANKS.findIndex((r) => r.kind === kind)
+/** The village's rank (the first after the towns') and the hamlet's (the first not a major). */
+const VILLAGE = rankOf("place=village"),
+  HAMLET = rankOf("place=hamlet")
 
 const isPlace = (kind: string) =>
   kind === "place=town" || kind === "place=village" || kind === "place=hamlet"
-const districts: ReadonlySet<string> = new Set(MAP.districts.map((d) => d.name))
 const place = (
   name: string,
   p: { readonly x: number; readonly y: number; readonly kind: string },
 ): Place => {
-  const rank = RANKS.indexOf(p.kind)
-  return { name, x: p.x, y: p.y, rank, major: rank < RANKS.indexOf("place=hamlet") }
+  const rank = rankOf(p.kind)
+  return { name, x: p.x, y: p.y, rank, major: rank < HAMLET }
 }
 
 /**
  * The towns, villages and hamlets OSM names inside the map (its `place=*` POIs; localities left
- * out), then the peaks the HUD names (a landmark district of the same name), once per name: OSM has
- * two Argigliano nodes and two Monte Borla summits.
+ * out), then the peaks the HUD names (inside a landmark district of the same name: Sarzana's Monte
+ * Grosso, not Fivizzano's, one of five peaks of that name, issue #20), once per name: OSM has two
+ * Argigliano nodes and two Monte Borla summits.
  */
 export const PLACES: ReadonlyArray<Place> = [
   ...MAP.pois.flatMap((p) => (p.name !== undefined && isPlace(p.kind) ? [place(p.name, p)] : [])),
   ...MAP.pois.flatMap((p) =>
-    p.name !== undefined && p.kind === "natural=peak" && districts.has(p.name)
+    p.name !== undefined &&
+    p.kind === "natural=peak" &&
+    MAP.districts.some((d) => d.name === p.name && Math.hypot(p.x - d.x, p.y - d.y) <= d.r)
       ? [place(p.name, p)]
       : [],
   ),
 ].filter((p, i, all) => all.findIndex((q) => q.name === p.name) === i)
 
-const apart = (a: Box, b: Box): boolean =>
-  a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0
-
-/** A place's label to place: its rank, its dot's box and the boxes its name may take, best first. */
-interface Label {
-  readonly rank: number
-  readonly dot: Box
-  readonly sides: ReadonlyArray<Box>
-}
-
-/**
- * The side each label's name takes (an index in its `sides`), or undefined for one left out with
- * its dot. Ranks go in order, and within one the label with the fewest free sides goes next (the
- * earlier on a tie), so a name with room to spare does not take another's last side. A side is free
- * when it overlaps none of the `fixed` boxes (the north arrow, the scale bar), the names and dots
- * placed, its own dot, or the dots its rank has still to place: a name over a dot reads as that
- * place's. A dot under a placed name or dot leaves its label out.
- */
-export const placeLabels = (
-  labels: ReadonlyArray<Label>,
-  fixed: ReadonlyArray<Box> = [],
-): Array<number | undefined> => {
-  const taken = [...fixed],
-    placed: Array<number | undefined> = labels.map(() => undefined)
-  let left = labels.map((_, i) => i)
-  while (left.length > 0) {
-    const rank = Math.min(...left.map((i) => labels[i]!.rank)),
-      group = left.filter((i) => labels[i]!.rank === rank)
-    const free = (i: number): Array<number> => {
-      const { dot, sides } = labels[i]!
-      if (!taken.every((b) => apart(dot, b))) return []
-      return sides.flatMap((side, s) =>
-        taken.every((b) => apart(side, b)) && group.every((j) => apart(side, labels[j]!.dot))
-          ? [s]
-          : [],
-      )
-    }
-    let next = group[0]!,
-      sides = free(next)
-    for (const i of group.slice(1)) {
-      const s = free(i)
-      if (s.length < sides.length) [next, sides] = [i, s]
-    }
-    left = left.filter((i) => i !== next)
-    if (sides[0] !== undefined) {
-      placed[next] = sides[0]
-      taken.push(labels[next]!.dot, labels[next]!.sides[sides[0]]!)
-    }
-  }
-  return placed
-}
-
 const FONT = '"Courier New", ui-monospace, Menlo, Consolas, monospace'
-const LABEL = {
-  major: { size: 16, dot: 6, hex: PALETTE.signYellow },
-  minor: { size: 11, dot: 4, hex: PALETTE.marbleWhite },
-} as const
 const PAD = 2 // px around a label's box
 
 /** The most zoom, px/m (1 km 2000 px): a street and its houses across a good part of the screen. */
@@ -157,7 +117,7 @@ const barOf = (fit: Fit) => {
 interface MapLabel {
   readonly name: string
   readonly text: string
-  readonly look: (typeof LABEL)[keyof typeof LABEL]
+  readonly look: (typeof RANKS)[number]
   readonly dotX: number
   readonly dotY: number
   readonly box: Box
@@ -166,10 +126,14 @@ interface MapLabel {
 /**
  * The place names the full map paints over the map fitted as `fit`, `measure` giving a text's
  * width in px at a font size: each place whose dot is on the frame (the part of the map on screen)
- * named centred above its dot, else below it, right or left of it, kept inside the frame across;
- * one with no side free is left out with its dot (`placeLabels`). The place named `first` (the
- * player's district, as the header names it) goes before every other, so a crowded map still
- * names the village the player is in.
+ * named centred above its dot, else below it, right or left of it, else (a town or a village)
+ * above or below it to the right or the left; one with no side free is left out with its dot
+ * (`placeLabels`). The place named `first` (the player's district, as the header names it) is
+ * named with the towns and villages and before them when not all fit, so a crowded map still
+ * names the place the player is in. Every name slides across to stay inside the frame; when that
+ * leaves out a town, a village or the player's place and the whole map is narrower than the room
+ * within the margins, those names may slide out to the room's sides instead, if that leaves out
+ * fewer of them, as on Sarzana's plain by the frame's west edge at 1280 × 720.
  */
 export const mapLabels = (
   fit: Fit,
@@ -177,52 +141,67 @@ export const mapLabels = (
   first?: string,
 ): Array<MapLabel> => {
   const { bounds } = MAP,
-    { frame } = fit
-  const west = frame.x0,
-    east = frame.x1
-  const labels = PLACES.flatMap((p) => {
-    const dotX = fit.ox + (p.x - bounds.minX) * fit.scale,
-      dotY = fit.oy + (bounds.maxY - p.y) * fit.scale
-    if (dotX < frame.x0 || dotX > frame.x1 || dotY < frame.y0 || dotY > frame.y1) return []
-    const look = p.major ? LABEL.major : LABEL.minor,
-      text = p.major ? p.name.toUpperCase() : p.name
-    const w = measure(text, look.size),
-      h = look.size,
-      d = look.dot
-    // The name's box centred at (x, y), slid across to stay inside the frame.
-    const box = (x: number, y: number): Box => {
-      const cx = Math.min(east - w / 2 - PAD, Math.max(west + w / 2 + PAD, x))
-      return {
-        x0: cx - w / 2 - PAD,
-        x1: cx + w / 2 + PAD,
-        y0: y - h / 2 - PAD,
-        y1: y + h / 2 + PAD,
+    { frame, room } = fit
+  /** The labels of the places on the frame, the majors' names slid across inside `across`. */
+  const labelsWithin = (across: Box) =>
+    PLACES.flatMap((p) => {
+      const dotX = fit.ox + (p.x - bounds.minX) * fit.scale,
+        dotY = fit.oy + (bounds.maxY - p.y) * fit.scale
+      if (dotX < frame.x0 || dotX > frame.x1 || dotY < frame.y0 || dotY > frame.y1) return []
+      const look = RANKS[p.rank]!,
+        text = p.major ? p.name.toUpperCase() : p.name,
+        major = p.major || p.name === first,
+        { x0, x1 } = major ? across : frame
+      const w = measure(text, look.size),
+        h = look.size,
+        d = look.dot
+      // The name's box centred at (x, y), slid across to stay between x0 and x1.
+      const box = (x: number, y: number): Box => {
+        const cx = Math.min(x1 - w / 2 - PAD, Math.max(x0 + w / 2 + PAD, x))
+        return {
+          x0: cx - w / 2 - PAD,
+          x1: cx + w / 2 + PAD,
+          y0: y - h / 2 - PAD,
+          y1: y + h / 2 + PAD,
+        }
       }
-    }
-    return [
-      {
-        name: p.name,
-        text,
-        look,
-        dotX,
-        dotY,
-        rank: p.name === first ? -1 : p.rank,
-        // The dot's box leaves out its 1 px outline: the names' 2 px padding keeps them clear of it.
-        dot: { x0: dotX - d / 2, x1: dotX + d / 2, y0: dotY - d / 2, y1: dotY + d / 2 },
-        sides: [
-          box(dotX, dotY - d - h / 2),
-          box(dotX, dotY + d + h / 2),
-          box(dotX + d + w / 2, dotY),
-          box(dotX - d - w / 2, dotY),
-        ],
-      },
-    ]
-  })
+      const above = dotY - d - h / 2,
+        below = dotY + d + h / 2,
+        right = dotX + d + w / 2,
+        left = dotX - d - w / 2
+      return [
+        {
+          name: p.name,
+          text,
+          look,
+          dotX,
+          dotY,
+          rank: p.name === first ? -1 : p.rank,
+          major,
+          first: p.name === first || p.rank < VILLAGE,
+          // The dot's box leaves out its 1 px outline: the names' 2 px padding keeps them clear.
+          dot: { x0: dotX - d / 2, x1: dotX + d / 2, y0: dotY - d / 2, y1: dotY + d / 2 },
+          // A town's or a village's name may also take the corners round its dot, which the dense
+          // villages of the plains need to be named together. A hamlet's or a peak's keeps the four
+          // sides: with the corners too, more hamlets are named, but round Monzone they take each
+          // other's room, and Campiglione, which the user asked for, was left out at 1920 × 1080.
+          sides: [
+            box(dotX, above),
+            box(dotX, below),
+            box(right, dotY),
+            box(left, dotY),
+            ...(p.major
+              ? [box(right, above), box(left, above), box(right, below), box(left, below)]
+              : []),
+          ],
+        },
+      ]
+    })
   // The north arrow, and the scale bar with its end ticks and its length after it: a name below a dot
   // near the bottom edge can reach down into the bar's margin.
   const n = northOf(fit),
     bar = barOf(fit)
-  const placed = placeLabels(labels, [
+  const fixed = [
     { x0: n.x - 6, x1: n.x + 6, y0: n.y - 9, y1: n.y + 14 },
     {
       x0: bar.x,
@@ -230,7 +209,18 @@ export const mapLabels = (
       y0: bar.y - 5,
       y1: bar.y + 9,
     },
-  ])
+  ]
+  const named = (across: Box) => {
+    const labels = labelsWithin(across)
+    return { labels, placed: placeLabels(labels, fixed) }
+  }
+  const majorsLeft = ({ labels, placed }: ReturnType<typeof named>) =>
+    labels.filter((l, i) => l.major && placed[i] === undefined).length
+  let { labels, placed } = named(frame)
+  if (majorsLeft({ labels, placed }) > 0 && (frame.x0 > room.x0 || frame.x1 < room.x1)) {
+    const wide = named(room)
+    if (majorsLeft(wide) < majorsLeft({ labels, placed })) ({ labels, placed } = wide)
+  }
   return labels.flatMap(({ name, text, look, dotX, dotY, sides }, i) => {
     const side = placed[i]
     return side === undefined ? [] : [{ name, text, look, dotX, dotY, box: sides[side]! }]

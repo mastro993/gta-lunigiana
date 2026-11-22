@@ -11,13 +11,14 @@ import { drawnZ, groundZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { heldBySea } from "../sim/water/channel.ts"
 import { APRON } from "./chunks.ts"
+import { type Corner, drape, type Drawn, drawn, drawnBySegment, layOver } from "./drape.ts"
 import {
   type Box,
   boxOver,
   emptySink,
   type Flowing,
   type Piece,
-  type SinkAt,
+  type Sink,
   type Triangles,
 } from "./geometry.ts"
 import { yOf } from "./ground.ts"
@@ -48,6 +49,19 @@ export interface RibbonSpec {
    * whole quad's two triangles there tilt off the profile (10.3 cm on a 48% path turning 60°).
    */
   readonly profile?: boolean
+  /**
+   * The strip lies on its road's surface at grade (`y` the higher of the road's profile and the
+   * terrain mesh, plus a lift), each triangle cut along the mesh's folds where the terrain would
+   * stand through it (`drape`).
+   */
+  readonly drape?: boolean
+  /**
+   * A painted line: it lies this many m over the strip its `strips` draws first (its road's ribbon)
+   * as that is drawn, which, read at its corners alone, can stand over the road's surface between
+   * them; or at its own `y` where that stands higher (a junction, where another road's ribbon may
+   * stand over this one's).
+   */
+  readonly over?: number
 }
 
 const { minX, minY, maxX, maxY } = MAP.bounds
@@ -89,16 +103,25 @@ export const throughApron = <T = never>(
 
 /**
  * Adds segments k0..k1 of a ribbon to its layer of the chunks they cross. Their neighbours
- * are densified too, for the mitres, and their quads go wherever `at` puts them; the arc length
- * (dashes) still counts from the start of the line.
+ * are densified too, for the mitres, and their quads go wherever `at` puts them (given the
+ * segment each lies along); the arc length (dashes) still counts from the start of the line. A
+ * painted line (`over`) lies on `under`, its road's ribbon as drawn along the same segment.
  */
-const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
+const ribbon = (
+  at: (x: number, y: number, segment: number) => Sink,
+  spec: RibbonSpec,
+  k0: number,
+  k1: number,
+  under?: (segment: number) => Drawn | undefined,
+): void => {
   const step = spec.dash === undefined ? 2 : Math.min(1, spec.dash / 2)
   const xs: Array<number> = [],
     ys: Array<number> = [],
     zs: Array<number> = [],
     ss: Array<number> = [],
-    fs: Array<Flowing> = []
+    fs: Array<Flowing> = [],
+    // The segment each section starts, the last section the last segment's end.
+    segs: Array<number> = []
   const flowing = spec.flowing
   /** `flows` at vertex k and `t` of the way to the next. */
   const flowAt = (flows: ReadonlyArray<Flowing>, k: number, t: number): Flowing => {
@@ -140,6 +163,7 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
       ys.push(ay + (by - ay) * t)
       zs.push(spec.z[k]! + (spec.z[k + 1]! - spec.z[k]!) * t)
       ss.push(s + len * t)
+      segs.push(k)
       if (flowing !== undefined) fs.push(flowAt(flowing, k, t))
     }
     s += len
@@ -148,6 +172,7 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
   ys.push(spec.pts[2 * last + 3]!)
   zs.push(spec.z[last + 1]!)
   ss.push(s)
+  segs.push(last)
   if (flowing !== undefined) fs.push(flowAt(flowing, last + 1, 0))
   const count = xs.length
   if (count < 2) return
@@ -200,10 +225,32 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
     )
       continue
     // Right edge forward, then left edge back: counter-clockwise seen from above.
-    const sink = at(mx, my)
+    const sink = at(mx, my, segs[i]!),
+      below = spec.over === undefined ? undefined : under?.(segs[i]!)
     if (flowing === undefined && spec.profile === true) {
       sink.decal.quad([rx0, rh0, -ry0], [rx1, rh1, -ry1], on[i + 1]!, on[i]!, spec.hex)
       sink.decal.quad(on[i]!, on[i + 1]!, [lx1, lh1, -ly1], [lx0, lh0, -ly0], spec.hex)
+    } else if (flowing === undefined && below !== undefined) {
+      // Each corner `over` the ribbon drawn there or at its own height, the higher: at a junction,
+      // where another road's ribbon may stand over this one's, the road's surface is what the line
+      // read before it read the ribbon, and it showed there.
+      const over = spec.over!,
+        z0 = zs[i]!,
+        z1 = zs[i + 1]!
+      const laid = (x: number, y: number, z: number): Corner => [
+        x,
+        y,
+        Math.max(spec.y(x, y, z), (below.heightAt(x, y) ?? -Infinity) + over),
+      ]
+      const r0 = laid(rx0, ry0, z0),
+        l1 = laid(lx1, ly1, z1)
+      layOver(sink.decal, r0, laid(rx1, ry1, z1), l1, below, over, spec.hex)
+      layOver(sink.decal, r0, l1, laid(lx0, ly0, z0), below, over, spec.hex)
+    } else if (flowing === undefined && spec.drape === true) {
+      const z0 = zs[i]!,
+        z1 = zs[i + 1]!
+      drape(sink.decal, [rx0, ry0, z0], [rx1, ry1, z1], [lx1, ly1, z1], spec.y, spec.hex)
+      drape(sink.decal, [rx0, ry0, z0], [lx1, ly1, z1], [lx0, ly0, z0], spec.y, spec.hex)
     } else if (flowing === undefined)
       sink.decal.quad(
         [rx0, rh0, -ry0],
@@ -271,14 +318,25 @@ export const prism = (
   tris.face(p(1, -1, bottom), p(1, 1, bottom), p(1, 1, top), p(1, -1, top), [dx, 0, -dy], hex)
 }
 
-/** A piece drawing every ribbon in `specs` along `line`. */
+/**
+ * A piece drawing every ribbon in `specs` along `line`, in order; one `over` the first (a painted
+ * line) on that ribbon as drawn along the same segment (`drawnBySegment`, `layOver`), or at its
+ * own `y` where that stands higher.
+ */
 export const strips = (
   line: { readonly pts: ReadonlyArray<number> },
   specs: ReadonlyArray<RibbonSpec>,
 ): Piece => ({
   pts: line.pts,
   draw: (at, k0, k1) => {
-    for (const spec of specs) ribbon(at, spec, k0, k1)
+    const [first, ...rest] = specs
+    if (first === undefined) return
+    if (rest.every((spec) => spec.over === undefined)) {
+      for (const spec of specs) ribbon(at, spec, k0, k1)
+      return
+    }
+    const under = drawnBySegment(at, (into) => ribbon(into, first, k0, k1))
+    for (const spec of rest) ribbon(at, spec, k0, k1, under)
   },
 })
 
@@ -337,29 +395,6 @@ export const append = (from: Triangles, to: Triangles, i?: number): void => {
     to.color.push(from.color[k]!)
   }
 }
-
-/** The render height of triangle `t` of `tris` over map (x, y), if it covers it seen from above. */
-const heightIn = (tris: Triangles, t: number, x: number, y: number): number | undefined => {
-  const p = tris.position,
-    z = -y
-  const ax = p[9 * t]!,
-    ay = p[9 * t + 1]!,
-    az = p[9 * t + 2]!,
-    bx = p[9 * t + 3]!,
-    by = p[9 * t + 4]!,
-    bz = p[9 * t + 5]!,
-    cx = p[9 * t + 6]!,
-    cy = p[9 * t + 7]!,
-    cz = p[9 * t + 8]!
-  const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
-  if (Math.abs(d) < 1e-12) return undefined
-  const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d,
-    l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d
-  return l1 >= 0 && l2 >= 0 && l1 + l2 <= 1 ? l1 * ay + l2 * by + (1 - l1 - l2) * cy : undefined
-}
-
-/** The cells (m) `surfaceNear` buckets the ribbons' triangles in. */
-const CELL = 2
 
 /** Calls `visit` with each piece of `pieces` that has segments within `reach` m of (x, y), and the first and last of them. */
 const piecesNear = (
@@ -429,27 +464,6 @@ export const surfaceNear = (
 ): ((x: number, y: number) => number) => {
   const scratch = emptySink()
   piecesNear(pieces, x, y, reach, (piece, k0, k1) => piece.draw(() => scratch, k0, k1))
-  const tris = scratch.decal,
-    cells = new Map<number, Array<number>>(),
-    key = (i: number, j: number) => i * 65536 + j
-  for (let t = 0; t < tris.position.length / 9; t++) {
-    const xs = [0, 3, 6].map((o) => tris.position[9 * t + o]!),
-      ys = [2, 5, 8].map((o) => -tris.position[9 * t + o]!)
-    for (let i = Math.floor(Math.min(...xs) / CELL); i <= Math.floor(Math.max(...xs) / CELL); i++)
-      for (
-        let j = Math.floor(Math.min(...ys) / CELL);
-        j <= Math.floor(Math.max(...ys) / CELL);
-        j++
-      ) {
-        const list = cells.get(key(i, j))
-        if (list === undefined) cells.set(key(i, j), [t])
-        else list.push(t)
-      }
-  }
-  return (px, py) => {
-    let top = -Infinity
-    for (const t of cells.get(key(Math.floor(px / CELL), Math.floor(py / CELL))) ?? [])
-      top = Math.max(top, heightIn(tris, t, px, py) ?? -Infinity)
-    return top > -Infinity ? top : yOf(drawnZ(px, py, groundZ(px, py)))
-  }
+  const { heightAt } = drawn(scratch.decal)
+  return (px, py) => heightAt(px, py) ?? yOf(drawnZ(px, py, groundZ(px, py)))
 }

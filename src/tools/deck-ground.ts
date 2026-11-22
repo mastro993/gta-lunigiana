@@ -10,7 +10,7 @@
 import { DECK_BALLAST, DECK_SLAB, isRoadClass, ON_DECK, ROAD_LIFT } from "../sim/map/kinds.ts"
 import { gridGround } from "./build-ground.ts"
 import { BED } from "./rail-bed.ts"
-import { anchorNode, type Grid } from "./terrain.ts"
+import { anchorNode, type DmGrid, type Grid } from "./terrain.ts"
 
 /** A deck as shipped: its flat polyline and profile per vertex, its slab's half width and its top over the profile, m. */
 export interface Slab {
@@ -52,10 +52,27 @@ const STEP = 0.5
  */
 export const END_RUN = 4
 
+/** The unit direction `slab` leaves its vertex `k` in along itself (from its end inward, or on from a vertex inside it). */
+const leaving = (slab: Slab, k: number): readonly [number, number] => {
+  const n = slab.z.length,
+    step = k === n - 1 ? -1 : 1
+  for (let m = k + step; m >= 0 && m < n; m += step) {
+    const dx = slab.pts[2 * m]! - slab.pts[2 * k]!,
+      dy = slab.pts[2 * m + 1]! - slab.pts[2 * k + 1]!,
+      d = Math.hypot(dx, dy)
+    if (d > 0) return [dx / d, dy / d]
+  }
+  return [0, 0]
+}
+
 /**
  * Per slab, the other slabs joined to it at its first and at its last vertex: those with a vertex at
- * the same point whose top there lies within ON_DECK of its own, the next piece of the same bridge
- * or a deck it meets on its level. An end with none is an outer end, where the deck meets the ground.
+ * the same point whose top there lies within ON_DECK of its own and that run on past it, through it
+ * or leaving it the other way (the next piece of the same bridge, or a deck it meets on its level).
+ * An end with none is an outer end, where the deck meets the ground: two decks leaving one point the
+ * same way are side by side, a switch at their end with track at grade behind it (Santo Stefano di
+ * Magra's yard tracks over the road tunnel 99395994, read as joined, kept no end run, and the ground
+ * at the switch fell 1.5 m under the at-grade track leaving it).
  */
 export const jointsOf = (
   slabs: ReadonlyArray<Slab>,
@@ -64,16 +81,21 @@ export const jointsOf = (
   const key = (slab: Slab, k: number) => `${slab.pts[2 * k]},${slab.pts[2 * k + 1]}`
   slabs.forEach((slab, i) => {
     for (let k = 0; k < slab.z.length; k++)
-      at.set(key(slab, k), [...(at.get(key(slab, k)) ?? []), [i, slab.z[k]! + slab.lift]])
+      at.set(key(slab, k), [...(at.get(key(slab, k)) ?? []), [i, k]])
   })
   return slabs.map((slab, i) => {
     const joined = (k: number) => {
-      const top = slab.z[k]! + slab.lift
+      const top = slab.z[k]! + slab.lift,
+        [ux, uy] = leaving(slab, k)
       return [
         ...new Set(
-          (at.get(key(slab, k)) ?? []).flatMap(([j, t]) =>
-            j !== i && Math.abs(t - top) < ON_DECK ? [j] : [],
-          ),
+          (at.get(key(slab, k)) ?? []).flatMap(([j, m]) => {
+            const other = slabs[j]!
+            if (j === i || Math.abs(other.z[m]! + other.lift - top) >= ON_DECK) return []
+            if (m > 0 && m < other.z.length - 1) return [j]
+            const [vx, vy] = leaving(other, m)
+            return ux * vx + uy * vy < 0 ? [j] : []
+          }),
         ),
       ]
     }
@@ -265,7 +287,7 @@ const clip = (
  * bridge), and no deep pit is dug to make up for one.
  */
 const lay = (
-  g: Grid,
+  g: DmGrid,
   seg: Segment,
   d0: number,
   d1: number,
@@ -295,7 +317,8 @@ const lay = (
         const excess = () =>
           nodes.map(
             (n, q) =>
-              g.z[n]! - plane(g.x0 + (i + corners[q]![0]) * c, g.y0 + (j + corners[q]![1]) * c),
+              g.dm[n]! / 10 -
+              plane(g.x0 + (i + corners[q]![0]) * c, g.y0 + (j + corners[q]![1]) * c),
           )
         for (;;) {
           const e = excess(),
@@ -313,20 +336,31 @@ const lay = (
           if (best < 0) break
           const n = nodes[best]!,
             drop = Math.min(e[best]! + DECK_SLAB.depth, over / w[best]!)
-          lower(n, Math.floor((g.z[n]! - drop) * 10 + 1e-6) / 10)
+          lower(n, Math.floor((g.dm[n]! / 10 - drop) * 10 + 1e-6) / 10)
         }
       }
     }
   })
 }
 
-/** Whether (x, y) lies abeam of `slab`'s deck, between the lines across the ends of one of its segments. */
-export const abeamOf = (slab: Slab, x: number, y: number): boolean =>
-  slab.z.slice(1).some((_, k) => {
-    const seg = segmentOf(slab, k),
-      d = seg === undefined ? -1 : (x - seg.ax) * seg.ux + (y - seg.ay) * seg.uy
-    return seg !== undefined && d >= 0 && d <= seg.len
-  })
+/**
+ * Whether (x, y) lies abeam of `slab`'s deck: between the lines across the ends of one of its
+ * segments, or on the outside of a bend, past one segment's end and before the next one's start.
+ * Abeam of neither of the two segments about the 14° bend of the tertiary bridge 23277539 at
+ * (−15613.6, −6220.8), a node 6.5 m off it counted as behind the deck's end, where the SP331's core
+ * beside the deck kept it 1.7 m over the deck: the ground stood 0.87 m under its top, in its slab.
+ */
+export const abeamOf = (slab: Slab, x: number, y: number): boolean => {
+  let before: number | undefined
+  for (let k = 0; k + 1 < slab.z.length; k++) {
+    const seg = segmentOf(slab, k)
+    if (seg === undefined) continue
+    const d = (x - seg.ax) * seg.ux + (y - seg.ay) * seg.uy
+    if ((d >= 0 || (before !== undefined && before > 0)) && d <= seg.len) return true
+    before = d - seg.len
+  }
+  return false
+}
 
 /**
  * Every whole-grid node a corner of a cell some slab reaches over, ascending, each with whether it
@@ -364,15 +398,16 @@ export const slabNodes = (
  * still. Returns each node moved, by whole-grid index, with how far (negative), ascending.
  */
 export const deckGround = (
-  g: Grid,
+  g: DmGrid,
   slabs: ReadonlyArray<Slab>,
   keep: (n: number) => boolean,
 ): Array<readonly [number, number]> => {
   const was = new Map<number, number>()
   const lower = (n: number, z: number) => {
-    if (keep(n) || z >= g.z[n]!) return
-    if (!was.has(n)) was.set(n, g.z[n]!)
-    g.z[n] = z
+    const at = g.dm[n]! / 10
+    if (keep(n) || z >= at) return
+    if (!was.has(n)) was.set(n, at)
+    g.dm[n] = Math.round(z * 10)
   }
   // The terrain as the game draws it, read live as the nodes are lowered.
   const { terrainZ: terrain } = gridGround(g)
@@ -408,7 +443,7 @@ export const deckGround = (
       }
     }
   }
-  return [...was].sort((a, b) => a[0] - b[0]).map(([n, z]) => [n, g.z[n]! - z] as const)
+  return [...was].sort((a, b) => a[0] - b[0]).map(([n, z]) => [n, g.dm[n]! / 10 - z] as const)
 }
 
 /** The nodes `deckGround` lowered and the deepest cut, m. */

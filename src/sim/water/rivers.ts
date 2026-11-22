@@ -5,8 +5,9 @@
  * build carves its bank; across that the surface is level, downstream it runs from the depth and
  * speed of `channelOf` between its two vertices. A river polygon (`Area.waters`) widens its
  * waterways' beds to its outline: anywhere in it the water is that of the nearest reach of its own
- * waterways. A lake and the sea (`Area.level`) stand still at their level; no river stands under
- * the sea's (`SEA_LEVEL`), which holds it up at its mouth. The current runs down the reach, slower
+ * waterways where they run in it. A lake and the sea (`Area.level`) stand still at their level, the
+ * way out toward the nearest of their banks (src/sim/water/banks.ts); no river stands under the
+ * sea's (`SEA_LEVEL`), which holds it up at its mouth. The current runs down the reach, slower
  * where the water is shallower (Manning's speed with depth, `DEPTH_SPEED`); it is zero where the
  * water meets the bank, and in a lake or the sea. The water comes from the tile holding the point
  * (`placeAt`), which holds every river whose bed reaches it, every water area over it, and each of
@@ -17,13 +18,15 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
-import { pointInRing, segDist2 } from "../collide.ts"
+import { inRings, insideSpans, segDist2 } from "../collide.ts"
 import { addToBuckets, bucketItems, emptyBuckets } from "../map/buckets.ts"
 import type { Layer } from "../map/format/tile-file.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
-import { type Area, isWaterArea, MAP, TILE, type Water } from "../map/index.ts"
+import { type Area, isWaterArea, type Water } from "../map/index.ts"
+import { IN_POLYGON, reachOf } from "../map/kinds.ts"
 import { derived, eachTile, type Place, placeAt } from "../map/tiles.ts"
-import { channelOf, reachOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
+import { coastOf, edgesOf, shoreward } from "./banks.ts"
+import { channelOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
 interface Reach {
@@ -66,7 +69,7 @@ interface Pool {
   readonly level?: number
   /** Still water's banks, the edges it heads for the nearest of, flat (ax, ay, ex, ey) each (`poolsOf`); none for a river polygon. */
   readonly banks: ReadonlyArray<number>
-  /** A river polygon's reaches, by piece then vertex, when it has no `level`. */
+  /** A river polygon's reaches inside it (`insideOf`), by piece then vertex, when it has no `level`. */
   readonly reaches: ReadonlyArray<Reach>
   /** Its surface at (x, y) whatever the flow: its level, or its nearest waterway's bed, stage and flow there. */
   readonly surface: (x: number, y: number) => PoolSurface
@@ -98,13 +101,6 @@ interface Hit {
   readonly reach: Reach | undefined
   readonly t: number
   readonly pool: Pool | undefined
-}
-
-/** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside), as the land cover fills them. */
-const inRings = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: number): boolean => {
-  let inside = false
-  for (const ring of rings) if (pointInRing(x, y, ring)) inside = !inside
-  return inside
 }
 
 /** `items` as a layer, each its own index: the whole map's lists, as a test hands them. */
@@ -157,63 +153,39 @@ const reachesOf = (w: Layer<Water>): Array<Reach> => {
   return out
 }
 
-/** A ring's ends within this of a line lie on it, m: half the rings' 0.1 m rounding. */
-const ON_LINE = 0.05
-const BOUNDS = MAP.bounds
-/** Whether `v` (m, along x or y) lies on a tile's side, a multiple of TILE, or on bound `low` or `high`. */
-const onCutLine = (v: number, low: number, high: number): boolean =>
-  Math.abs(v - Math.round(v / TILE) * TILE) < ON_LINE ||
-  Math.abs(v - low) < ON_LINE ||
-  Math.abs(v - high) < ON_LINE
-
 /**
- * Whether the edge from (ax, ay) by (ex, ey) is where the map build cut the water rather than its
- * shore: along a tile's side or the map's bounds, as it cuts the sea into a piece per tile
- * (src/tools/coast.ts).
+ * The parts of `reaches` inside `rings`, each cut where it crosses their edges (`insideSpans`), its
+ * bed, stage and speed read at its new ends, in their order; all of `reaches` where none lies
+ * inside. A river polygon's water is its waterways' where they run in it, as the map build carves
+ * it (`nearestOn` in src/tools/water-areas.ts): a ditch on the terrace beside the Magra's polygon on the
+ * plain (1070845492), its nearest waterway 259 m off, held it 7.3 m over the Magra at (−15744, −4608).
  */
-const isCut = (ax: number, ay: number, ex: number, ey: number): boolean =>
-  (Math.abs(ex) < ON_LINE && onCutLine(ax, BOUNDS.minX, BOUNDS.maxX)) ||
-  (Math.abs(ey) < ON_LINE && onCutLine(ay, BOUNDS.minY, BOUNDS.maxY))
-
-/** The edges of `rings`, ring by ring, flat (ax, ay, ex, ey) each: all of them, and the shore's, those that are no cut (`isCut`). */
-const edgesOf = (rings: ReadonlyArray<ReadonlyArray<number>>) => {
-  const all: Array<number> = [],
-    shore: Array<number> = []
-  for (const ring of rings)
-    for (let k = 0, n = ring.length; k < n; k += 2) {
-      const ax = ring[k]!,
-        ay = ring[k + 1]!,
-        ex = ring[(k + 2) % n]! - ax,
-        ey = ring[(k + 3) % n]! - ay
-      all.push(ax, ay, ex, ey)
-      if (!isCut(ax, ay, ex, ey)) shore.push(ax, ay, ex, ey)
-    }
-  return { all, shore }
-}
-
-/** How far off a sea edge's middle, on its land side, a river or a lake across a mouth is looked for, m: as the map build's `shoreLines`. */
-const ACROSS = 0.5
-
-/**
- * The shore edges of the sea `shore` (flat, ax, ay, ex, ey each), less those that close a river or
- * a lake of `a` across its mouth: their land side (their right, the sea keeping to their left)
- * lies in its area ACROSS m off their middle, as OSM's coastline closes the Magra across Bocca di
- * Magra. That is open water going on into the river, no coast to swim for.
- */
-const coastOf = (shore: ReadonlyArray<number>, a: Layer<Area>): Array<number> => {
-  const inland = a.items.filter((area) => area.kind === "river" || area.kind === "lake")
-  const out: Array<number> = []
-  for (let k = 0; k < shore.length; k += 4) {
-    const ax = shore[k]!,
-      ay = shore[k + 1]!,
-      ex = shore[k + 2]!,
-      ey = shore[k + 3]!,
-      length = Math.sqrt(ex * ex + ey * ey)
-    const x = ax + ex / 2 + (ey / length) * ACROSS,
-      y = ay + ey / 2 - (ex / length) * ACROSS
-    if (!inland.some((area) => inRings(area.rings, x, y))) out.push(ax, ay, ex, ey)
-  }
-  return out
+const insideOf = (
+  reaches: ReadonlyArray<Reach>,
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+): Array<Reach> => {
+  const spans = insideSpans(rings, IN_POLYGON),
+    at = (a: number, b: number, t: number) => a + (b - a) * t
+  const out = reaches.flatMap((r) =>
+    spans(r.ax, r.ay, r.bx, r.by).map(([t0, t1]): Reach =>
+      t0 === 0 && t1 === 1
+        ? r
+        : {
+            ...r,
+            ax: at(r.ax, r.bx, t0),
+            ay: at(r.ay, r.by, t0),
+            bx: at(r.ax, r.bx, t1),
+            by: at(r.ay, r.by, t1),
+            bedA: at(r.bedA, r.bedB, t0),
+            bedB: at(r.bedA, r.bedB, t1),
+            stageA: at(r.stageA, r.stageB, t0),
+            stageB: at(r.stageA, r.stageB, t1),
+            speedA: at(r.speedA, r.speedB, t0),
+            speedB: at(r.speedA, r.speedB, t1),
+          },
+    ),
+  )
+  return out.length > 0 ? out : [...reaches]
 }
 
 /**
@@ -250,7 +222,13 @@ const poolsOf = (a: Layer<Area>, reaches: ReadonlyArray<Reach>): Array<Pool> => 
       }
       const ways = new Set(area.waters ?? []),
         { level } = area
-      const ownReaches = level === undefined ? reaches.filter((r) => ways.has(r.piece)) : []
+      const ownReaches =
+        level === undefined
+          ? insideOf(
+              reaches.filter((r) => ways.has(r.piece)),
+              area.rings,
+            )
+          : []
       return [
         {
           id: a.ids[k]!,
@@ -275,28 +253,6 @@ const poolsOf = (a: Layer<Area>, reaches: ReadonlyArray<Reach>): Array<Pool> => 
       ]
     })
     .sort((p, q) => (p.level === undefined ? 1 : 0) - (q.level === undefined ? 1 : 0))
-}
-
-/** The unit vector from (x, y) toward the nearest of still water's banks (`Pool.banks`: a lake's shore, an island's too, or the sea's coast). */
-const shoreward = (
-  banks: ReadonlyArray<number>,
-  x: number,
-  y: number,
-): readonly [number, number] => {
-  let bx = 1,
-    by = 0,
-    best = Number.MAX_VALUE
-  for (let k = 0; k < banks.length; k += 4) {
-    const ax = banks[k]!,
-      ay = banks[k + 1]!,
-      ex = banks[k + 2]!,
-      ey = banks[k + 3]!
-    const { d2, t } = segDist2(x, y, ax, ay, ax + ex, ay + ey)
-    if (d2 >= best || d2 <= 0) continue
-    const d = Math.sqrt(d2)
-    ;[best, bx, by] = [d2, (ax + ex * t - x) / d, (ay + ey * t - y) / d]
-  }
-  return [bx, by]
 }
 
 /** The water of `hit` at (x, y) over a floor at `floor` m a.s.l. at `q` m³/s per km²; undefined where the floor is above it. */

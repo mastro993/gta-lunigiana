@@ -57,13 +57,14 @@ export const listedNodes = (g: Lattice, tiles: Region["tiles"]): Uint8Array => {
 }
 
 /**
- * Gives each node of `g` that no listed tile holds (`listed` 0: an L's notch) the listed node the
- * game reads there (`nodeAt` in src/sim/map/tiles.ts, `readAt` in the cut): in the tiles round its
+ * Gives each node of `nodes`, the whole lattice `g`'s, that no listed tile holds (`listed` 0: an L's
+ * notch) the listed node the game reads there (`nodeAt` in src/sim/map/tiles.ts, `readAt` in the cut): in the tiles round its
  * own (`tilesRound`), the node nearest it, the first in key order on a tie. So the ground past an
  * inner edge of the play area extends that edge, as the grid's clamp does past the bounds.
  */
 export const extendEdges = (
-  g: Grid,
+  g: Lattice,
+  nodes: { [k: number]: number },
   listed: Uint8Array,
   tiles: Region["tiles"] = REGION.tiles,
 ): void => {
@@ -97,7 +98,7 @@ export const extendEdges = (
           d = (x - ni) * (x - ni) + (y - nj) * (y - nj)
         if (d < best) [best, from] = [d, (y - cy) * cols + x - cx]
       }
-      g.z[k] = g.z[from]!
+      nodes[k] = nodes[from]!
     }
 }
 

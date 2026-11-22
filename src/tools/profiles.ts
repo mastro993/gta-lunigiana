@@ -3,9 +3,10 @@
 // into the terrain grid (except under bridges and tunnels).
 import type { RoadClass } from "../sim/map/kinds.ts"
 import { lifted, type Linear, type Link } from "./chains.ts"
-import { arcLengths, type V } from "./geometry.ts"
-import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
+import { along, arcLengths, type V } from "./geometry.ts"
+import { BLEND, type Claim, claimOf, type MouthEnd, mouthsAlong } from "./grid-claims.ts"
 import { type Graded, junctionReach } from "./junction-reach.ts"
+import { deckKnots, type Here, laidOut, levelLifted, onKnots } from "./lifted-runs.ts"
 import {
   fitProfile,
   keepSamples,
@@ -14,10 +15,7 @@ import {
   smooth,
   type Pin,
   type Profile,
-} from "./terrain.ts"
-
-/** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
-const PORTAL = 4
+} from "./profile-fit.ts"
 
 /** An elevation at a point of a chain (nearest sample); `min`/`max` only bind when the fit crosses them. */
 export interface Bound {
@@ -82,8 +80,19 @@ export const ROAD_PASSES = [
  */
 export const PATH_PASS = { classes: ["path", "steps"], rank: 6, grade: 0.2, half: 0 } as const
 
-/** The rail's pass, before every road's: its rank (it keeps its cells against all but the main roads), grade limit and smoothing half-window (m). */
-export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100 } as const
+/**
+ * Ground falling away from a rail tunnel's mouth along the line more steeply than this (per metre)
+ * is the hill's face over its cutting (`Spec.faces`): the steepest grade limit of any pass, the
+ * service and track roads' and the paths' 20%.
+ */
+const FACE = Math.max(PATH_PASS.grade, ...ROAD_PASSES.map((p) => p.grade))
+
+/**
+ * The rail's pass, before every road's: its rank (it keeps its cells against all but the main
+ * roads), grade limit and smoothing half-window (m), and its tunnels' mouths at the foot of the
+ * hill's face (`Spec.faces`).
+ */
+export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100, faces: true } as const
 
 /** Rank of the tracks only the CTR has: written after every road, into the cells no road took. */
 export const EXTRA_RANK = 5
@@ -102,10 +111,12 @@ export const beatsRail = (cls: string): boolean =>
  * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
  * and whether each junction the fit sets keeps within reach of the junctions already set that a
  * road not yet fitted leads it to (`junctionReach`): the roads'. Consecutive bridge (or tunnel)
- * pieces make one deck, straight from end to end, the rail's as the roads'. The rail keeps its own
+ * pieces make one deck, straight from end to end, the rail's as the roads', but where it keeps to a
+ * twin track (`deckKnots` in lifted-runs.ts). The rail keeps its own
  * grade at a level crossing: the road meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
- * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
- * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
+ * mouths at their level against every other claim: the first MOUTH m out of it, in their core, and
+ * the corners behind the mouth of the cells their carriageway runs in ahead of its face
+ * (`mouthsAlong`), before anything else is written. A road over the tunnel or beside the mouth took that cell at its
  * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
  * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
  * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there. With
@@ -143,6 +154,14 @@ interface Spec<T extends Linear> {
   readonly ends?: (v: V, piece: T) => number | undefined
   /** Whether node `id` lies inside a bore or on a deck (`insideNodes`): a chain's end there is no portal or abutment. */
   readonly inside?: (id: string) => boolean
+  /**
+   * Whether a tunnel's mouth takes the ground at the foot of the hill's face (`FACE`), the rail's:
+   * ground falling 20% a metre along a line whose grade limit is 2.5% can only be a face over its
+   * cutting, but along a road's it may be the valley's side under a bench its OSM line misses. The
+   * SR445's east mouth by Groppoli, its line's ground falling on past the foot, sank 7.7 m into a V,
+   * its approach falling 14.8% into it; no gully's guard (`levelLifted`) holds that.
+   */
+  readonly faces?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -200,12 +219,18 @@ const minHeap = () => {
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
  * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
  * the roads a chain's junctions keep within reach of (`Spec.reach`); `bridgeEnds` the node ids where a
- * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`).
+ * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`);
+ * `tunnelEnds` those where a road tunnel's bore opens (an end of a road's tunnel piece no other one
+ * goes on from), where a chain ending there at grade, with `Spec.mouths`, holds its mouth; and
+ * `footways` the vertices of the paths and steps at grade within a distance of a point, whose cells
+ * a mouth's hold behind it leaves (`mouthClaim`).
  */
 export const makeProfiler = (
   ground: (x: number, y: number) => number,
   links: ReadonlyArray<Graded> = [],
   bridgeEnds: ReadonlySet<string> = new Set(),
+  tunnelEnds: ReadonlySet<string> = new Set(),
+  footways?: (x: number, y: number, r: number) => ReadonlyArray<V>,
 ) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
@@ -235,31 +260,14 @@ export const makeProfiler = (
     for (let i = 0, v = 0; i < runs.length; v += runs[i]!.length - 1, i++) first.push(v)
     const p = resample(pts, 4, ground)
     if (spec.start !== undefined) p.z[0] = spec.start
-    const pieceOfSample = (k: number) => {
-      let i = runs.length - 1
-      while (i > 0 && p.vertexSample[first[i]!]! > k) i--
-      return i
-    }
-    const isLifted = (i: number) => lifted(chain[i]!.item)
-    const isTunnel = (i: number) => chain[i]!.item.tunnel === true
-    // A deck: the consecutive lifted pieces of one kind round piece i, first and last, straight from
-    // end to end. OSM splits a bridge or a bore where its tags change: taken piece by piece, the
-    // joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m
-    // under it (4.9 m), and the joint inside the Galleria del Lupacino, at its speed limit, took the
-    // hill's surface over it. So did the rail's, its smoothing held only short spans: the joint of
-    // the Pontremolese's second track over the Magra north of Aulla, between pieces of 175 and 391 m,
-    // stood 5.6 m under the line between the deck's ends, the grade changing 4.5% over 20 m there.
-    const deckOf = (i: number): readonly [number, number] => {
-      let a = i,
-        b = i
-      const joins = (k: number) => isLifted(k) && isTunnel(k) === isTunnel(i)
-      while (a > 0 && joins(a - 1)) a--
-      while (b + 1 < runs.length && joins(b + 1)) b++
-      return [a, b]
-    }
-    /** The first and last vertex of deck `[a, b]`, as indices into `pts`. */
-    const deckEnds = ([a, b]: readonly [number, number]) =>
-      [first[a]!, first[b]! + runs[b]!.length - 1] as const
+    const laid = laidOut(
+      p,
+      runs,
+      first,
+      (i) => lifted(chain[i]!.item),
+      (i) => chain[i]!.item.tunnel === true,
+    )
+    const { pieceOfSample, isLifted, isTunnel, deckOf, deckEnds } = laid
     // With `ends`, the chain's ends that have an id and a level there take it, pinned, before its
     // decks are drawn between them.
     const endPins: Array<Pin> = []
@@ -273,56 +281,17 @@ export const makeProfiler = (
         p.z[k] = z
         endPins.push({ k, z })
       }
-    for (let i = 0; i < runs.length; i++) {
-      if (!isLifted(i)) continue
-      const [i0, i1] = deckOf(i)
-      i = i1
-      const [k0, k1] = deckEnds([i0, i1]).map((v) => p.vertexSample[v]!) as [number, number]
-      // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
-      // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
-      // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
-      // spans (the Lucido's banks at Monzone).
-      const tunnel = isTunnel(i0)
-      for (const [k, step] of [
-        [k0, -1],
-        [k1, 1],
-      ] as const) {
-        let o = k
-        while (o + step >= 0 && o + step < p.z.length && Math.abs(p.s[o]! - p.s[k]!) < PORTAL)
-          o += step
-        if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
-          p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
-      }
-      // An end the play area's outline cut (the chain's own end, with no id: `clipPieces` gives a
-      // cut point none) is no portal or abutment: the ground there is the hill over the tunnel or
-      // the valley under the bridge, so it takes its other end's level. The Galleria del Lupacino,
-      // cut 1325 m in at x 6700, fell 3.7% from the hill's 528 m there to its portal at 357 m.
-      const cut0 = i0 === 0 && runs[i0]![0]!.id === undefined && spec.start === undefined,
-        cut1 = i1 === runs.length - 1 && runs[i1]!.at(-1)!.id === undefined
-      if (cut0 && !cut1) p.z[k0] = p.z[k1]!
-      if (cut1 && !cut0) p.z[k1] = p.z[k0]!
-      // Nor is a chain's end at a node inside a bore or on a deck (`Spec.inside`): its deck takes
-      // the level an earlier chain set at either end, else its other end's. North of Aulla a switch
-      // of the Pontremolese's in a tunnel took the hill's 114.9 m over the bore and humped the line,
-      // 99 m there, 5.5 m; a crossover's switch on its second track's deck over the SS665 took the
-      // valley's 71.8 m and sagged that track 4.4 m under the line beside it.
-      const v0 = runs[i0]![0]!,
-        v1 = runs[i1]!.at(-1)!
-      const within = (v: V) => v.id !== undefined && spec.inside?.(v.id) === true
-      const in0 = i0 === 0 && within(v0),
-        in1 = i1 === runs.length - 1 && within(v1)
-      if (in0 || in1) {
-        const set = (v: V) => (v.id === undefined ? undefined : nodeZ.get(v.id))
-        const z0 = set(v0) ?? (in0 || cut0 ? undefined : p.z[k0]),
-          z1 = set(v1) ?? (in1 || cut1 ? undefined : p.z[k1])
-        if (z0 !== undefined || z1 !== undefined) {
-          p.z[k0] = z0 ?? z1!
-          p.z[k1] = z1 ?? z0!
-        }
-      }
-      for (let k = k0 + 1; k < k1; k++)
-        p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
-    }
+    // Before the fit, the bridges and tunnels take their ends' levels and run straight between them.
+    levelLifted(
+      laid,
+      {
+        ...(spec.faces === true ? { face: FACE } : {}),
+        half: spec.half,
+        start: spec.start !== undefined,
+        ...(spec.inside === undefined ? {} : { inside: spec.inside }),
+      },
+      nodeZ,
+    )
     smooth(p, spec.half)
     const pins: Array<Pin> = [
       ...endPins,
@@ -361,6 +330,8 @@ export const makeProfiler = (
     // A bound at a deck's end holds there alone: the straight deck keeps it, and carried to the other
     // end along the slope before the fit it held that end too (the A15's road-levels twin bounds at a
     // deck's ends, each from its twin's level there, would have bound each end twice).
+    /** The `here` bounds inside a straight deck, by the deck's first piece: what `bent` reads. */
+    const heres: Array<Here> = []
     for (const b of bounds) {
       // The samples it may take: its own piece's, from its first vertex to its last.
       const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
@@ -386,9 +357,14 @@ export const makeProfiler = (
         if (b.kind === undefined) pins.push({ k, z })
         else keep(k, z, b.kind)
       }
+      if (b.here === true && isLifted(i) && spec.ramps !== true)
+        heres.push({ deck: deckOf(i)[0], pin: { k: best, z: b.z, kind: b.kind } })
     }
     pins.push(...strictest.values())
     fitProfile(p, spec.grade, pins, spec.relax)
+    // A deck ships straight between its ends, but bent where that line breaks a `here` bound inside
+    // it (`deckKnots`).
+    const knots = deckKnots(laid, heres, spec.tol ?? 0)
     // With `ramps`, a bridge's deck spans between its humps: each sample of it as high as the lower
     // of the highest before it and the highest after it on the deck, a fill that keeps the fit's
     // grades, so a footbridge over two ways bridges between them rather than dipping to the ground.
@@ -441,33 +417,38 @@ export const makeProfiler = (
           deckEnd,
         ),
       )
-    // A tunnel's mouths, with `mouths`, written first (`mouthClaim`), each at its approach's width:
-    // the piece out of it, none past the chain's ends. An end the outline cut is no mouth.
-    if (spec.mouths === true)
+    // A tunnel's mouths, with `mouths`, written first (`mouthsAlong`), each at its approach's width:
+    // the piece out of it, none past the chain's ends (an end the outline cut is no mouth); and a
+    // mouth of another chain's bore where this one ends at grade.
+    if (spec.mouths === true) {
+      const ends: Array<MouthEnd> = []
       for (let i = 0; i < runs.length; i++) {
         if (!isTunnel(i)) continue
         const [i0, i1] = deckOf(i)
         i = i1
-        const [v0, v1] = deckEnds([i0, i1])
-        for (const [v, step] of [
-          [v0, -1],
-          [v1, 1],
-        ] as const) {
-          const out = step === 1 ? i1 + 1 : i0 - 1
-          if (pts[v]!.id === undefined || out < 0 || out >= runs.length) continue
-          const m = mouthClaim(
-            p,
-            p.vertexSample[v]!,
-            step,
-            widthOf(out),
-            (k) => !isLifted(pieceOf[k]!),
-          )
-          if (m !== undefined) mouth(m)
-        }
+        const [v0, v1] = deckEnds([i0, i1]),
+          bore = [p.vertexSample[v0]!, p.vertexSample[v1]!] as const
+        for (const [v, step, out] of [
+          [v0, -1, i0 - 1],
+          [v1, 1, i1 + 1],
+        ] as const)
+          if (pts[v]!.id !== undefined && out >= 0 && out < runs.length)
+            ends.push({ k: p.vertexSample[v]!, step, w: widthOf(out), bore })
       }
+      for (const [k, step, i] of [
+        [0, 1, 0],
+        [last, -1, runs.length - 1],
+      ] as const) {
+        const id = (k === 0 ? pts[0] : pts.at(-1))!.id
+        if (id !== undefined && tunnelEnds.has(id) && !isLifted(i))
+          ends.push({ k, step, w: widthOf(i) })
+      }
+      for (const m of mouthsAlong(p, ends, (k) => !isLifted(pieceOf[k]!), footways)) mouth(m)
+    }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!),
-        straight = isLifted(i) && spec.ramps !== true
+        straight = isLifted(i) && spec.ramps !== true,
+        bent = straight ? knots.get(deckOf(i)[0]) : undefined
       if (straight) {
         const [v0, v1] = deckEnds(deckOf(i)),
           s = arcLengths(pts.slice(v0, v1 + 1)),
@@ -475,19 +456,28 @@ export const makeProfiler = (
           z1 = p.z[p.vertexSample[v1]!]!
         for (let j = 0; j < z.length; j++) {
           const v = first[i]! + j
-          if (v > v0 && v < v1) z[j] = z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+          if (v > v0 && v < v1)
+            z[j] =
+              bent === undefined
+                ? z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+                : onKnots(p, bent, p.vertexSample[v]!)
         }
       }
       r.forEach((v, j) => {
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)
       })
       const vks = r.map((_, j) => p.vertexSample[first[i]! + j]!)
-      const ks = straight ? vks : keepSamples(p, vks, spec.tol)
-      const vertexAt = new Map(vks.map((k, j) => [k, j]))
+      // A straight deck ships its vertices, a bent one its knots too, the rest their bends.
+      const bends = (bent ?? []).filter((q) => q.k > vks[0]! && q.k < vks.at(-1)!)
+      const ks = straight
+        ? [...new Set([...vks, ...bends.map((q) => q.k)])].sort((a, b) => a - b)
+        : keepSamples(p, vks, spec.tol)
+      const vertexAt = new Map(vks.map((k, j) => [k, j])),
+        knotAt = new Map(bends.map((q) => [q.k, q.z]))
       const dense = ks.map((k) =>
         vertexAt.has(k)
           ? { v: r[vertexAt.get(k)!]!, z: z[vertexAt.get(k)!]! }
-          : { v: { x: p.x[k]!, y: p.y[k]! }, z: p.z[k]! },
+          : { v: { x: p.x[k]!, y: p.y[k]! }, z: knotAt.get(k) ?? p.z[k]! },
       )
       if (chain[i]!.rev) dense.reverse()
       denseOf.set(chain[i]!.item, { pts: dense.map((d) => d.v), z: dense.map((d) => d.z) })
@@ -537,5 +527,17 @@ export const makeProfiler = (
       yield chains[next]!
     }
   }
-  return { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf }
+  /**
+   * A fitted line's level at arc length `s` along it, m: on its profile as written (`denseOf`, the
+   * bends between its vertices kept), else between its vertices. Read on the chord between them,
+   * the A12's 420870862, three vertices over 1.4 km, stood 17.6 m over the track's tunnel 205932308
+   * where its fit dips to 11.3 m, and the tunnel's bound left it 0.9 m under the motorway.
+   */
+  const zAt = (l: Linear, s: number): number => {
+    const d = denseOf.get(l)
+    return d === undefined
+      ? along(arcLengths(l.pts), zOf.get(l)!, s)
+      : along(arcLengths(d.pts), d.z, s)
+  }
+  return { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf, zAt }
 }

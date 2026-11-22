@@ -3,8 +3,8 @@ import { test } from "node:test"
 
 import type { RailF, RoadF, WaterF } from "../features.ts"
 import type { V } from "../geometry.ts"
+import type { Profile } from "../profile-fit.ts"
 import { railLevels } from "../rail-levels.ts"
-import type { Profile } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 const road = (id: number, pts: ReadonlyArray<V>, more: Partial<RoadF> = {}): RoadF => ({
@@ -108,4 +108,24 @@ test("railLevels never holds the rail under the ground where a road bridge cross
     )
     assert.deepEqual(at.roadBounds([{ item: over }]), [{ x: 350, y: 0, z: 115.5, kind: "min" }])
   }
+})
+
+// Regression: Via Termo's tunnel under Vezzano Ligure's four tracks (maxheight 3.9) read its natural level, 30.5 m, off the
+// ground over its 29 m bore, which is the tracks' own bank (31.4 m), and lifted all four 4.5 m into a hump over it; the seven
+// tagged tunnels under Sarzana's part's tracks, Via Termo's among them, asked the rail 2.6–6.6 m over its bank.
+test("railLevels bounds no rail over a road's tagged tunnel, whose ground is the bank over its bore: the road dips under the rail", () => {
+  const tunnel = road(15, [v(75, -20), v(75, 20)], { tunnel: true, maxheight: 3.9 })
+  const at = railLevels({
+    allRail: [atGrade, bridge, beyond],
+    roads: [tunnel],
+    water: [],
+    wp: [],
+    ground: () => 100,
+    zAt: () => 110,
+  })
+  assert.deepEqual(
+    at.railBounds(rail).filter((b) => b.x === 75),
+    [],
+  )
+  assert.deepEqual(at.roadBounds([{ item: tunnel }]), [{ x: 75, y: 0, z: 104.6, kind: "max" }])
 })

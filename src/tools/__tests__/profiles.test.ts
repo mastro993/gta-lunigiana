@@ -6,8 +6,9 @@ import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
 import { makeProfiler, PATH_PASS, RAIL_PASS, ROAD_PASSES } from "../profiles.ts"
+import { HEADING_SPAN, MAX_TURN } from "../rail-graph.ts"
 import { roadLevels } from "../road-levels.ts"
-import type { Grid } from "../terrain.ts"
+import { type Grid, sampleGrid } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 /** A 4 m grid over x −20…620, y −20…20. */
@@ -50,6 +51,90 @@ test("profile takes a tunnel portal's and a bridge end's level from the ground j
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })
 
+// Regression: Liguria's DTM, interpolated from the NC5's heights, sees no cutting before Vezzano
+// Ligure's Pontremolese mouths and climbs 14–19 m over the 32 m before them; the mouths took the
+// face's ground 4 m out (35.4 and 41.5 m), and the line climbed into them at 2.5% to 28.6 and
+// 29.4 m, its grade changing 4.0 and 4.2% over 20 m there.
+test("profile takes a rail tunnel's mouth at the foot of the hill's face, however far out the face runs; a road's 4 m out", () => {
+  // Flat ground at 100 m, a hill over x 100–200 at 130 m, and on its west side a face falling from
+  // the mouth at x 100 to its foot at x 68, 0.45 m a metre (the Vezzano mouths' 0.44–0.47).
+  const ground = (x: number) =>
+    x >= 100 && x <= 200 ? 130 : x > 68 && x < 100 ? 100 + 0.45 * (x - 68) : 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "p0"), v(200, 0, "p1")] }
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-400, 0), v(100, 0, "p0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "p1"), v(600, 0)] },
+  ]
+  /** The bore's middle, 50 m from either mouth, profiled with `spec`. */
+  const middle = (spec: Parameters<ReturnType<typeof makeProfiler>["profile"]>[1]) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    return (zOf.get(tunnel)![0]! + zOf.get(tunnel)![1]!) / 2
+  }
+  const rail = middle({ w: 4, ...RAIL_PASS }),
+    road = middle(SPEC)
+  assert.ok(Math.abs(rail - 100) < 0.05, `the rail's bore's middle at ${rail.toFixed(2)}`)
+  assert.ok(road > 102, `the road's bore's middle at ${road.toFixed(2)}, its mouth 4 m up the face`)
+})
+
+test("profile keeps a rail tunnel's mouth over a gully its line crosses on a bank before it: a gully's floor is no cutting's", () => {
+  // Flat ground at 100 m, a hill over x 100–200 at 130 m, and before its west mouth a gully 20 m
+  // deep over x 40–96, its sides falling 0.71 m a metre to its floor at x 68.
+  const ground = (x: number) =>
+    x >= 100 && x <= 200 ? 130 : x > 40 && x < 96 ? 80 + (20 * Math.abs(x - 68)) / 28 : 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "p0"), v(200, 0, "p1")] }
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-400, 0), v(100, 0, "p0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "p1"), v(600, 0)] },
+  ]
+  /** The west mouth's level, profiled with `spec`. */
+  const mouth = (spec: Parameters<ReturnType<typeof makeProfiler>["profile"]>[1]) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    return zOf.get(tunnel)![0]!
+  }
+  // As the mouth's level read 4 m out, with no face walked: the gully's floor is 20 m under it.
+  const { faces: _, ...plain } = RAIL_PASS
+  const rail = mouth({ w: 4, ...RAIL_PASS }),
+    fourOut = mouth({ w: 4, ...plain })
+  assert.ok(
+    Math.abs(rail - fourOut) < 1e-6,
+    `the mouth at ${rail.toFixed(2)}, not ${fourOut.toFixed(2)}`,
+  )
+})
+
+// Regression: the Pontremolese's up track at Santo Stefano di Magra runs off its deck 86258947
+// straight into its tunnel 54567426: the deck's end read the hill 4 m into the bore and the bore's
+// mouth the deck 4 m out of it, and the joint stood at 28.7 m, 4.7 m over the down track's 15 m away.
+test("profile lays a bridge and a tunnel joined end to end straight from the bridge's end to the portal: no hill's or valley's ground at their joint", () => {
+  // Flat ground at 100 m, a valley 20 m deep under the bridge (x 300–400), a hill 30 m high over the
+  // bore (x 400–500), its face standing at the joint.
+  const ground = (x: number) => (x > 300 && x < 400 ? 80 : x >= 400 && x <= 500 ? 130 : 100)
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(0, 0), v(300, 0, "b0")] },
+    { id: 2, bridge: true, pts: [v(300, 0, "b0"), v(400, 0, "j")] },
+    { id: 3, tunnel: true, pts: [v(400, 0, "j"), v(500, 0, "p")] },
+    { id: 4, pts: [v(500, 0, "p"), v(800, 0)] },
+  ]
+  for (const spec of [{ w: 4, ...RAIL_PASS }, SPEC]) {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    for (const p of pieces)
+      for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+  }
+})
+
 // Regression: the Galleria del Lupacino, cut by the play area's outline 1325 m in and split by OSM where its speed limit
 // changes, took the hill's surface at the cut and at the joint, and fell 3.7% to its portal.
 test("profile runs a tunnel the outline cuts, in two pieces, level from its one portal: no hill's surface at the cut or the joint", () => {
@@ -68,6 +153,26 @@ test("profile runs a tunnel the outline cuts, in two pieces, level from its one 
   )
   for (const p of pieces)
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
+// Regression: the rail's chains ended at every switch, and each switch took its level from the
+// first chain fitted to it, its window cut there: at Vezzano Ligure's west junction the free ends
+// of the four tracks coming up from the east stood 1.7–3.8 m under the ground, and the crossovers
+// between switches set by different chains changed grade 4–7.5% over 20 m (`railway.map-test.ts`).
+test("profile takes a switch's level from the track running through it, on a climb as on the flat", () => {
+  // Ground climbing 2% eastward; the through track runs (−800, 0) to (300, 0) through the switch at
+  // x 0, and a siding 500 m long diverges from it, so that the line west of the switch is the
+  // longest chain when chains end at switches.
+  const ground = (x: number) => 100 + 0.02 * x
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-800, 0), v(0, 0, "s")] },
+    { id: 2, pts: [v(0, 0, "s"), v(300, 0)] },
+    { id: 3, pts: [v(0, 0, "s"), v(40, 4), v(490, 60)] },
+  ]
+  const { profile, grown, nodeZ } = makeProfiler((x) => ground(x))
+  for (const ch of grown(chainsOf(pieces, { turn: MAX_TURN, span: HEADING_SPAN })))
+    profile(ch, { w: 4, ...RAIL_PASS })
+  assert.ok(Math.abs(nodeZ.get("s")! - 100) < 0.05, `the switch at ${nodeZ.get("s")!.toFixed(2)}`)
 })
 
 // Regression: north of Aulla a switch of the Pontremolese's inside a tunnel took the hill's 114.9 m over the bore and humped
@@ -225,6 +330,90 @@ test("profile holds a bound at a deck's end there alone: the straight deck keeps
   assert.ok(Math.abs(east! - 108) < 0.05, `east end at ${east}, not lifted with it`)
 })
 
+// Regression (#20): the A12's Livorno carriageway leaves its Vara bridge (60208802) on the deck's
+// level, 5.5 m over the road under its east end, and runs on at grade beside its twin, which climbs
+// to its own deck there: each bound the fit broke was pinned at its own level, the deck's end at
+// 29.56 m and the sample 4.2 m on at the twin's level less 1.5 m, 28.06 m, so the line fell 1.5 m
+// between them (36%) and 4 m over the next 50 m, past the motorway's 6%.
+test("profile holds the bounds it breaks within its grade limit: a deck's end over its approach's lower bounds leaves it down the grade, not in a step", () => {
+  // Flat ground at 100 m; a bridge from x 300 to 400, at least 106 m at its east end; past it, at
+  // grade, within 1.5 m of a twin climbing 5.7% to 106 m at x 400 (`TWINS` in road-levels.ts).
+  const ground = () => 100
+  const deck = { id: 2, bridge: true as const, pts: [v(300, 0, "b0"), v(400, 0, "b1")] }
+  const after = { id: 3, pts: [v(400, 0, "b1"), v(700, 0)] }
+  const chain = [{ id: 1, pts: [v(0, 0), v(300, 0, "b0")] }, deck, after].map((item) => ({
+    item,
+    rev: false,
+  }))
+  const twinAt = (x: number) => Math.max(100, 106 - 0.057 * (x - 400))
+  const twin = Array.from({ length: 20 }, (_, i) => 404 + 4 * i).map((x) => ({
+    x,
+    y: 0,
+    z: twinAt(x) - 1.5,
+    kind: "min" as const,
+    on: after,
+  }))
+  const motorway = ROAD_PASSES[0]
+  const { profile, denseOf } = makeProfiler(ground)
+  profile(chain, { w: 10, ...motorway }, [
+    { x: 400, y: 0, z: 106, kind: "min", tilt: true, on: deck },
+    ...twin,
+    ...twin.map((b) => ({ ...b, z: twinAt(b.x) + 1.5, kind: "max" as const })),
+  ])
+  const { pts, z } = denseOf.get(after)!
+  assert.ok(z[0]! >= 106 - 1e-6, `the deck's end at ${z[0]}`)
+  for (let k = 1; k < z.length; k++) {
+    const g = Math.abs(z[k]! - z[k - 1]!) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(g <= motorway.grade + 1e-6, `${(g * 100).toFixed(1)}% at x ${pts[k]!.x}`)
+  }
+  for (const b of twin) {
+    const k = pts.findIndex((p) => p.x >= b.x)
+    const at =
+      z[k - 1]! + ((z[k]! - z[k - 1]!) * (b.x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(at >= b.z - 1e-6, `${at.toFixed(2)} under ${b.z.toFixed(2)} at x ${b.x}`)
+  }
+})
+
+// Regression (#20): the SS330's ramp 1388645825 at Albiano runs from a junction pinned at 33.52 m
+// (its chain's start) past its twin's bounds, at least 34.25 m 5.7 m on and 40.16 m 17.6 m on: the
+// fit broke both, and the first, raised to the reach down from the second, 38.37 m, left the
+// junction's 5.6 m link 1250443404 climbing 87%; a bound beside a junction is raised no further than
+// the junction's reach.
+test("profile moves a broken bound to the reach of the broken bounds beside it, never past a junction's", () => {
+  const line = { id: 1, pts: [v(0, 0, "a"), v(5.7, 0), v(17.6, 0), v(40, 0)] }
+  const { profile, denseOf } = makeProfiler(() => 38)
+  profile([{ item: line, rev: false }], { w: 6, ...ROAD_PASSES[1] }, [
+    { x: 0, y: 0, z: 33.52 },
+    { x: 5.7, y: 0, z: 34.25, kind: "min" },
+    { x: 17.6, y: 0, z: 40.16, kind: "min" },
+  ])
+  const { pts, z } = denseOf.get(line)!
+  const at = (x: number) => z[pts.findIndex((p) => p.x === x)]!
+  assert.ok(at(5.7) >= 34.25 - 1e-6 && at(17.6) >= 40.16 - 1e-6, `${at(5.7)}, ${at(17.6)}`)
+  const g = (at(5.7) - at(0)) / 5.7
+  assert.ok(g <= 1.5 * ROAD_PASSES[1].grade + 1e-6, `${(g * 100).toFixed(1)}% from the junction`)
+})
+
+// Regression (#20): the A12's 420870862 is three OSM vertices over 1.4 km, and its fit dips 8 m
+// between the last two, to 11.3 m where a track's tunnel passes under it; read on the chord between
+// those vertices, 17.6 m there, the tunnel's bound left it 0.9 m under the motorway.
+test("profile's zAt reads a fitted line's level on its profile, the bends between its vertices kept, not on the chord between them", () => {
+  // Level ground at 100 m but a dip 10 m deep over x 300–500; a motorway of two vertices over it.
+  const ground = (x: number) => (x > 300 && x < 500 ? 90 : 100)
+  const line = { pts: [v(0, 0, "a"), v(800, 0, "b")] }
+  const profiler = makeProfiler((x) => ground(x))
+  profiler.profile([{ item: line, rev: false }], { w: 10, ...ROAD_PASSES[0] })
+  const { pts, z } = profiler.denseOf.get(line)!
+  const k = pts.findIndex((p) => p.x >= 400)
+  const fitted =
+    z[k - 1]! + ((z[k]! - z[k - 1]!) * (400 - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+  assert.ok(fitted < 97, `the fit dips to ${fitted.toFixed(2)} m at x 400`)
+  assert.ok(
+    Math.abs(profiler.zAt(line, 400) - fitted) < 1e-9,
+    `${profiler.zAt(line, 400)} read there`,
+  )
+})
+
 // Regression (review of #19): the A15's Parma carriageway at Calcinara runs at grade over a dip the
 // survey reads 13 m under its twin beside it; its fit, relaxed to stay within 4 m of the ground,
 // sagged 6-8 m into it and climbed up to 6.8% over 100 m out of it, past the motorway's 6%.
@@ -280,6 +469,44 @@ test("profile lays a bridge of two pieces as one deck, straight from end to end,
   assert.ok(Math.abs(rail - 100) < 1e-6, `the rail's joint at ${rail}`)
 })
 
+// Regression: at the triangle's north apex by Santo Stefano di Magra the Pontremolese's up track and
+// the link's leave one switch side by side on decks 442 and 814 m long (1045531422, 1045531424), one
+// climbing 0.6% to fly over and the other falling 0.5%: each deck shipped straight between its ends,
+// the bounds of its twin held in the fit and not in the deck shipped, and the two stood 1.00 m apart
+// where they part (`rail.map-test.ts`); shipped as fitted, the deck held to its twin and then fell at
+// the grade limit, its grade changing 4.18% over 20 m there.
+test("profile bends a deck at the twin bound its straight line breaks most, in straight spans, and keeps it straight where none breaks", () => {
+  // Flat ground at 100 m and a 400 m deck over it, its twin climbing 1% over its first 100 m beside it.
+  const deck = { id: 2, bridge: true as const, pts: [v(0, 0, "a"), v(400, 0, "b")] }
+  const chain = [
+    { id: 1, pts: [v(-300, 0), v(0, 0, "a")] },
+    deck,
+    { id: 3, pts: [v(400, 0, "b"), v(700, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const twin = (x: number) => 100 + 0.01 * x
+  const bounds = (reach: number) =>
+    Array.from({ length: reach / 2 + 1 }, (_, n) => 2 * n).flatMap((x) => [
+      { x, y: 0, z: twin(x) - 0.1, kind: "min" as const, on: deck, here: true as const },
+      { x, y: 0, z: twin(x) + 0.1, kind: "max" as const, on: deck, here: true as const },
+    ])
+  const { profile, denseOf, zAt } = makeProfiler(() => 100)
+  profile(chain, { w: 4, ...RAIL_PASS, tol: 0.03 }, bounds(100))
+  for (const x of [20, 50, 80, 100])
+    assert.ok(
+      Math.abs(zAt(deck, x) - twin(x)) <= 0.1 + 0.03 + 1e-9,
+      `the deck at x ${x}: ${zAt(deck, x).toFixed(2)}, its twin at ${twin(x).toFixed(2)}`,
+    )
+  // One bend, at the twin's last bound, then straight to the deck's far end.
+  assert.equal(denseOf.get(deck)!.pts.length, 3)
+  // A twin bound the straight deck keeps leaves it straight.
+  const flat = makeProfiler(() => 100)
+  flat.profile(chain, { w: 4, ...RAIL_PASS, tol: 0.03 }, [
+    { x: 50, y: 0, z: 99.95, kind: "min", on: deck, here: true },
+    { x: 50, y: 0, z: 100.05, kind: "max", on: deck, here: true },
+  ])
+  assert.equal(flat.denseOf.get(deck)!.pts.length, 2)
+})
+
 // Regression: Pieve San Lorenzo's underpass (road 756577583) under the station's tracks opened under
 // neither mouth: Via della Stazione, a tertiary road crossing over it 4.5 m from the south mouth,
 // held that mouth's cell 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the
@@ -316,6 +543,228 @@ test("profile: a road tunnel's approaches hold the grid round its mouths at thei
   assert.equal(beside, 100)
   // Without: both mouths buried about 6 m.
   for (const bank of mouths(false).banks) assert.ok(bank > 5, `${bank}`)
+})
+
+// Regression (#20): the A12 over the underpass 89579488 at Sarzana passes 5.7 m over its floor at its
+// north mouth, which lies inside a cell of the grid: the cell's corners behind the mouth kept the
+// A12's level, and the terrain mesh lifted the road out of the mouth 2.4 m over its profile within
+// 2 m of it (a driver there read a car in the underpass off its level).
+test("profile: a road tunnel's mouth inside a cell holds the cell's corners behind it at its floor, a road over it farther in keeps its own", () => {
+  // Flat ground at 100 m; a tunnel from x 102 to 202 (its mouths half a cell off the grid's nodes)
+  // kept 6 m under it; a road over it 4 m inside its west mouth, profiled first.
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(102, 0, "m0"), v(202, 0, "m1")] }
+  const approach = { id: 1, pts: [v(0, 0), v(102, 0, "m0")] }
+  const chain = [approach, tunnel, { id: 3, pts: [v(202, 0, "m1"), v(400, 0)] }].map((item) => ({
+    item,
+    rev: false,
+  }))
+  const { profile, claims, denseOf } = makeProfiler(() => 100)
+  profile([{ item: { pts: [v(106, -20), v(106, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+  profile(chain, { w: 4.5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: 150, y: 0, z: 94, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  const { pts, z } = denseOf.get(approach)!
+  /** The approach's profile at x. */
+  const level = (x: number) => {
+    const k = pts.findIndex((p) => p.x >= x)
+    return z[k - 1]! + ((z[k]! - z[k - 1]!) * (x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+  }
+  // The terrain over the approach's last 4 m out of the mouth stands on its profile, as it is drawn,
+  // but where the grade bends at the mouth, mid-cell, from the approach's 20% to the bore's level:
+  // the cell's straight line between its nodes stands up to 0.2 m over the bend.
+  for (let x = 98; x <= 102; x += 0.5)
+    assert.ok(
+      sampleGrid(g, x, 0) - level(x) < 0.25,
+      `the terrain ${(sampleGrid(g, x, 0) - level(x)).toFixed(2)} m over the road at x ${x}`,
+    )
+  // The road over the tunnel keeps its nodes a cell or more behind the mouth.
+  assert.equal(g.z[(20 / 4) * 161 + (108 + 20) / 4], 100)
+})
+
+// Regression (review of #20): held as deep behind the mouth as a corner of its cells may lie, across
+// the whole core, the 16 m underpass 145347886 under the SS63 at Fivizzano dropped the nodes under
+// the SS63's edges over it, 4.3 m behind each mouth, 6–7 m, and the node between them, which the
+// junction there holds 0.4 m over the SS63's profile, stood through its ribbon.
+test("profile: behind a road tunnel's mouth only the corners of the cells its carriageway runs in are held, a road over it keeps every other node", () => {
+  // Flat ground at 100 m; a straight chain heading north-east at 45°, its tunnel's west mouth at
+  // (98.34, 0) and kept 6 m under the ground midway; a road at grade over the bore along x 104,
+  // profiled first. The node (104, 0) lies 4 m behind the mouth and 4 m off the bore's axis: within
+  // the approach's core, but 4.24 m along x from the nearest point of its carriageway ahead of it.
+  const at = (s: number) => v(98.34 + s * Math.SQRT1_2, s * Math.SQRT1_2)
+  const approach = { id: 1, pts: [at(-100), { ...at(0), id: "m0" }] }
+  const chain = [
+    approach,
+    {
+      id: 2,
+      tunnel: true as const,
+      pts: [
+        { ...at(0), id: "m0" },
+        { ...at(100), id: "m1" },
+      ],
+    },
+    { id: 3, pts: [{ ...at(100), id: "m1" }, at(200)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims, denseOf } = makeProfiler(() => 100)
+  profile([{ item: { pts: [v(104, -20), v(104, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+  const mid = at(50)
+  profile(chain, { w: 4, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: mid.x, y: mid.y, z: 94, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  // The approach's last 4 m stand on the terrain at its level, as before.
+  const { pts, z } = denseOf.get(approach)!
+  /** The approach's profile `s` m along the chain from the mouth (−100 at its start). */
+  const level = (s: number) => {
+    const k = pts.findIndex((p) => p.x >= at(s).x)
+    return (
+      z[k - 1]! + ((z[k]! - z[k - 1]!) * (at(s).x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    )
+  }
+  for (let s = -4; s <= -0.5; s += 0.5) {
+    const p = at(s)
+    assert.ok(
+      sampleGrid(g, p.x, p.y) - level(s) < 0.25,
+      `the terrain ${(sampleGrid(g, p.x, p.y) - level(s)).toFixed(2)} m over the road ${-s} m out`,
+    )
+  }
+  // The road over the bore keeps the node no cell of the approach's carriageway has for a corner.
+  assert.equal(g.z[(20 / 4) * 161 + (104 + 20) / 4], 100)
+})
+
+// Regression (review of #20): the road out of the east mouth of Fivizzano's 16 m underpass 145347886
+// turns 34° there, and its carriageway's inner edge, read ahead of the mouth along its heading,
+// reached 1.2 m behind the mouth's face: the corners of its cells under the SS63's edge over the
+// bore, held at the floor, left the node between them 0.4 m over the SS63's profile, through its
+// ribbon.
+test("profile: behind a road tunnel's mouth the corners are those of the cells its carriageway runs in ahead of the mouth's face, a road turning there", () => {
+  // Flat ground at 100 m; a tunnel east from (100, 0), on a node of the grid, kept 6 m under it
+  // midway; its approach leaves the mouth 40° off the bore's line; a road at grade over the bore
+  // along x 104, profiled first. The node (104, 0), 4 m behind the face, is the corner of no cell the
+  // carriageway runs in ahead of it, though its inner edge reaches 1.6 m behind it.
+  const out = (s: number) => v(100 - s * Math.cos(0.7), -s * Math.sin(0.7))
+  const approach = { id: 1, pts: [out(25), { ...out(0), id: "m0" }] }
+  const chain = [
+    approach,
+    { id: 2, tunnel: true as const, pts: [v(100, 0, "m0"), v(200, 0, "m1")] },
+    { id: 3, pts: [v(200, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims } = makeProfiler(() => 100)
+  profile([{ item: { pts: [v(104, -20), v(104, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+  profile(chain, { w: 5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: 150, y: 0, z: 94, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  assert.equal(g.z[(20 / 4) * 161 + (104 + 20) / 4], 100)
+  // The corners of the cell the mouth opens in, ahead of the face, are held.
+  assert.ok(g.z[(20 / 4) * 161 + (100 + 20) / 4]! < 97, `${g.z[5 * 161 + 30]}`)
+})
+
+// Regression (review of #20): the service 378473978 climbs out of the underpass 378473973 at
+// Sarzana, whose bore climbs in from its mouth too; held at the bore's floor, the corner 2.3 m behind
+// the mouth stood 0.4 m over the road there, and the terrain mesh 0.12 m through its ribbon.
+test("profile: behind a road tunnel's mouth at the foot of its approach the corners are held no higher than the mouth", () => {
+  // Flat ground at 100 m, rising to 112 m 50 m into a tunnel from x 102 to 202, which a bound keeps
+  // at 95 m 2 m inside its west mouth: the bore climbs east from there, the approach west.
+  const ground = (x: number) => (x < 152 ? 100 : 112)
+  const approach = { id: 1, pts: [v(0, 0), v(102, 0, "m0")] }
+  const chain = [
+    approach,
+    { id: 2, tunnel: true as const, pts: [v(102, 0, "m0"), v(202, 0, "m1")] },
+    { id: 3, pts: [v(202, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims, denseOf } = makeProfiler(ground)
+  profile(chain, { w: 4.5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: 104, y: 0, z: 95, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  for (let k = 0; k < g.z.length; k++) g.z[k] = ground(-20 + 4 * (k % 161))
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  const { pts, z } = denseOf.get(approach)!,
+    mouth = z.at(-1)!
+  // The node 2 m behind the mouth no higher than the mouth, and the terrain over the approach's last
+  // 4 m within the chord of the cell its bend at the mouth lies in.
+  assert.ok(
+    g.z[(20 / 4) * 161 + (104 + 20) / 4]! <= mouth + 1e-9,
+    `${g.z[5 * 161 + 31]} over ${mouth}`,
+  )
+  for (let x = 98; x <= 102; x += 0.5) {
+    const k = pts.findIndex((p) => p.x >= x),
+      level = z[k - 1]! + ((z[k]! - z[k - 1]!) * (x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(
+      sampleGrid(g, x, 0) - level < 0.2,
+      `${(sampleGrid(g, x, 0) - level).toFixed(2)} m at x ${x}`,
+    )
+  }
+})
+
+// Regression (#20): the footway 1484690678 at Sarzana crosses over the service tunnel 376037643 5.5 m
+// behind its east mouth, on the bank 4.4 m over its floor; held at the floor, the mouth's cell under
+// its vertex dropped it 2.6 m, 1.7 m over the road in the bore.
+test("profile: a road tunnel's mouth leaves the cells of a footway's vertices behind it", () => {
+  // As above, a footway at grade crossing over the bore 2.5 m behind its west mouth, on the road
+  // over it, or passing beside it.
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(102, 0, "m0"), v(202, 0, "m1")] }
+  const chain = [
+    { id: 1, pts: [v(0, 0), v(102, 0, "m0")] },
+    tunnel,
+    { id: 3, pts: [v(202, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const footway = v(104.5, 1),
+    beside = v(104.5, 4.5)
+  /** The terrain under the vertex `at` with `footways` at grade. */
+  const under = (footways: ReadonlyArray<V>, at = footway) => {
+    const { profile, claims } = makeProfiler(
+      () => 100,
+      [],
+      new Set(),
+      new Set(),
+      (x, y, r) => footways.filter((f) => Math.hypot(f.x - x, f.y - y) <= r),
+    )
+    profile([{ item: { pts: [v(106, -20), v(106, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+    profile(chain, { w: 4.5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+      { x: 150, y: 0, z: 94, kind: "max", tilt: true },
+    ])
+    const g = grid()
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    return sampleGrid(g, at.x, at.y)
+  }
+  assert.equal(under([footway]), 100)
+  assert.ok(under([]) < 97, `${under([])}: held at the floor without`)
+  // One beside the bore, 4.5 m off its axis (its kerbs 3.25 m), keeps nothing.
+  assert.ok(under([beside], beside) < 99, `${under([beside], beside)}: beside the bore`)
+})
+
+// Regression (#20): the service tunnel 438625870 at Sarzana opens onto the residential 438625873,
+// another pass's chain, and the hill over its bore, 4.5 m over its floor, lifted that road out of
+// the mouth 4.6 m within 2 m of it: only the bore's own chain held its mouths.
+test("profile: a road ending at grade at another chain's tunnel mouth holds the cells' corners behind it at its level", () => {
+  // A hill 6 m high over x 102–202 on flat ground at 100 m and a road on it 4 m in from its west
+  // face; a tunnel through it at 100 m, its own chain; a road of another chain leading from its west
+  // mouth, half a cell off the grid's nodes.
+  const ground = (x: number) => (x > 102 && x < 202 ? 106 : 100)
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(102, 0, "m0"), v(202, 0, "m1")] }
+  const approach = { id: 1, pts: [v(0, 0), v(102, 0, "m0")] }
+  /** The terrain over the approach's last metres out of the mouth, m over its profile at most. */
+  const lift = (ends: ReadonlySet<string>) => {
+    const { profile, claims } = makeProfiler(ground, [], new Set(), ends)
+    profile([{ item: { pts: [v(106, -20), v(106, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+    profile([{ item: tunnel, rev: false }], { ...SPEC, w: 4.5, mouths: true })
+    profile([{ item: approach, rev: false }], { ...SPEC, w: 4.5, mouths: true })
+    const g = grid()
+    for (let k = 0; k < g.z.length; k++) g.z[k] = ground(-20 + 4 * (k % 161))
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    let most = -Infinity
+    for (let x = 98; x <= 102; x += 0.5) most = Math.max(most, sampleGrid(g, x, 0) - 100)
+    return most
+  }
+  assert.ok(lift(new Set(["m0", "m1"])) < 0.05, `${lift(new Set(["m0", "m1"]))} m`)
+  // Without: the road over the hill keeps the node 2 m behind the mouth, which lifts the road's last
+  // 2 m by up to 3 m.
+  assert.ok(lift(new Set()) > 2, `${lift(new Set())} m`)
 })
 
 // Regression: east of Collegnago a road fitted round a hill, one end pinned, left its free junction

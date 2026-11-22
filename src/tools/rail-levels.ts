@@ -1,14 +1,15 @@
-import type { Linear } from "./chains.ts"
 // Where the rail and the roads meet in height: a road under a rail bridge (or in a tunnel under the
 // rail) keeps its clearance under it, a road bridge over the rail clears a train, and a rail bridge
 // stays over the river it crosses. The profiles pin these as bounds. At a level crossing the rail
 // keeps its own grade and the road, profiled after it, meets it there (a rail pinned to the road's
 // level made a V of up to 5% in its grade).
+import { UNDERPASS } from "../sim/map/kinds.ts"
+import type { Linear } from "./chains.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, type V } from "./geometry.ts"
+import type { Profile } from "./profile-fit.ts"
 import type { Bound } from "./profiles.ts"
-import { DECK, naturalAt, UNDERPASS } from "./road-levels.ts"
-import type { Profile } from "./terrain.ts"
+import { DECK, naturalAt } from "./road-levels.ts"
 
 /** What the bounds are read from: the rail, the roads, the water with its surface profiles, the uncarved ground, and each profiled line's z at arc length s. */
 interface LevelsInput {
@@ -108,9 +109,12 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
     return byPiece.flat()
   })()
   /**
-   * The rail stays at least maxheight + DECK over the natural level of a tagged underpass (a
-   * sign gives the least clearance: the Via delle Cave deck stands 1.1–3.3 m higher, and pinning
-   * the rail to it held the line 2.7 m under its bed for 1.9 km), UNDER_ROAD under a road bridge's
+   * The rail stays at least maxheight + DECK over the natural level of a tagged underpass at grade
+   * under a rail bridge, where the ground runs under the deck (a sign gives the least clearance:
+   * the Via delle Cave deck stands 1.1–3.3 m higher, and pinning the rail to it held the line 2.7 m
+   * under its bed for 1.9 km); a road's tunnel gives none, as its ground is the bank over its bore,
+   * and its road dips under the rail instead (Via Termo's under Vezzano Ligure's tracks read 30.5 m
+   * off their own bank, 31.4 m, and lifted them 4.5 m), UNDER_ROAD under a road bridge's
    * deck, and RAIL_OVER_WATER above the river it bridges. Under a road bridge it is never held under
    * the ground at the crossing (the deck there at least UNDER_ROAD over it): the road rises instead.
    * The line between the ends' ground of the SR445's 396 m viaduct north of Gragnola (152.6 and
@@ -120,7 +124,7 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
    */
   const railBounds = (chain: Chain): Array<Bound> => [
     ...railRoad
-      .filter((x) => x.tagged && chain.some((m) => m.item === x.rl))
+      .filter((x) => x.tagged && x.rd.tunnel !== true && chain.some((m) => m.item === x.rl))
       .map((x) => ({
         x: x.c.x,
         y: x.c.y,

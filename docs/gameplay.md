@@ -74,7 +74,13 @@ back once it rests on a seat.
   a bank under a deck, the player stops where the headroom runs out, and comes onto the deck only at
   its level, along the road at its ends. The walls stand at the ground's level, 2.5 m or more under
   the deck, so nobody on the deck or on the road onto it meets them
-  ([map.md](map.md#walls-under-the-decks)).
+  ([map.md](map.md#walls-under-the-decks)). Sarzana's part leaves three places that do otherwise,
+  which the user chose after three rounds of fixes to list as known limits (issue #20,
+  [map.md](map.md#known-data-limitations); `under-decks.map-test.ts`, which fails on any other and
+  on these once they are fixed): the road 491595994 runs beside the A15's viaduct 156568131, its
+  carriageway over the deck's edge on ground at the deck's level, so a walker or a car on it comes
+  up onto the deck there; and a verge of the roads onto the bridges 262912001 and 1149354824, short
+  decks over ditches, meets the wall under the deck 4.3 and 5 m before its end.
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
 - **In a river, a stream, a lake or the sea** the player wades, slower the deeper it is (a sprint
   most of all) and pushed by the current, until the water reaches his chest or the current takes
@@ -624,7 +630,10 @@ the lane helpers in `src/sim/route.ts`.
   car standing 38 m on at 16 m/s, and now every model keeps 1.49–2.05 m of its 2 m gap from 12 to 30
   m/s. Nothing changed up to 15 m/s for a Panda or a Carabinieri car, 9.7 m/s for a truck or an Ape.
   The cone bends along the arc the front wheels steer (a straight line under a curvature of 0.001
-  per m), and is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
+  per m) and reaches its range round that arc, not along the heading: what stands by the circle's
+  far side, a few metres ahead along the heading but up to 2 km across, is not in it (it once
+  braked the car, and its level was read round half the circle, past the tiles in memory). The
+  cone is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
   counts by its footprint (half its length and width turned to the car's heading, a person or an
   animal a circle), so a car standing across the road holds it back as well as one ahead. For a
   Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train is
@@ -657,13 +666,23 @@ the lane helpers in `src/sim/route.ts`.
   one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
   for the pitch, that reading lost such a car at 30 of Lunigiana's 463 joints between a road and a
   bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63 before #18 (541 and 67 joints now,
-  2026-11-07); rolled, at none but a mouth of Pieve
-  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)), with Fosdinovo's joints too
-  (`joints.map-test.ts`). Rolled to the obstacle's
+  2026-11-07); rolled, at none but three of Sarzana's part, which the user chose after three rounds
+  of fixes to list as known limits (issue #20, [map.md](map.md#known-data-limitations)): the service
+  road 378584357 crosses over Via Alta's bore (106907873 to 107843275) at grade 2.5 m behind its
+  south mouth, its carriageway over the approach's last 2 m, and the ground blends the two; the SS62
+  (308956561 to 301036802) meets a junction pinned at the ground before its deck's clearance was
+  fitted; and 1352409569 runs into its mouth beside the yard's tracks, whose core holds the cells
+  under it at the rail's level (`joints.map-test.ts`, which fails on any other misread and on these
+  once they read on their level). The mouth of Pieve San Lorenzo's underpass, the one listed
+  before, reads on its level now. Rolled to the obstacle's
   middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
   over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
   of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
-  as if none did.
+  as if none did. The car reads that ground only within 100 m of its middle (`SIGHT`: a car steps
+  up to 500 m from the player, `FROZEN_BEYOND`, and only the tiles within 600 m of the player are
+  sure to be in memory, `STEP_REACH`): an obstacle whose level would be read farther out holds it
+  back on any level, as everything in the cone did before levels were read; only a truck on the
+  motorway asks that far.
 - **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
   before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
@@ -700,10 +719,13 @@ the lane helpers in `src/sim/route.ts`.
   queued 4.5 m behind one that backs up (the backing limit), a car alongside one backing up askew
   (the straight wheel), a driver steering back into its lane beside a standing car (the bent cone),
   and the same road wet (slower, easing off sooner, stopping and backing further from the cars
-  around it). `src/sim/__tests__/levels.test.ts` stages the level rule on and under the SR445's
-  viaduct, forward and backing up, through its dip, down the sags onto its deck and onto OSM way
-  237828927's, and over its deck over the railway; `traffic.test.ts` reads `onPathLevel` over
-  made-up ground (a deck, a train's car under it, a dip, a sag onto a rising deck, a bend).
+  around it). Whether a stuck car turns round on its first try is a coin from the shared dice, and
+  whatever Populate draws before it changes how the coin falls, so each scene takes the first seed
+  from 1 on which the car backs up along its lane. `src/sim/__tests__/levels.test.ts` stages the
+  level rule on and under the SR445's viaduct, forward and backing up, through its dip, down the
+  sags onto its deck and onto OSM way 237828927's, and over its deck over the railway;
+  `traffic.test.ts` reads `onPathLevel` over made-up ground (a deck, a train's car under it, a dip,
+  a sag onto a rising deck, a bend).
 - **How it flows.** With the player standing 3 real minutes while traffic fills the roads, on a
   new game (22 October 2026 from 08:00, Balanced handling) with the weather held clear, the share
   of the traffic's time under 1 m/s and the honks were 0.18 and 82 in Monzone's street, 0.13 and
@@ -739,10 +761,11 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   (`WALK_AHEAD`, TUNED: about a village block) plus 0.5 (`WALK_FLOOR`, TUNED), and turns back
   only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
   residents are counted within 60 m of each edge, so all the edges at one junction count about the
-  same houses. With the floor, a lane into the fields draws about 1 walker in 32 against a typical
-  village street (15.4 residents, the median of the peopled walk edges; 15.6 before Fosdinovo's
-  part; 17 on lucido alone, 1 in 35). Of 200 walkers set off for
-  1.5 km from each centre, the share of the distance walked on peopled streets:
+  same houses. With the floor, a lane into the fields draws about 1 walker in 36 against a typical
+  village street (17.3 residents, the median of the peopled walk edges with Sarzana's part,
+  2026-11-22; 15.8 with Aulla's, 1 in 33; 15.4 with Fosdinovo's, 1 in 32; 15.6 before it; 17 on
+  lucido alone, 1 in 35). Of 200 walkers set off for 1.5 km from each centre, the share of the
+  distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
   |---|---|---|---|
@@ -785,7 +808,12 @@ A party's followers (a kid, a partner, a dog on a lead: `Follows`) keep a place 
   itself, whose path is walkable. When a walk wall stands in the way, it heads 1.5 m on along the
   leader's lane, no nearer the leader than its place: in single file round a corner. At a house
   corner in Vinca a kid stays within 1.92 m and a dog within 1.46 m of their leader; with no such
-  rule they fell 19.7 m and 17.1 m behind.
+  rule they fell 19.7 m and 17.1 m behind. It walks in single file too while the leader's way is a
+  bridge or a tunnel: a walker keeps to a deck's verge, outside its parapets (2.5 m off the middle
+  of Via Borgo Lucido's 3.4 m bridge in Gragnola, whose deck the walkers stand on out to about 3 m),
+  so a kid 0.5 m on its parent's right stood past the deck's edge, stepped off it onto the stream's
+  bank 5 m under it, and stayed there while the parent walked on (16 m behind on seed 2's fill of
+  Gragnola, `population.long-test.ts`).
 - It takes the leader's route each step, so it can carry on alone, and copies the leader's
   reactions: the mood, its point and its end.
 - A fleeing leader runs no faster than its slowest follower on its feet, so a 1.1 m kid stays
@@ -1085,7 +1113,8 @@ points of its centre round (−8910, −3090) (2026-11-07).
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  11,337 of the map's 87,868 walk edges are peopled (7,877 of 61,091 before Fosdinovo's part).
+  53,475 of the map's 218,613 walk edges are peopled with Sarzana's part (2026-11-22; 23,664 of
+  135,674 with Aulla's, 11,337 of 87,868 with Fosdinovo's, 7,877 of 61,091 before it).
   Those sums read buildings all over the map, so the build works them out (`bakeResidents`) and
   the map keeps one per walk edge (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
@@ -1201,8 +1230,17 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. A
   point on the railway's track at grade or over it is brought back to the animal's side, 3 m off
   the centreline beside where it was drawn (`ownSide`, `rail/bodies.ts`, with the same draws), so
-  animals never wander onto the line; a line on a bridge or in a tunnel there is no barrier. Blocked
-  for 1 s on the way it picks another point; with 4 points that will not do, it rests again.
+  animals never wander onto the line. A line on a bridge or in a tunnel is no barrier where the walk
+  meets it (passing under a viaduct), but one at grade there is, whatever the line does beside the
+  point drawn: judged beside the point, 210 of 212 walks from 8 m off the track 12 m short of a
+  bridge to 4 m off it on the other side 2 m onto the bridge, two at each of the 106 places on the
+  map's lines where a bridge 10 m long or more begins after 20 m at grade (counted along each line),
+  crossed the track at grade short of the bridge. Where two lines run side by side the one nearer
+  the animal counts first, as its walk meets it first: taken in the order the lines' grid met them,
+  408 of 1,059 points 8 m beside a track at grade with another 2.5–6 m beyond it, drawn 20 m across
+  both, came back short of 3 m off the nearer track's centreline, as near as 0.01 m, at Aulla and in
+  Sarzana's part (`bodies.test.ts`). Blocked for 1 s on the way it picks another point; with 4
+  points that will not do, it rests again.
 - **Fear.** What scares each species (TUNED; a crash is `Startle`'s, below):
 
   | Species | A vehicle | A person | A horn | A train's whistle | A crash or a body struck | Cries out (`Cry`) |
@@ -1311,8 +1349,10 @@ code:
   the line speed at its end (`runOut`): the strike-in of a box at the map's edge
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
-  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. Today's
-  three lines (issue #19):
+  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. The lines
+  run where OSM's train routes run ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts)),
+  each direction of a double line's service on its own track, a line to itself. Today's seven
+  (issues #19, #20):
   - **Lucca–Aulla**, from the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del
     Lupacino, which OSM tags 140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level
     to the box's edge at x 10600) to its terminus at Aulla Lunigiana's track 4, 25,880.1 m, with
@@ -1320,11 +1360,23 @@ code:
     8493.3–8597.0, Gragnola at 11911.6–12057.8, the Fivizzano-Gassano halt at 14454.2–14550.9,
     Fivizzano-Rometta-Soliera at 17205.9–17295.4 and Aulla Lunigiana at 25659.4–25880.1 (16,854.7 m
     to Fivizzano's west edge by Rometta before Aulla's part);
-  - **the Pontremolese's two tracks**, each from edge to edge through Aulla Lunigiana (9,715.8 and
-    9,715.4 m, the station at s 6915.4–7325.2 and 2390.7–2799.7), sharing the single track north of
-    P.P. Chiesaccia and its run-out north of the play area; past their south ends their run-outs
-    follow OSM's line 3,394 m on, and past their north ends, on the box's edge, they run straight
-    on, 1,409.1 m.
+  - **the Pontremolese's**, from the north edge (on the box's edge: past it they run straight on,
+    1,409.1 m) through Aulla Lunigiana and Santo Stefano di Magra: the Parma–La Spezia's on its down
+    track through Vezzano Ligure to the west edge (21,430.6 m) and the La Spezia–Parma's on its up
+    track (21,265.9 m), and the Milano–Livorno's and Livorno–Milano's over the link at Santo Stefano
+    to the Genova–Pisa and through Sarzana to the south-east edge (27,789.1 and 27,795.3 m; the
+    Livorno–Milano's, on the westbound track, calls at Arcola's halt too), the four sharing the
+    single track north of P.P. Chiesaccia. At the link the Milano–Livorno's leave the down track,
+    shared with the Parma–La Spezia's, for the Genova–Pisa's eastbound track, shared east of it with
+    the La Spezia–Pietrasanta's, and the Livorno–Milano's leave the westbound track, shared with the
+    Pietrasanta–La Spezia's, for the up track, shared with the La Spezia–Parma's
+    ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts));
+  - **the Genova–Pisa's two tracks**, the Pietrasanta–La Spezia's and the La Spezia–Pietrasanta's
+    (11,010.6 and 10,946.0 m), from the south-east edge through Sarzana, Arcola's halt (the
+    westbound) and Vezzano Ligure to the west edge. Past their ends there the run-outs follow OSM's
+    line 1,438–1,447 m to the box's south edge and 3,748–3,828 m to its west edge. Before Sarzana's
+    part the Pontremolese ran two lines, one a track, from the north edge to the south edge at y
+    3900 (9,715.8 and 9,715.4 m).
 - **At a terminus** the train dwells as at any station, its driver changing ends as the dwell starts
   (`Dispatch` turns it round: its motion faces the other way and it is boarded at its far cab), and
   then runs back down the line, calling at every station again. It never leaves by the terminus:
@@ -1366,9 +1418,13 @@ code:
   shared one later, and a terminus line's train runs its whole line back): it would meet that one
   head-on, so it waits until that one has run off. Trains entering the same step count, so one
   train comes in where two lines' entries share a run-out. Measured on the real map, 2 h of game
-  time from a new game, `railStep` alone, seeds 1–6: 27–29 trains (3 Lucca–Aulla and 12–13 on each
-  Pontremolese line), 2 turned round at the terminus, no train struck, and no train standing outside
-  a dwell for more than 3 s. Entering 1 m outside that clearance of a train standing on
+  time from a new game, `railStep` alone, seeds 1–6: 38–39 trains (3 Lucca–Aulla, 5 on each
+  Pontremolese line but 4–5 Livorno–Milano, 7–8 Pietrasanta–La Spezia and 8–9 La Spezia–Pietrasanta),
+  2 turned round at the terminus, no train struck, and no train standing outside a dwell for more
+  than 1.5 s, but 18.3 s in seed 6, 1 h 16 min in: a train on the Milano–Livorno line held 86 m
+  behind one on the La Spezia–Pietrasanta line dwelling at Sarzana's platform, both running west on
+  the track the two lines share, until that one left (27–29 trains, 3 s at most, on the three lines
+  before Sarzana's part). Entering 1 m outside that clearance of a train standing on
   the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
 - **A new game** starts with each line's train already dwelling at the station nearest the player's
   start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track
@@ -1439,11 +1495,19 @@ the terminal, which it passes at 84.2 km/h (2026-11-07, with the run-outs on the
   dwell ends it runs on to the next station, or off the line past the last.
 - **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
   curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
-  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.6 m), and those of 271.1 and 225.0 m;
-  the 169.3 and 66.8 m ones get none. A tunnel's end at a terminal is where the map cuts it, no
-  mouth: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore
-  already (1324.6 m of it in the map, and all of the 2298.6 m run-out past the terminal), and
-  whistles only running into it from Pieve, 30 m before its portal.
+  1.5 s, for the audio to play), running into it from either end (`LINES`' tunnels, measured on
+  2026-11-22): on the Lucca–Aulla line the Ugliancaldo tunnel (3194.6 m) and those of 271.0 and
+  225.2 m (271.1 and 225.0 m with Fivizzano's part) and, by Aulla, of 693.4 and 584.5 m, while the
+  169.3 and 66.8 m ones get none; on the Pontremolese the 7.09 km tunnel and one of 325 m between
+  Aulla and Santo Stefano di Magra and three of 726–882 m north of Aulla, while three of 60–105 m
+  north of Aulla get none; west of Santo Stefano the Pontremolese's of 290 and 295 m and the
+  Genova–Pisa's of 345 and 364 m, one on each track, and, running west only, the bores of 383–397
+  m at the west edge. A mouth past a terminal, on its
+  run-out, gets none, nor does a bore's end at a terminal, which is where the map cuts it: a train
+  coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore already (1324.6 m of
+  it in the map, and all of the 2298.6 m run-out past the terminal), and whistles only running into
+  it from Pieve, 30 m before its portal; one coming in at the west edge enters the Genova–Pisa's or
+  the Pontremolese's bore 161–337 m past its terminal, silent.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
@@ -1598,14 +1662,17 @@ they stand 6.5 s later, the dwelling train shoved 22 m along.
 ### Level crossings
 
 `MAP.railway.crossings` gives the boxes (`CROSSINGS`, `rail/crossings.ts`; the cycle and demand
-are in `rail/barriers.ts`): today Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila
-(over Gragnola's two tracks) and Via Nuova, all automatic full barriers (half barriers need a median
-the roads lack, CdS art. 44), and Equi Terme's foot crossing, a path over the track: it runs the
-same cycle with no arms, light or bell, for walkers. The boxes, the lines each crosses and their
-approaches (`CROSSINGS`, `CROSSINGS_ON`, `APPROACHES`) are built at load from the global file: each
-box's road line is the copy the build keeps beside the railway (`MAP.derived.crossings`), and its
-width and class are the road's (`MAP.roads`). So no tile is read, though 4 of the 5 boxes lie
-2.4–3.4 km from the start.
+are in `rail/barriers.ts`): today Lunigiana's 13, all on the Lucca–Aulla railway (Sarzana's part
+brought none): Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila (over Gragnola's
+two tracks), Via Nuova, an unnamed road by Gassano and, from Rometta to Aulla, the SP72, the SP18,
+the SS63 (Via Filippo Turati), Via Guido Rossa, the SP57 and a track, all automatic full barriers
+(half barriers need a median the roads lack, CdS art. 44, though OSM tags some by Aulla so), and
+two foot crossings, paths over the track: Equi Terme's runs the same cycle with no arms, light or
+bell, for walkers, and Pieve San Lorenzo's crosses only its loop, which no line runs. The boxes,
+the lines each crosses and their approaches (`CROSSINGS`, `CROSSINGS_ON`, `APPROACHES`) are built
+at load from the global file: each box's road line is the copy the build keeps beside the railway
+(`MAP.derived.crossings`), and its width and class are the road's (`MAP.roads`). So no tile is
+read, though 12 of the 13 boxes lie 2.4–11.6 km from the start.
 
 - **The lines it crosses** (`on`): every line whose track passes within 0.5 m of one of the box's
   nodes (each node is a vertex both the road and a rail piece have; parallel tracks lie 4 m apart),
@@ -1718,7 +1785,44 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   joint of the 297 crossings of every drivable bridge, both ways, from 12 m before it, where a
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
   `src/render`, which since issue #19 sets out along the road leading onto the bridge, no turn of
-  30° or more, straight on where none leads on in line, on that road's level).
+  30° or more, straight on where none leads on in line, on that road's level). Eight passes on
+  Sarzana's part still leave their deck, which the user chose after three rounds of fixes to list
+  as known limits (issue #20, [map.md](map.md#known-data-limitations); `KNOWN` in that test, which
+  fails on any other pass off its deck and on these once they keep to it): two ramps whose decks
+  fork off the A12's and the SS1's at a shared vertex and leave their level while the
+  carriageways still overlap, where the ground reads the flatter deck; two decks whose end a
+  junction pinned at the ground before their clearance was fitted; and four dead-end stub decks no
+  road leads onto in line, which the check sets out onto from the ground straight on.
+- **At a fork and at a widening.** Where several decks are within `ON_DECK` of the level a body
+  was on (one viaduct forking in two, the joint of two spans), their surfaces blend, each weighted
+  by the square of how far inside its reach the body stands, as a share of that reach, and by how
+  much nearer than `ON_DECK` it stands, so it keeps to the deck it is on (`groundZ` in
+  `ground-model.ts`). The deck nearest its last level alone kept a car on the SS1's deck 86257908,
+  climbing 8.3% from its fork with the flat tertiary 23277539 by Sarzana (−15552, −6175), up to
+  0.48 m under it, and a walker 0.93 m (`ground.map-test.ts` failed there); now 0.10 and 0.13 m,
+  and on the tertiary 0.11 and 0.07 m (0.02 and 0.03 before). Weighted by the depth in metres,
+  the SS1's 12 m carriageway drew a car on the tertiary 0.5 m over its deck. And where a road at
+  grade goes on in line (a turn under 30°) from a narrower one, no third road ending at the joint
+  or running on through it, the wider reaches behind the joint no farther than the narrower one,
+  along every segment of it within its half-width of the joint (`behind` in `ground-buckets.ts`):
+  the A15's toll plaza 520616095, 24 m wide on OSM's `lanes=6` from its first vertex on, reached
+  12.3 m back round its joint with the 10 m 287552094, over the ramp of the service road 100468086
+  climbing beside it to its bridge 100468174 over the plaza (−18206, −1691), and the ground blended
+  the ramp with the plaza 1–2.4 m under it: a car on the ramp stood 2.68 m and a walker 5.6 m under
+  the bridge's deck, and a driver read a car on the bridge off its level (`joints.map-test.ts`);
+  now both cross on the deck. The rule cuts 1,041 joints on Lunigiana and 83 on Cesena, of the
+  1,393 and 129 where two roads at grade of two widths meet end to end with no third; at a turn of
+  30° or more (352 and 46; 240 and 29 of 45° or more) the wider one's round end still fills the
+  corner's outside, where a widening's start is no reason to cut it. Cut
+  round its first segment's end alone, the wider kept the next segment's round end reaching behind
+  the joint where its first was shorter than the two halves' difference (11 joints on Lunigiana:
+  205932305, 12 m wide, at (−14524.5, −4924.6) after 1.7 m). The walls under the decks are traced on
+  this ground, so the fork's and the joint's rules put 11 walk and 19 drive walls for 8 and 16 at
+  the ends of decks at three places on Lunigiana (the SS1's fork, 368233634 at (−16850, −700) and
+  26498548 at (−14050, −5800)), and 1 drive wall for 2 at the end of Cesena's bridge 23775227 at
+  (−276, 545), a few centimetres apart: there the residential 23047267's last 12.7 m, from
+  (−270.2, 531.3) to its dead end 7.2 m short of the deck's end, joins the traffic graph, a lane
+  for each vehicle (`pnpm map-diff`, 2026-11-21).
 - **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
   deck's end stands within 0.5 m of it (`ON_DECK`, `src/sim/map/ground-model.ts`). Where a road comes
   onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a
@@ -1936,12 +2040,18 @@ speed along the contact.
   its hillside) and 8.8 m over it past the leg's north end. A run-out is profiled on its own, so
   the line in play keeps its profile (by Rometta, before Aulla's part carried the line on in play,
   the grade turned from −6.1 ‰ to −24.8 ‰ at the terminal). Nothing lowers the ground under a
-  run-out's bridge or draws a portal at a run-out's bore within the drawn run: no map has one today.
-- **A run-out over a notch rides no ground of the game's**: the Pontremolese's south run-outs run
-  through the notch west of Fosdinovo's part, where no tile is listed ([map.md](map.md#map-files)):
-  the build profiles them on the edge's heights drawn on and writes no ground there, while the
-  game's ground there is the nearest listed node's (Rometta's run-out did the same over the
-  north-west notch before Aulla's part, up to 13.7 m over that ground, out of view).
+  run-out's bridge or draws a portal at a run-out's bore within the drawn run. No drawn run crosses
+  a bridge today, but since Sarzana's part one leaves a bore: past the west edge's westbound track
+  (the Parma–La Spezia's and the Pietrasanta–La Spezia's terminal) the run-out comes out of the
+  hill 161.4 m on, beyond the play area, and its last 31 m of drawn run lie in the open, past a
+  mouth with no portal.
+- **A run-out over a notch rides no ground of the game's**: where no tile is listed
+  ([map.md](map.md#map-files)) the build profiles a run-out on the edge's heights drawn on and
+  writes no ground there, while the game's ground there is the nearest listed node's. No run-out
+  crosses a notch today: the Pontremolese's south run-outs ran through the notch west of
+  Fosdinovo's part until Sarzana's part filled it and took its lines on to the west and south-east
+  edges, whose run-outs stay over listed tiles, and Rometta's ran over the north-west notch before
+  Aulla's part, up to 13.7 m over that ground, out of view.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches

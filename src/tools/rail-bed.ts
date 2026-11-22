@@ -4,8 +4,10 @@
 // (roads that keep their cells beside the line left 0.75 m of terrain over the rail by Via Riolo)
 // and the track never hangs over a hole.
 import type { RailF } from "./features.ts"
-import { segIndex, type V } from "./geometry.ts"
-import { anchorNode, keepSamples, resample, slotOf, type Grid, type Profile } from "./terrain.ts"
+import { type V } from "./geometry.ts"
+import { keepSamples, resample, type Profile } from "./profile-fit.ts"
+import { segIndex } from "./spatial-index.ts"
+import { anchorNode, slotOf, type Grid } from "./terrain.ts"
 
 /** A piece as written to the map: its vertices plus the profile samples where the elevation bends. */
 export interface Dense {

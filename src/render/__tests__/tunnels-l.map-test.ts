@@ -14,7 +14,7 @@ const chunkCut = skip === false ? await import("./chunk-cut.ts") : undefined
 const checks = skip === false ? await import("./tunnel-checks.ts") : undefined
 
 test(
-  "the L: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, its chunks as a whole-map build cuts them",
+  "the L: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, the roads at grade round each mouth over the terrain and their painted lines over them, its chunks as a whole-map build cuts them",
   { skip },
   () => {
     assert.deepEqual(checks!.checkTunnels(chunkCut!.wholeVectors()), {
@@ -24,8 +24,10 @@ test(
       // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts)
       // and the motorways' grade fitted unrelaxed (ROAD_PASSES) moved the bores' bend samples (+1);
       // Equi Terme's footway underpass 1133296350 now rises to its approach 1306844336 at 264.2 m (it
-      // ended 1.7 m under it, at 262.9) (+4). 650 -> 655 wall triangles.
-      walls: 655,
+      // ended 1.7 m under it, at 262.9) (+4). 650 -> 655 wall triangles. A mouth holding at its floor
+      // the corners behind it of the cells its approach's carriageway runs in (issue #20) cuts the
+      // bores' walls where the ground over their first metres is lower: 645.
+      walls: 645,
       mouths: 12,
       portals: 3,
       heads: 0,

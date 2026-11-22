@@ -1,7 +1,17 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { decodeTile, decodeTileVectors, encodeTile, TILE_CELLS, TILE_NODES } from "../tile-file.ts"
+import {
+  decodeTile,
+  decodeTileVectors,
+  encodeTile,
+  relineTile,
+  TILE_CELLS,
+  TILE_NODES,
+  VECTOR_LAYERS,
+  type VectorLayer,
+  vectorSizes,
+} from "../tile-file.ts"
 import { plain } from "./plain.ts"
 
 /** A tile of tile (−1, 0): its corner is (−2000, 0) m, so walls count from (−21000, −1000) dm and trees from (−2100, −100) m. */
@@ -37,7 +47,7 @@ const tile = {
       ],
     },
     buildings: {
-      ids: [2],
+      ids: [2, 5],
       items: [
         {
           id: -7,
@@ -47,6 +57,23 @@ const tile = {
           style: "stone",
           tint: 2,
           outer: [0, 0, 4, 0, 4, 3],
+        },
+        // a court: its holes after its outer ring, its last key; a survey's id past 2^32; a name
+        // past ASCII
+        {
+          id: 1_099_511_627_779,
+          kind: "church",
+          name: "Madonna della Pietà",
+          h: 12,
+          z0: 301.4,
+          style: "stone",
+          ruins: true,
+          tint: 0,
+          outer: [-1999.9, 10, -1960, 10, -1960, 50, -1999.9, 50],
+          holes: [
+            [-1990, 20, -1990, 30, -1980, 30],
+            [-1970, 20, -1970, 30, -1965, 30],
+          ],
         },
       ],
     },
@@ -66,19 +93,38 @@ const tile = {
         },
       ],
     },
-    areas: { ids: [], items: [] },
+    areas: {
+      ids: [0, 879],
+      items: [
+        // a lake's level before its rings, as some build keys them; a ring kilometres past the
+        // tile, the jump to it past 2 bytes of decimetres
+        { kind: "water", level: 231.5, rings: [[-12000, 5000.3, 9000.5, 5000.3, 9000.5, 13000.1]] },
+        {
+          kind: "forest",
+          rings: [
+            [-2100, -100, -1900, -100, -1900, 100],
+            [-2000, 0, -1950, 0, -1950, 50],
+          ],
+          waters: [0],
+        },
+      ],
+    },
     barriers: { ids: [1], items: [{ kind: "guard_rail", pts: [1, 2, 3, 4] }] },
   },
 }
 
+/** A tile file's JSON line. */
+const lineOf = (file: Uint8Array): Record<string, unknown> =>
+  JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as Record<
+    string,
+    unknown
+  >
+
 test("encodeTile and decodeTile round-trip a tile (negative values, the widest deltas, an empty section, walls with and without a level); a value too far throws", () => {
-  assert.deepEqual(plain(decodeTile(encodeTile(tile).file)), plain(tile))
-  // The full map's detail reads the vectors alone, with which tile and build they are.
-  const alone = decodeTileVectors(encodeTile(tile).file)
-  assert.deepEqual(
-    [alone.hash, alone.i, alone.j, plain(alone.vectors)],
-    [tile.hash, tile.i, tile.j, plain(tile.vectors)],
-  )
+  const decoded = decodeTile(encodeTile(tile).file)
+  assert.deepEqual(plain(decoded), plain(tile))
+  // the vectors to the bit, keys in their order, as JSON gave them
+  assert.equal(JSON.stringify(decoded.vectors), JSON.stringify(tile.vectors))
   assert.throws(
     () =>
       encodeTile({
@@ -126,5 +172,94 @@ test("encodeTile refuses sections that share a count but disagree, and decodeTil
     new RegExp(
       `a tile file's sections end at byte ${file.length} of ${file.length + 1}; the file and this decoder disagree`,
     ),
+  )
+})
+
+test("the vectors' coordinates travel as the first section after the JSON line, which holds each xy array's vertex count in its place", () => {
+  const file = encodeTile(tile).file,
+    line = lineOf(file) as {
+      readonly coordinates: number
+      readonly vectors: {
+        readonly buildings: { readonly items: ReadonlyArray<unknown> }
+        readonly areas: { readonly items: ReadonlyArray<unknown> }
+      }
+    }
+  // roads 2 + 1, buildings 3 + 4 + 3 + 3, water 2, areas 3 + 3 + 3, barriers 2 vertices
+  assert.equal(line.coordinates, 2 * 29)
+  assert.deepEqual(line.vectors.buildings.items[1], {
+    ...tile.vectors.buildings.items[1],
+    outer: 4,
+    holes: [3, 3],
+  })
+  assert.deepEqual(line.vectors.areas.items[0], { ...tile.vectors.areas.items[0], rings: [3] })
+  // A coordinate −0 reads back 0, as JSON gave it.
+  const zero = { ...tile.vectors, barriers: { ids: [1], items: [{ kind: "wall", pts: [-0, 1] }] } }
+  const back = decodeTile(encodeTile({ ...tile, vectors: zero }).file).vectors.barriers.items[0]!
+  assert.ok(Object.is(back.pts[0], 0))
+})
+
+test("encodeTile throws on a vector coordinate off the decimetre and an xy array of an odd length", () => {
+  const roads = (pts: ReadonlyArray<number>) => ({
+    ...tile,
+    vectors: { ...tile.vectors, roads: { ids: [4], items: [{ pts, z: [1, 2] }] } },
+  })
+  assert.throws(
+    () => encodeTile(roads([-1990.1, 3.4, -1980.05, 3.4])),
+    /tile -1_0 coordinates: -1980.05 at 2 is not a whole number of decimetres/,
+  )
+  assert.throws(
+    () => encodeTile(roads([-1990.1, 3.4, -1980])),
+    /tile -1_0 coordinates: an xy array of 3 values/,
+  )
+})
+
+test("decodeTileVectors reads the line and the coordinates alone: the vectors, with which tile and build they are", () => {
+  // The full map's detail reads the vectors alone: the dense layers cut off, they decode the same.
+  const file = encodeTile(tile).file,
+    head = file.subarray(0, file.indexOf(10) + 1 + 4 * (lineOf(file).coordinates as number))
+  const alone = decodeTileVectors(head)
+  assert.deepEqual(
+    [alone.hash, alone.i, alone.j, plain(alone.vectors)],
+    [tile.hash, tile.i, tile.j, plain(tile.vectors)],
+  )
+  assert.equal(JSON.stringify(alone.vectors), JSON.stringify(tile.vectors))
+  // cut inside the coordinates, it throws rather than read the bytes past the end as 0
+  assert.throws(
+    () => decodeTileVectors(head.subarray(0, head.length - 1)),
+    new RegExp(
+      `map: a tile file ends at byte ${head.length - 1}, inside its coordinates \\(to byte ${head.length}\\)`,
+    ),
+  )
+})
+
+test("vectorSizes gives each layer's bytes in a tile file: its JSON on the line, in UTF-8, and its share of the coordinates", () => {
+  const { file, sizes } = encodeTile(tile),
+    vectors = (lineOf(file) as { readonly vectors: Record<VectorLayer, unknown> }).vectors,
+    bytes = vectorSizes(tile.vectors),
+    json = (name: VectorLayer) => Buffer.byteLength(JSON.stringify(vectors[name]))
+  // the buildings' 3 + 4 + 3 + 3 vertices, each an x and a y of 4 bytes; "Pietà" is 6 bytes
+  assert.equal(bytes.buildings, json("buildings") + 13 * 8)
+  // past the lines' JSON, the layers' shares sum to the coordinates section
+  assert.equal(
+    VECTOR_LAYERS.reduce((sum, name) => sum + bytes[name] - json(name), 0),
+    sizes.coordinates,
+  )
+})
+
+test("relineTile sets a tile's vectors, its line and its coordinates written again, or its hash alone, as encodeTile packs them, its dense layers' sections unchanged", () => {
+  const empty = { ids: [], items: [] },
+    bare = encodeTile({
+      ...tile,
+      hash: "",
+      vectors: { roads: empty, buildings: empty, water: empty, areas: empty, barriers: empty },
+    }).file
+  const vectors = relineTile(bare, { vectors: tile.vectors })
+  assert.deepEqual(vectors, encodeTile({ ...tile, hash: "" }).file)
+  assert.deepEqual(relineTile(vectors, { hash: tile.hash }), encodeTile(tile).file)
+  // new vectors over old ones: the old coordinates go
+  const fewer = { ...tile.vectors, areas: empty }
+  assert.deepEqual(
+    relineTile(encodeTile(tile).file, { vectors: fewer }),
+    encodeTile({ ...tile, vectors: fewer }).file,
   )
 })

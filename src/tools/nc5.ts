@@ -22,12 +22,11 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { gunzipSync } from "node:zlib"
 
-import { type BuildingSpec, buildingsOf, local, polygonsOf, type Survey, specOf } from "./ctr.ts"
+import { type BuildingSpec, buildingsOf, local, type Survey, specOf } from "./ctr.ts"
 import { kindOf } from "./dbt.ts"
-import { TERRAIN_BOX } from "./geometry.ts"
+import { clipRing, flatRing, type P, TERRAIN_BOX } from "./geometry.ts"
 import { NC5_LAYERS, type Nc5LayerFile } from "./liguria.ts"
 import type { Rect } from "./region.ts"
-import type { ShpRecord } from "./shp.ts"
 import { element5k, localOf, surveyId } from "./survey-ids.ts"
 
 /** A feature's attributes as strings, as the DBT's `kindOf` reads them (no value: ""). */
@@ -43,15 +42,26 @@ export const referenceOf = (ref: string): { readonly section: number; readonly s
 /** The minor buildings' local ids start here, after the buildings'. */
 const MINOR_FROM = 1e9
 
-/** One polygon of a feature as a shapefile record: its rings in E, N. */
-const recordOf = (rings: ReadonlyArray<ReadonlyArray<number>>, attrs: Attrs): ShpRecord => ({
-  parts: rings.map((ring) => {
-    const points: Array<readonly [number, number]> = []
-    for (let i = 0; i + 2 < ring.length; i += 3) points.push([ring[i]!, ring[i + 1]!])
-    return points
-  }),
-  attrs,
-})
+/**
+ * One polygon of a feature in local metres, clipped to `box`: its first ring the outline and the
+ * rest its holes, as GeoJSON orders them; none when the outline lies beyond the box. A hole may
+ * touch the outline at a vertex, which a test of its first vertex against the outline (the
+ * shapefiles' `polygonsOf`, whose rings come in no order) takes for a second outline: the ruined
+ * castle of Trebiano (248083_1704235), whose courtyard's ring starts on the outline's corner.
+ */
+const polygonOf = (
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  box: Rect,
+): Array<Array<number>> => {
+  const [outline, ...holes] = rings.map((ring) => {
+    const points: Array<P> = []
+    for (let i = 0; i + 2 < ring.length; i += 3) points.push(local([ring[i]!, ring[i + 1]!]))
+    return clipRing(points, box)
+  })
+  const outer = outline === undefined ? undefined : flatRing(outline, true)
+  if (outer === undefined) return []
+  return [outer, ...holes.map((hole) => flatRing(hole, false)).filter((h) => h !== undefined)]
+}
 
 /** The highest Z of a polygon's rings, m. */
 const topOf = (rings: ReadonlyArray<ReadonlyArray<number>>): number =>
@@ -96,10 +106,8 @@ export const readNc5 = (dirs: ReadonlyArray<string>, box: Rect = TERRAIN_BOX): S
       if (code === undefined) return []
       const { section, serial } = referenceOf(ref)
       return polygons.flatMap((rings, k) => {
-        const outlines = polygonsOf(recordOf(rings, attrs), local, box)
-        // One outer ring and its holes, so one building (or none, beyond the box).
-        if (outlines.length > 1) throw new Error(`${name} ${ref}: polygon ${k} has two outer rings`)
-        return buildingsOf(outlines, spec(code), topOf(rings), () =>
+        const polygon = polygonOf(rings, box)
+        return buildingsOf(polygon.length === 0 ? [] : [polygon], spec(code), topOf(rings), () =>
           surveyId("nc5", section, base + localOf(serial, k)),
         )
       })
@@ -115,13 +123,14 @@ export const readNc5 = (dirs: ReadonlyArray<string>, box: Rect = TERRAIN_BOX): S
   const roadAreas = layer(NC5_LAYERS.carriageways, "subregid").flatMap(({ attrs, polygons }) =>
     attrs.ac_vei_sed === "03"
       ? []
-      : polygons.flatMap((rings) =>
-          polygonsOf(recordOf(rings, attrs), local, box).map((r) => ({ paved: true, rings: r })),
-        ),
+      : polygons.flatMap((rings) => {
+          const polygon = polygonOf(rings, box)
+          return polygon.length === 0 ? [] : [{ paved: true, rings: polygon }]
+        }),
   )
   // Each part's own piece of the lot: one feature, clipped to that part's box.
-  const mapped = layer(NC5_LAYERS.mapped).flatMap(({ attrs, polygons }) =>
-    polygons.flatMap((rings) => polygonsOf(recordOf(rings, attrs), local, box).map((r) => r[0]!)),
+  const mapped = layer(NC5_LAYERS.mapped).flatMap(({ polygons }) =>
+    polygons.flatMap((rings) => polygonOf(rings, box).slice(0, 1)),
   )
   return { buildings, roadAreas, mapped }
 }

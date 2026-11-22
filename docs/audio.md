@@ -276,10 +276,12 @@ Input (horn) ──────────────────────�
   the map held 711 owls and 618 dogs: 2.3–2.8 ms and 9.0–10.4 ms, each the first call in a fresh
   process with every tile in memory (no director; 20 processes on 2026-11-04 under a load average
   of 5–7); since #15's olive groves and vineyards, a dog's yard too, it held 710 owls and 625 dogs
-  (not timed again), and since #18's Fosdinovo it holds 932 owls and 953 dogs: 2.4–2.8 ms and
+  (not timed again), and since #18's Fosdinovo it held 932 owls and 953 dogs: 2.4–2.8 ms and
   11.5–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 3–4, but
   for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms); since #19's Aulla it
-  holds 1,399 owls and 1,494 dogs (not timed again).
+  held 1,399 owls and 1,494 dogs (not timed then), and since #20's Sarzana it holds 1,701 owls and
+  4,116 dogs: 3.5–4.1 ms and 28.0–45.5 ms, timed the same way (20 processes on 2026-11-22 under a
+  load average of 3–4, but for 2 of the owls' calls at 12.3 and 12.9 ms).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -479,8 +481,10 @@ from one portal: its wheels jumped 2.9 dB as its last car went into the 271 m tu
 ([Inside a vehicle](#inside-a-vehicle)), in a tunnel too.
 
 A bore that a line's run-out carries on past its terminal ([The
-service](gameplay.md#the-service)) pairs its mouth in play with the run-out's far end, where the
-track trains ride stops inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
+service](gameplay.md#the-service)) pairs its mouth in play with its end along the run-out: where
+the run-out comes out of the hill, as the Genova–Pisa's and the Pontremolese's do 161–337 m past
+the west edge's terminals (issue #20), or the run-out's far end, where the track trains ride stops
+inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
 mouth at (5392, 3627) to Pieve San Lorenzo's terminal at (6700, 3423), then 2,298.6 m on in the
 bore along the run-out trains enter by, to (8970, 3058), 842 m south of the play area's nearest
 edge (y 3900). A train within 400 m of that far end is heard from it, though not at that edge, by
@@ -555,37 +559,56 @@ under the floor plays at full gain. Below that it fades linearly in dB, and 15 d
 is culled: a one-shot is dropped, a voice is no longer held and fades out. The margin is there
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
 
-The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on the
-map's low ground, `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
-October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height over the map's
-floor (`place().floor`, its 5th-percentile height), from 0.15 at 80 m under the floor to 0.85 at 770
-m over it (a smoothstep: tuned by ear on lucido alone, whose floor of 230.3 m over its lowest ground
-of 147 m made that the 150–1,000 m it was tuned on, within 0.3 m), up to 0.15 more on open ground,
-and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s (`windFactor`).
-Counting from the floor, a flat coastal map hears its floor as the shipped map's valley does, and an
-Alpine map its own floor as calm rather than a gale everywhere. A part moves the floor: with
-Fivizzano's lower valleys (down to 105 m) it was 213.6 m, so the law spanned 134–984 m and lucido
-blew as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei Bianchi (316 m) 0.355 →
-0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB), the ridge above Aiola (899
-m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car at full load across that meadow
-was heard all the way to 284 m rather than 288. With Fosdinovo's Magra plain (down to 18.1 m) it is
-162.3 m, so the law spans 82–932 m and lucido blows as 68.0 m higher did, up to 0.05 stronger than
-with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB), the woods above Isolano 0.277 → 0.330 (3.1 dB),
-the ridge above Aiola 0.934 → 0.951, the spawn's street at the stillest as before, though the lane
-at Pian del Molino (−917, 1707) now blows at 0.267 over the stillest 0.237; the car across the
-meadow is heard all the way to 265 m rather than the 285 of the map before it (2026-11-07, the
-director's rig in its calm). With Aulla's Magra and lower Aulella valleys, which hold two thirds of
-the nodes now under it, it is 98.4 m, so the law spans 18–868 m and lucido blows as 131.9 m higher
-did: the meadow 0.415 → 0.483 (2.6 dB, 5.4 dB over the tuning on lucido's own floor), the woods
-above Isolano 0.330 → 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino 0.267
-→ 0.322; the car across the meadow is heard all the way to 240 m rather than 265, and at 8 m/s the
-meadow's wind culls a car across it from 35 m off, on foot as in a car (2026-11-17). It is never
-under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
-themselves: leaves and the far valley, heard even in a sheltered street), and at most 1.33, a gale's
-bed at `GALE_DB` (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in
-Monzone's streets, about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice
-plays at most its full strength 1, and past it the bed's gain carries the gale, so the usual wind
-keeps the voice it was tuned with.
+The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on low
+ground, up to 98 m a.s.l., `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5
+m/s in October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height above
+the sea, from 0.15 at 18 m to 0.85 at 868 m (`ALTITUDE`, a smoothstep), up to 0.15 more on open
+ground, and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s
+(`windFactor`). It was tuned by ear on lucido alone over the 150–1,000 m it spanned there, from 80 m
+under its floor of 230.3 m (about its lowest ground, 147 m) to 770 m over it, and counted from the
+map's floor (`place().floor`, its 5th-percentile height) until Sarzana's part, so each part that
+lowered the floor blew lucido harder. With Fivizzano's lower valleys (down to 105 m) the floor was
+213.6 m, so the law spanned 134–984 m and lucido blew as 16.7 m higher did, up to 0.02 stronger: the
+meadow on Monte dei Bianchi (316 m) 0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 →
+0.277 (1.0 dB), the ridge above Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as
+before; a car at full load across that meadow was heard all the way to 284 m rather than 288. With
+Fosdinovo's Magra plain (down to 18.1 m) it was 162.3 m, so the law spanned 82–932 m and lucido blew
+as 68.0 m higher did, up to 0.05 stronger than with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB),
+the woods above Isolano 0.277 → 0.330 (3.1 dB), the ridge above Aiola 0.934 → 0.951, the spawn's
+street at the stillest as before, though the lane at Pian del Molino (−917, 1707) blew at 0.267 over
+the stillest 0.237; the car across the meadow was heard all the way to 265 m rather than the 285 of
+the map before it (2026-11-07, the director's rig in its calm). With Aulla's Magra and lower Aulella
+valleys, which hold two thirds of the nodes under it, it was 98.4 m, so the law spanned 18–868 m and
+lucido blew as 131.9 m higher did: the meadow 0.415 → 0.483 (2.6 dB), the woods above Isolano 0.330
+→ 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino 0.267 → 0.322; the car
+across the meadow was heard all the way to 240 m rather than 265 (2026-11-17). Sarzana's lower Val
+di Magra, whose part holds 96.2 % of the nodes now under it (821,462 of them on its plain at 2–10
+m), took it to 18.5 m, which spanned the law −61.5–788.5 m and blew lucido as 211.8 m higher did:
+the meadow 0.483 → 0.577 (3.1 dB), the woods above Isolano 0.403 → 0.501, the lane at Pian del
+Molino 0.322 → 0.406, and the spawn's street in Monzone, at night in the usual wind, over the
+night's stillest (33.9 dB(A) against 28); across the meadow a car at full load was heard only to 208
+m and a woman's talk 10 m off was masked (build b5513ccf5f74b243). The user chose then (issue #20)
+to count the law from the sea, where the 98.4 m floor had put it, so the earlier parts blow as
+before Sarzana's part and no later part moves the wind: the meadow 0.483 (0.4834 against 0.4830,
+0.02 dB; 5.4 dB over the tuning on lucido's own floor; the game in headless Chrome, `?seed=3`, holds
+its wind voice there at 0.4834 in the cloudy regime's 3 m/s), the woods above Isolano 0.404, the
+lane at Pian del Molino 0.322, the ridge above Aiola 0.954 (past the law's top), and the spawn's
+street at the day's stillest and, at night in the usual wind, the night's (28 dB(A)). Across the
+meadow a car at full load is heard all the way to 239 m (240 on the 98.4 m floor), a 2 m/s bump
+plays at a 20 m/s crash's gain all the way to 141 m, a car in fresh snow is masked from 107 m, and
+at 8 m/s the wind culls a car across it from 35 m off, on foot as in a car (2026-11-21). A flat
+coastal map's low ground is as calm as lucido's valley floor, and an Alpine map blows hard
+everywhere, as high ground does. Averaged over the 64 m nodes of their play area, the height's share
+of the strength goes on Cesena (floor 26.5 m) from 0.177 to 0.153, at most 0.053 less, its spawn's
+street from 0.243 to the day's stillest 0.237 (35.4 → 35.0 dB(A)); on the L (floor 173.1 m) from
+0.257 to 0.328, its spawn's street at the day's stillest as before (35.0 dB(A)); on the coast (floor
+−15 m, its sea floor) from 0.201 to 0.164, at most 0.138 less, its spawn's street from 0.255 to the
+day's stillest 0.237 (36.2 → 35.0 dB(A)). It is never under the floor's stillest, 0.24 by day and
+0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and the far valley, heard even in
+a sheltered street), and at most 1.33, a gale's bed at `GALE_DB` (65 dB(A)). Its level is 60 +
+40·log10(strength) dB(A): in the usual wind 35 in Monzone's streets, about 40–43 on open ground on
+the valley floor, 57–60 on the ridges. The voice plays at most its full strength 1, and past it the
+bed's gain carries the gale, so the usual wind keeps the voice it was tuned with.
 
 Over flat, open ground with nothing in the way, at the day's 35 dB(A) floor (at night's 28 every
 radius is about 2.2 times longer: 7 dB more of spreading):
@@ -731,16 +754,22 @@ weather.
   et al. 2002); a last round at dusk, 1.3 times, all roosting under −6°; none at night; heavy rain
   silences them (0.5–8 mm/h).
 - **Owls**: the tawny owl calls once the sun is 2–6° under (10–20 minutes after sunset) until as
-  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 1,399
-  territories, one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any
-  of `WOODS`: broadleaf, conifer or mixed); those within 600 m call, each resting 30 s after a call,
-  then calling about once in 20 s. The squares count from the region's anchor (`anchorOf`), as the
-  trees' lattice does, never from the box's corner, so a part that grows the box moves no owl of the
-  parts before it but those an edge it opens had held: Fivizzano moved 4 of lucido's 216, those
-  lucido's east edge had held at x 4900, 3 of them now 54–104 m past it and one gone; Fosdinovo
-  moved 12 of the 710, the 4 Fivizzano's west edge had held at x −5300 (now 59–433 m past it) and
-  the 8 by the edge at x −4000 of the notch its part fills, whose tries in it were skipped (now
-  163–446 m into it), and one west of lucido's edge, at (−3624, −3484), sits 0.12 m lower.
+  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 1,701
+  territories (1,399 before Sarzana's part), one in 70 % of the map's 500 m squares with woods, each
+  8 m up a tree in a wood (any of `WOODS`: broadleaf, conifer or mixed); those within 600 m call,
+  each resting 30 s after a call, then calling about once in 20 s. The squares count from the
+  region's anchor (`anchorOf`), as the trees' lattice does, never from the box's corner, so a part
+  that grows the box moves no owl of the parts before it but those an edge it opens had held:
+  Fivizzano moved 4 of lucido's 216, those lucido's east edge had held at x 4900, 3 of them now
+  54–104 m past it and one gone; Fosdinovo moved 12 of the 710, the 4 Fivizzano's west edge had held
+  at x −5300 (now 59–433 m past it) and the 8 by the edge at x −4000 of the notch its part fills,
+  whose tries in it were skipped (now 163–446 m into it), and one west of lucido's edge, at (−3624,
+  −3484), sits 0.12 m lower; Sarzana moved 18 of the 1,399, the 8 Aulla's west edge had held at x
+  −22100 (now 8–231 m past it), the 7 by the notch its part fills, whose tries in it were skipped
+  (moved 186–384 m), and 3 in tile −10_1, south of y 3900, whose earlier tries fall in a wood of the
+  ground it rebuilt there (moved 74–373 m); 6 more sit 1.93 m lower to 1.29 m higher, none is gone,
+  and of its 302 new ones 195 stand in its rectangle, 26 in the Bolano strip Aulla's mask gained and
+  81 south of y −6100 east of it, outside play (2026-11-22).
 - **Crickets** sing where open ground outweighs buildings, in air of 10 °C or more at the ears
   (chirping faster as it warms) and dry. They follow the temperature and the rain, not the hour,
   so an October evening's cooling slows them and its night silences them.
@@ -842,7 +871,7 @@ One-shots:
 | `yell` | the same line, yelled: higher, brighter, its vowels longer | a person's `Cry` that is not a scream, a gatherer's call, a robbed driver ([Conversations and cries](#conversations-and-cries)) | 89 (1 m) for a man, 82 for a woman or a child (Pearsons et al. 1977: shouted) |
 | `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late by a seed hashed from its building's id (`Bell.seed`), which no part that reorders the map's towers moves ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
 | `bird` | `synth/nature.ts`: autumn calls of the robin, great tit, blackbird ("chink" or "seee") and chaffinch ("pink"), 35/30/20/15 %; the tawny owl (`owl`): the male's hoot sequence, about 6 s, or in 30 % of calls the female's "kewick" (0.46 s) | songbirds from a tree 15–70 m away: 0.3 calls a second in full forest, plus 0.05 near houses, by the sun and the rain (`birdActivity`); owls at night from their woods ([Day, night and weather](#day-night-and-weather)) | songbirds 85 (1 m); the owl 90 (1 m, `OWL`, estimated) |
-| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 953 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
+| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 4,116 farm dogs on Lunigiana with Sarzana's part (953 with Fosdinovo's; about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
 | `moo` | `synth/animals.ts` ([Animal calls](#animal-calls)) | a cow on its own (every 40 s on average), its `Cry`, its pain after a hit | 92 (1 m), an estimate between a man's shout and a bark |
 | `grunt` | `synth/animals.ts` | a pig on its own (every 6 s on average), a `Cry` that is not a fright | 70 (1 m), an estimate within pigs' 60–90 dB |
 | `squeal` | `synth/animals.ts` | a pig's fright `Cry`, its pain after a hit | 105 (1 m): piglets peaked at 101.9 dB (Engenharia Agrícola 2018), a grown pig's squeal is commonly put at 110–115 |
@@ -1706,13 +1735,13 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/audio/speech/__tests__/*.test.ts` and `*.long-test.ts` (every line rendered, 200,000 gibberish words) | the lexicon spelt in known phonemes; every situation's lines valid and the same per seed; the cries real Italian in their tune; help fitting the victim, grief the bereaved, no ambulance for an animal; chat 1–3 s with ≈ 15 % fillers, replies shorter; gibberish following the phonotactics, spelt the Italian way, and never a profanity or a slur in 200,000 words; a laugh's 3–6 calls; the plan contiguous, padded with silence and as long as `lineSeconds`; geminates, stress and phrase-final lengthening; chat near 7 syllables a second; children, elders and yells slower; each tune's melody and each speaker's pitch; every line rendered at a 0.5 peak, finite, silent at both ends and ringing out with no step where the speech ends; the same seed the same samples; men lower than women, women lower than children; a question ending higher and a statement lower; a yell higher and brighter; /s/ brighter than /a/ and under it, /ʃ/ darker than /s/; a release burst in its own band |
 | `src/audio/director/__tests__/hearing.test.ts`, `occluder.test.ts` | the reverb send: none in the open, in a street by distance (capped), gaps and the cabin, even for a sound of the own car that skips it; a source aloft (thunder's channel) takes no ground effect, and snow on the ground up to 12 dB more and half the street's reverb; the obstacle cache's refresh and forgetting |
 | `src/audio/__tests__/speaker.test.ts`, `mixer.test.ts`, `buffers.test.ts`, `measure.test.ts` | the one-shot cap, the speaker inert until a trusted gesture, the level meter, seamless noise loops, the gust signal against its closed-form sine sum, the render measurements |
-| `src/audio/director/__tests__/weather.test.ts` | the weather and the hour at the director: the rain bed at the rate falling at the ears in an olive grove's open ground, no wood or house near (none dry or in snow), a downpour masking a far car, the roof's drumming in the Panda with the bed through the cabin; thunder waiting its travel time (a bolt 3.4 km away about 10 s after the flash), rendered on a frame after its flash's, timed from the ears' height on a ridge, at once and capped within 40 m, narrower than a point, placed on arrival (through the cabin if the listener got in meanwhile, sooner when driving toward it), echoing off rock and cut short with them, never before the context runs, at most two at once in an approaching storm, quieter for a weaker flash and masked by a downpour; the wind (the tuned voice in the usual wind, stiller, gustier and a gale as the weather blows, masking through the cabin in a car, rising with the ears' height over the map's floor so an Alpine floor stills a ridge, the usual wind a cloudy day's and over the weather's own October mean); the night floor; the dawn chorus, dusk and rain silencing birds; the owl at night, once in 30 s; the 08:00 ring waiting for the context; crickets in warm, dry air only (silent on the ridge in the meadow's 11 °C air, in still air); snow's hush and crunch |
+| `src/audio/director/__tests__/weather.test.ts` | the weather and the hour at the director: the rain bed at the rate falling at the ears in an olive grove's open ground, no wood or house near (none dry or in snow), a downpour masking a far car, the roof's drumming in the Panda with the bed through the cabin; thunder waiting its travel time (a bolt 3.4 km away about 10 s after the flash), rendered on a frame after its flash's, timed from the ears' height on a ridge, at once and capped within 40 m, narrower than a point, placed on arrival (through the cabin if the listener got in meanwhile, sooner when driving toward it), echoing off rock and cut short with them, never before the context runs, at most two at once in an approaching storm, quieter for a weaker flash and masked by a downpour; the wind (the tuned voice in the usual wind, stiller, gustier and a gale as the weather blows, masking through the cabin in a car, rising with the ears' height above the sea, so a part that moves the map's floor moves no wind, the usual wind a cloudy day's and over the weather's own October mean); the night floor; the dawn chorus, dusk and rain silencing birds; the owl at night, once in 30 s; the 08:00 ring waiting for the context; crickets in warm, dry air only (silent on the ridge in the meadow's 11 °C air, in still air); snow's hush and crunch |
 | `src/audio/synth/__tests__/thunder.test.ts` and `thunder.long-test.ts` (the render bounds, near against far, phones, `thunderQuiet`) | the thunder renderer, bounds checked on seeds 1–96: finite, held to 0.5, at most 20 s, faded, the same for the same flash; a near bolt's crack and boom against a far one's rumble (centroid, onset, crack energy above 2 kHz, low share, length); an in-cloud flash with no crack; a third or more of the energy at 100–400 Hz within 2 km (phone speakers); `thunderQuiet` within 2 dB of A-weighted renders past 2 km; `lead`; the trunk first from a ridge over a valley bolt; one render per params object at 16 kHz for a bolt within 1 km and 8 kHz past it or in the cloud; a flash at no finite distance thundering as one overhead |
 | `src/audio/synth/__tests__/*.test.ts` | the vehicle, train and world synths' tables loading in Node; each engine's timbre from how it is built (pulses from cylinders and cycle, formants falling with displacement and the sub rising with each cylinder's size, a two-stroke brighter and rattling, a diesel's clatter, a turbo's whine only with a turbo, the Giulia's exhaust voiced darker than its size), the engine law (idle 11 dB under the redline, the cabin tone, every model at its trimmed peak, a variant's pitch and formants); an engine as new playing the law it played before damage, damage dulling, softening, roughening (from 0.2) and knocking (from the medium stage) it, a misfire closing its gate and nothing else, no damage lifting its output gain over its nominal and `engineQuiet` counting what it plays; the tyre law (a standing burnout and a locked wheel squeal, a creep barely past grip does not, the full slide at the Giulia's top speed; sand's soft, dark roll and low, dense hiss and no squeal); the scrape's surface loops (seamless, at their RMS, a stone every 0.3 m and a rail post every 2 m) and its speed law; step and cricket rates (a cricket voice held in the cold still chirps at the 10 °C rate, never an Infinity-long wait); a texture's segments (`segmentsUntil`: end to end, 0.3–0.9 s each, from places spread over the buffer, planned half a second ahead, starting again from now after a stalled frame, and with no 1.5 s period at double speed) and the wind's leaves, the rain's drops, the roof's patter and the tyres' crunch built on stub nodes: the kit's grains in short segments from random places, never a plain loop, and the Doppler shift through one tap; the rain law (the drops' kinetic energy, 12 dB a decade, a downpour at the nominal) and its layers (a shower's drops fusing into the hiss and the roar, surfaces adding in power, plinks on water never louder than a downpour's), the roof's drumming (countable drops in a shower, a roar in a downpour, low and tonal under 1 kHz); bubbles at their Minnaert frequency; synth params clamped, NaN to silence |
 | `src/audio/synth/__tests__/explosion.test.ts` (deterministic per seed) and `explosion.long-test.ts` (the twenty seeds) | the blast renderer over twenty seeds (the bounds checked on seeds 1–80, twenty at a time): finite (from an 8 kHz device rate too), peaking at the nominal 0.5, at most 4 s, faded; deterministic per seed; against the reference crash at the same peak, 4 dB and more louder over its first 300 ms (median 7.1), a crest of at most 9 dB (6.6), at least 0.1 more of its energy under 200 Hz (0.54 against 0.35), its centroid over 30–600 ms at least 500 Hz lower (1.5 against 2.4 kHz); its loudest 50 ms starting within 0.2 s, 0.3–1 s within 10 dB of the first 0.15 s and 1.2–1.6 s 11 dB and more under it; over 2 kHz its debris 10 dB and more over the roar's tail on asphalt (17.4) and 6 dB and more louder than on grass (18.4) |
 | `src/audio/synth/crash/__tests__/crash.test.ts` and `crash.long-test.ts` (every check over the matrix; the cases in `cases.ts`) | the crash renderer over the design's matrix, each at the sim's mass (a Panda into a house at 2, 5, 12, 14 and 20 m/s, Panda–Panda 10, Panda–truck 12, an Ape into stone 8, the Giulia into the guard rail 12, a sheet wall 12, a tree 10, earth 8, a side hit 12, a 40 m/s wreck, the laden truck into a house at 2 and 12, a hard landing on the road at 6 and a roll onto it at 8, against a house wall at 6 and 10 and a side into it at 8), twenty seeds each (the bounds checked on seeds 1–80, twenty at a time), measured by `testing.ts` (the research's analysis tools, ported): finite, ≤ 1, ≤ 4 s, faded, finite from an 8 kHz device rate; noise that never repeats inside a render; deterministic per seed; the level law, its cap and the peaks following it within 2 dB (a bump, the rail, a sheet wall, Panda–Panda, the truck's nudge); the laden truck 7 dB over a Panda, its nudge like a Panda's 4 m/s bump, capped by 14 m/s, the barrier speeds of a Panda against it and of it; a landing breaking nothing; growth past the cap (tail, block, at most 3 sub-hits, 42 m/s against 60 audibly different); the critique's targets on the exterior crashes (medians: −10 dB at 150–450 ms, rise 8–25 ms, crest 9–15 dB, band flatness 0.35–0.6, 1–8 kHz kurtosis 2.8–4.5, 8 kHz −12…−25 dB, 16 kHz −22…−36, centroid 1.5–3.5 kHz through 600 ms; 97 % of renders with 63 Hz ≤ −5 dB and the loudest octave in 125 Hz–2 kHz); the tail's −20 dB at 0.25–2.5 s, later the harder the hit; a flat median spectrum (the truck within 8 dB); the long partials layer (each model's count at 0.6–4.3 kHz, η 0.001–0.01) and 1–3 of them clear in the render; the bump's 40–100 ms; the rail's tonal ring; the sheet wall's ring against masonry; the truck's bumper clang; the tree's faint rustle past 2 s and its tail under 3.5 kHz; earth the slowest, dullest; a car–car hit's clank against a house wall's dead mass; the road's thump on a landing and slap on a roll; sub-hits 13 dB and more under the hit; a greenhouse nudge's dull crack; a worn side breaking nothing again; the glass shower's 6–10 kHz centroid and grass and sand swallowing it |
 | `src/audio/__tests__/rail.test.ts` | the railway as `Hear` projects it: a train's power packs idling with the power off and at their rated revs at full power, either way; its cars from the active cab back, each on the track with its s and whether it is in a tunnel; a road crossing ringing in the warning and while its arms come down, not open, closed or rising, and a foot crossing never; a car meeting a train as its own hit on a steel wall, the train its `other`, two trains crashing both as steel bodies, a buffer stop by the train's front, a person struck with no vehicle body, a vanished car's hit dropped; on a real runtime, a staged ATR 220 car by car as `carsOf` places it, Via Riolo ringing once its cycle is set to the warning, a whistle at its cab car's rail head, a train–train hit as steel, and the player aboard as the listener in the cab |
-| `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock (heard at night in still air, under the stillest 28 dB(A), so the masking floor is the same on any map: through its portal 137 m off the train reaches the ears at 20.1 dB, which by day on the map before Fosdinovo's part stood 0.12 dB over the cull, and Fosdinovo's lower floor raised the hill's usual wind, which grows from the map's floor, 0.9 dB over the stillest and culled it; at night it is held 7 dB over the cull, its power pack too); a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
+| `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock (heard at night in still air, under the stillest 28 dB(A), so the masking floor is the same on any map: through its portal 137 m off the train reaches the ears at 20.1 dB, which by day on the map before Fosdinovo's part stood 0.12 dB over the cull, and Fosdinovo's lower floor raised the hill's usual wind, which grew from the map's floor then, 0.9 dB over the stillest and culled it; at night it is held 7 dB over the cull, its power pack too); a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
 | `src/audio/synth/__tests__/rail.test.ts`, `crossing.test.ts` | the wheels' law (30 dB per decade, the band at v / 2.5 cm), each axle clacking once over each joint at the time it gets there at any frame length, backing up and after a stall; the brakes squealing on every stop below 6 m/s, braking harder than a tenth of the emergency rate (the AI stops at about half of it), not coasting; the horn's tones within EN 15153-2's bands, a long blast 1–2 s, the alarm's more than three short ones in turn and over within 2 s; the bell's period 1.287 s with its stroke at the start, −20 dB a second on, and its loop sample for sample the steady ring of 40 strokes, wrapping with no seam |
 | `src/audio/places/__tests__/notch.test.ts` (Lunigiana with its north-east tiles unlisted, `notchMap` in `src/sim/map/__tests__/edit-map.ts`) | no owl perched on an unlisted tile, none in the woods the notch borrows from the listed tiles round it |
 | `src/audio/places/__tests__/animals.test.ts` (the tiles within 1.5 km of Monzone station) | each owl within 1 km of the station in its 500 m square counted from the region's anchor, not the box's corner |
@@ -1964,7 +1993,7 @@ Where to tune:
 | `src/audio/director/people.ts` | jumps, running, the robbed driver's radius (`THIEF_NEAR`), the cue gap (`CUE_GAP`), who screams (`SCREAMERS`), how often gatherers speak (`HELP_RATE`), how near a victim lies (`BODY_NEAR`), the lines a frame (`LINES_PER_FRAME`, `STALE`) |
 | `src/audio/director/talk.ts` | when two chat (`PAIRED`), the pause between turns (`GAP`), the turns' shares (`TURNS`), the conversations voiced (`VOICED`), a party's bursts and lulls (`BURST`, `LULL`) |
 | `src/audio/director/animals.ts` | how often each species calls on its own, what each cries, the gap between calls (`CALL_GAP`), the calls a frame (`CALLS_PER_FRAME`, `STALE`), a big dog's size (`BIG_DOG`) |
-| `src/audio/director/world.ts` | the wind law (`ALTITUDE`, m over the map's floor, `CALM`, `GALE`, `OPEN`, `STREETS`) and the snow's stilling of its leaves (`SNOW_LEAVES`), the beds and water compressed at their level, the rain's reach to water (`WATER_RAIN`), birds, owls (`OWL_MEAN`, `OWL_REST`), farm dogs, the bell hours (`BELL_HOURS`) and strokes, how often water, farm dogs and owls are looked up |
+| `src/audio/director/world.ts` | the wind law (`ALTITUDE`, m above the sea, `CALM`, `GALE`, `OPEN`, `STREETS`) and the snow's stilling of its leaves (`SNOW_LEAVES`), the beds and water compressed at their level, the rain's reach to water (`WATER_RAIN`), birds, owls (`OWL_MEAN`, `OWL_REST`), farm dogs, the bell hours (`BELL_HOURS`) and strokes, how often water, farm dogs and owls are looked up |
 | `src/audio/director/sky.ts` | the day's and the weather's laws: the floor by the sun (`floorDb`), the songbirds' and the owls' activity, the usual wind (`USUAL_WIND`) and gusts, the faintest rain heard (`RAINING`) |
 | `src/audio/director/thunder.ts` | how wide thunder pans (`WIDTH`), how many roll at once and how much quieter over another (`AT_ONCE`, `OVERLAP`), the power's law (`POWER_DB`, `WEAKEST`) |
 | `src/audio/director/occluder.ts` | the obstacle refresh rate, per-frame budget and forgetting |

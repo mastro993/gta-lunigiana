@@ -3,15 +3,15 @@ import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
 import type { BuildingF, RoadF } from "../features.ts"
-import { ringBox, segDist2 } from "../geometry.ts"
+import { inRings, ringBox, segDist2 } from "../geometry.ts"
 import { gridLattice } from "../terrain.ts"
 import { buildWalls } from "../walls.ts"
-import { inRings } from "../water-areas.ts"
 import { segments } from "./wall-segments.ts"
 
-/** No bridge, so no parapet and no wall under a deck. */
+/** No bridge, so no parapet and no wall under a deck; no building's floor and no tunnel's level. */
 const NO_PARAPETS = { walls: [], levels: [] },
-  NOTHING_UNDER = { walk: NO_PARAPETS, drive: NO_PARAPETS }
+  NOTHING_UNDER = { walk: NO_PARAPETS, drive: NO_PARAPETS },
+  NO_HEIGHTS = { floors: [], level: () => Number.NaN, terrain: () => 0 }
 
 /** Points every metre or less along each of the walls' segments. */
 const samples = (flat: ReadonlyArray<number>) =>
@@ -62,20 +62,40 @@ const RIVER: Area = {
 const STILL: Area = { kind: "river", level: -CARVE, rings: [] }
 const walled = () => {
   const g = gridLattice(),
-    z = new Float64Array(g.cols * g.rows),
+    dm = new Int16Array(g.cols * g.rows),
     [x0, y0, x1, y1] = ringBox(RIVER.rings[0]!)
   assert.equal(g.cell, CELL)
   for (let j = Math.floor((y0 - g.y0) / CELL); j <= Math.ceil((y1 - g.y0) / CELL); j++)
     for (let i = Math.floor((x0 - g.x0) / CELL); i <= Math.ceil((x1 - g.x0) / CELL); i++)
-      if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) z[j * g.cols + i] = -CARVE
+      if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) dm[j * g.cols + i] = -CARVE * 10
   return {
     /** With both areas. */
-    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS, NOTHING_UNDER),
+    both: buildWalls(
+      { ...g, dm },
+      [],
+      [],
+      [],
+      [],
+      [LAKE, RIVER],
+      NO_PARAPETS,
+      NOTHING_UNDER,
+      NO_HEIGHTS,
+    ),
     /** The same ground with no river polygon over its carve. */
-    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE], NO_PARAPETS, NOTHING_UNDER),
+    lakeOnly: buildWalls(
+      { ...g, dm },
+      [],
+      [],
+      [],
+      [],
+      [LAKE],
+      NO_PARAPETS,
+      NOTHING_UNDER,
+      NO_HEIGHTS,
+    ),
     /** The same polygon holding still water, its river not in the map: carved as a lake is. */
     still: buildWalls(
-      { ...g, z },
+      { ...g, dm },
       [],
       [],
       [],
@@ -83,6 +103,7 @@ const walled = () => {
       [LAKE, { ...STILL, rings: RIVER.rings }],
       NO_PARAPETS,
       NOTHING_UNDER,
+      NO_HEIGHTS,
     ),
   }
 }
@@ -154,13 +175,13 @@ const ROCK: Area = {
 
 test("buildWalls rings the sea with shore walls and its raised breakwater too, dry land with no shore wall on it, walled for vehicles alone along its outline", () => {
   const g = gridLattice(),
-    z = new Float64Array(g.cols * g.rows)
+    dm = new Int16Array(g.cols * g.rows)
   for (let x = -1524; x <= -1476; x += CELL)
     for (let y = -2924; y <= -2876; y += CELL)
-      z[((y - g.y0) / CELL) * g.cols + (x - g.x0) / CELL] = 1.5
+      dm[((y - g.y0) / CELL) * g.cols + (x - g.x0) / CELL] = 15
   const outline = ROCK.rings[0]!
   const walls = buildWalls(
-    { ...g, z },
+    { ...g, dm },
     [],
     [],
     [],
@@ -168,6 +189,7 @@ test("buildWalls rings the sea with shore walls and its raised breakwater too, d
     [SEA, ROCK],
     NO_PARAPETS,
     NOTHING_UNDER,
+    NO_HEIGHTS,
   )
   const near = CELL + SLACK
   const bySea = (flat: ReadonlyArray<number>) =>
@@ -200,7 +222,7 @@ test("buildWalls appends 50,000 parapets and as many walls under the decks, each
     levels: Array.from({ length: 50_000 }, (_, k) => k % 89),
   }
   const walls = buildWalls(
-    { ...g, z: new Float64Array(g.cols * g.rows) },
+    { ...g, dm: new Int16Array(g.cols * g.rows) },
     [],
     [],
     [],
@@ -208,6 +230,7 @@ test("buildWalls appends 50,000 parapets and as many walls under the decks, each
     [],
     many,
     { walk: many, drive: many },
+    NO_HEIGHTS,
   )
   assert.deepEqual(walls.walk.slice(-many.walls.length), many.walls)
   assert.deepEqual(walls.drive.slice(-many.walls.length), many.walls)
@@ -265,7 +288,7 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
   }))
   const g = gridLattice()
   const { walk, drive } = buildWalls(
-    { ...g, z: new Float64Array(g.cols * g.rows) },
+    { ...g, dm: new Int16Array(g.cols * g.rows) },
     footways,
     [],
     houses,
@@ -273,6 +296,7 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
     [],
     NO_PARAPETS,
     NOTHING_UNDER,
+    NO_HEIGHTS,
   )
   FOOTWAYS.forEach(({ pts }, f) => {
     // The house's walls: nothing else stands within 30 m on the flat grid, far from the outline.
@@ -293,4 +317,85 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
       }
     }
   })
+})
+
+// Regression (#20): a house at Fresonara stands on the hill over the A15's Galleria Fresonara, its
+// floor far over the bore, and the motorway tunnel's corridor (its whole 5 m half-width) opened its
+// walls, so anyone walked into it; walled at every level, it would stop the cars in the bore. And
+// (review of #20): each of its walls levelled whole at the ground at its middle, one stood 2.59 m off
+// its level at an end on the hill, and a walker passed it there.
+test("buildWalls opens a house's walls for a tunnel only where the bore passes it at its level; over a bore deep under it, those over the bore's traffic stand on the ground's level along them", () => {
+  // Two motorway bores 200 m apart, each under a house 30 m wide whose floor stands at 100 m: one
+  // 60 m over the road, one 3 m over it. The hill climbs 40% eastward.
+  const at = [
+    { x: 3000, z: 40 },
+    { x: 3200, z: 97 },
+  ]
+  const tunnels = at.map(({ x }, k): RoadF => ({
+    id: k + 1,
+    cls: "motorway",
+    w: 10,
+    surface: "asphalt",
+    private: false,
+    oneway: true,
+    tunnel: true,
+    pts: [
+      { x, y: -3040, id: `${k}a` },
+      { x, y: -2960, id: `${k}b` },
+    ],
+  }))
+  const houses = at.map(({ x }, k): BuildingF => ({
+    id: 100 + k,
+    kind: "house",
+    h: 8,
+    style: "plaster",
+    tint: 0,
+    outer: [x - 15, -3006, x + 15, -3006, x + 15, -2994, x - 15, -2994],
+  }))
+  const hill = (x: number) => 97 + 0.4 * (x - 3000)
+  const g = gridLattice()
+  const { walk, levels } = buildWalls(
+    { ...g, dm: new Int16Array(g.cols * g.rows).fill(970) },
+    tunnels,
+    [],
+    houses,
+    [],
+    [],
+    NO_PARAPETS,
+    NOTHING_UNDER,
+    { floors: [100, 100], level: (road) => at[road]!.z, terrain: hill },
+  )
+  /** The walls along the house's outline round the bore at `x`, with their levels. */
+  const walled = (x: number) =>
+    segments(walk).flatMap(([ax, ay, bx, by], w) =>
+      Math.abs(ax! - x) <= 15.05 &&
+      Math.abs(bx! - x) <= 15.05 &&
+      Math.abs(ay! + 3000) <= 6.05 &&
+      Math.abs(by! + 3000) <= 6.05
+        ? [{ ax: ax!, bx: bx!, level: levels.walk[w]! }]
+        : [],
+    )
+  const deep = walled(3000)
+  assert.ok(deep.length > 0, "a house 60 m over the bore keeps its walls")
+  for (const { ax, bx, level } of deep)
+    if (Math.min(Math.abs(ax - 3000), Math.abs(bx - 3000)) > 6 && Math.abs(ax - bx) < 0.01)
+      assert.ok(Number.isNaN(level), `its wall at x ${ax}, off the bore, stands at every level`)
+    else if (Math.min(ax, bx) <= 3006 && Math.max(ax, bx) >= 2994)
+      for (const end of [ax, bx])
+        assert.ok(
+          Math.abs(hill(end) - level) <= 1.5,
+          `its wall over the bore stands ${(hill(end) - level).toFixed(2)} m off its level at x ${end}`,
+        )
+  assert.ok(
+    deep.some(({ ax, bx, level }) => Math.abs(ax - bx) < 0.01 && Number.isNaN(level)),
+    "its ends off the bore stand at every level",
+  )
+  // A bore passing the house at its level opens it: its walls keep out of the bore's 5 m.
+  for (const { ax, bx, level } of walled(3200)) {
+    assert.ok(
+      Math.min(Math.abs(ax - 3200), Math.abs(bx - 3200)) >= 5 && (ax - 3200) * (bx - 3200) > 0,
+      `a wall at x ${ax}…${bx} in the bore`,
+    )
+    assert.ok(Number.isNaN(level))
+  }
 })

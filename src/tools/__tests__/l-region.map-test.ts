@@ -66,8 +66,26 @@ test(
   () => {
     const { isDrivable, outlineDistance, wallsNear } = sim!
     const capped: Array<number> = []
-    for (const road of WHOLE!.roads) {
-      if (!isDrivable(road.cls)) continue
+    const drivable = WHOLE!.roads.filter((r) => isDrivable(r.cls))
+    /** The drivable roads with a vertex at (x, y). */
+    const at = (x: number, y: number) =>
+      drivable.filter((r) => r.pts.some((v, i) => i % 2 === 0 && v === x && r.pts[i + 1] === y))
+    /**
+     * Whether (x, y) lies on the carriageway of a drivable road other than `road` and the piece
+     * joined end to end with it at its inner end (`next`, where no third way meets it).
+     */
+    const onOther = (road: (typeof drivable)[number], next: unknown, x: number, y: number) =>
+      drivable.some((r) => {
+        if (r === road || r === next) return false
+        for (let k = 0; k + 3 < r.pts.length; k += 2)
+          if (
+            segDist2(x, y, r.pts[k]!, r.pts[k + 1]!, r.pts[k + 2]!, r.pts[k + 3]!).d2 <
+            (r.w / 2) ** 2
+          )
+            return true
+        return false
+      })
+    for (const road of drivable) {
       const n = road.pts.length / 2
       for (const [e, step] of [
         [0, 1],
@@ -86,6 +104,20 @@ test(
           len = Math.hypot(ex - px, ey - py),
           ix = ex + ((px - ex) * 8) / len,
           iy = ey + ((py - ey) * 8) / len
+        // A road leaving a few metres from a junction, where its cap would stand on another road's
+        // carriageway, is left uncapped (exit-caps.ts: a cap shuts its own road alone), and the
+        // outline's walls shut it: the L's 1 m stub 689546076 by the track 227686934.
+        const inner = e === 0 ? n - 1 : 0
+        const joined = at(road.pts[2 * inner]!, road.pts[2 * inner + 1]!).filter((r) => r !== road)
+        if (
+          onOther(
+            road,
+            joined.length === 1 ? joined[0] : undefined,
+            ex + ((px - ex) * 4) / len,
+            ey + ((py - ey) * 4) / len,
+          )
+        )
+          continue
         const caps = wallsNear(
           "drive",
           Math.min(ix, ex),

@@ -1,10 +1,10 @@
 // Plane geometry for the map build: local projection, the built terrain's box and clipping rings
-// to a box, ring winding, point/segment distances and a bucketed segment index. The play area and
-// clipping lines to it are play-area.ts's.
+// to a box, ring winding and point/segment distances. The play area and clipping lines to it are
+// play-area.ts's; the bucketed indexes of segments and points spatial-index.ts's.
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { segDist2 } from "../sim/collide.ts"
+import { segD2, segT } from "../sim/collide.ts"
 import { latLonToGaussBoaga, latLonToUtm32 } from "./crs.ts"
 import { REGION, type Rect } from "./region.ts"
 
@@ -144,17 +144,16 @@ export const ringBox = (ring: ReadonlyArray<number>): [number, number, number, n
     y0 = Infinity,
     x1 = -Infinity,
     y1 = -Infinity
-  for (let i = 0; i + 1 < ring.length; i += 2)
-    [x0, y0, x1, y1] = [
-      Math.min(x0, ring[i]!),
-      Math.min(y0, ring[i + 1]!),
-      Math.max(x1, ring[i]!),
-      Math.max(y1, ring[i + 1]!),
-    ]
+  for (let i = 0; i + 1 < ring.length; i += 2) {
+    x0 = Math.min(x0, ring[i]!)
+    y0 = Math.min(y0, ring[i + 1]!)
+    x1 = Math.max(x1, ring[i]!)
+    y1 = Math.max(y1, ring[i + 1]!)
+  }
   return [x0, y0, x1, y1]
 }
 
-export { fillPolygon, pointInRing, segDist2 } from "../sim/collide.ts"
+export { fillPolygon, inRings, pointInRing, segD2, segDist2 } from "../sim/collide.ts"
 
 /** Arc length at each vertex. */
 export const arcLengths = (pts: ReadonlyArray<V>): Array<number> => {
@@ -178,10 +177,48 @@ export const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] =
     y0 = Infinity,
     x1 = -Infinity,
     y1 = -Infinity
-  for (const p of l)
-    [x0, y0, x1, y1] = [Math.min(x0, p.x), Math.min(y0, p.y), Math.max(x1, p.x), Math.max(y1, p.y)]
+  // Each bound on its own: an array a vertex made 9 GB of garbage in Lunigiana's sources stage.
+  for (const p of l) {
+    x0 = Math.min(x0, p.x)
+    y0 = Math.min(y0, p.y)
+    x1 = Math.max(x1, p.x)
+    y1 = Math.max(y1, p.y)
+  }
   return [x0, y0, x1, y1]
 }
+
+/** Side of the squares `nearBoxes` marks, m. */
+const NEAR_CELL = 64
+
+/**
+ * Whether a [minX, minY, maxX, maxY] box may meet any of `boxes`: true for every box that does, from
+ * the NEAR_CELL m squares they cover, and for a few that only share such a square with one. An
+ * index needs only the features that can meet its queries' boxes: those of every road took about a
+ * gigabyte at the walls stage's start, where the parapets and the walls under the decks ask near
+ * the bridges alone.
+ */
+export const nearBoxes = (
+  boxes: ReadonlyArray<readonly [number, number, number, number]>,
+): ((x0: number, y0: number, x1: number, y1: number) => boolean) => {
+  const squares = new Set<number>()
+  const key = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096)
+  for (const [x0, y0, x1, y1] of boxes)
+    for (let i = Math.floor(x0 / NEAR_CELL); i <= Math.floor(x1 / NEAR_CELL); i++)
+      for (let j = Math.floor(y0 / NEAR_CELL); j <= Math.floor(y1 / NEAR_CELL); j++)
+        squares.add(key(i, j))
+  return (x0, y0, x1, y1) => {
+    for (let i = Math.floor(x0 / NEAR_CELL); i <= Math.floor(x1 / NEAR_CELL); i++)
+      for (let j = Math.floor(y0 / NEAR_CELL); j <= Math.floor(y1 / NEAR_CELL); j++)
+        if (squares.has(key(i, j))) return true
+    return false
+  }
+}
+
+/** `box` grown by `r` on every side. */
+export const grownBox = (
+  [x0, y0, x1, y1]: readonly [number, number, number, number],
+  r: number,
+): [number, number, number, number] => [x0 - r, y0 - r, x1 + r, y1 + r]
 
 export interface Crossing {
   readonly x: number
@@ -230,6 +267,36 @@ export const crossings = (a: ReadonlyArray<V>, b: ReadonlyArray<V>): Array<Cross
   return out
 }
 
+/**
+ * The ends of polyline `a` (its first and last vertex) lying within `reach` of polyline `b`, square
+ * to it between its ends (not past its first or last vertex), with the arc length along each, as
+ * `crossings` gives a meeting.
+ */
+export const endsUnder = (
+  a: ReadonlyArray<V>,
+  b: ReadonlyArray<V>,
+  reach: number,
+): Array<Crossing> => {
+  if (a.length < 2) return []
+  const out: Array<Crossing> = []
+  const lb = arcLengths(b)
+  for (const [p, sa] of [
+    [a[0]!, 0],
+    [a.at(-1)!, arcLengths(a).at(-1)!],
+  ] as const) {
+    let best = reach * reach,
+      sb: number | undefined
+    for (let j = 0; j + 1 < b.length; j++) {
+      const t = segT(p.x, p.y, b[j]!.x, b[j]!.y, b[j + 1]!.x, b[j + 1]!.y),
+        d2 = segD2(p.x, p.y, b[j]!.x, b[j]!.y, b[j + 1]!.x, b[j + 1]!.y, t)
+      if ((t <= 0 && j === 0) || (t >= 1 && j + 2 === b.length) || d2 > best) continue
+      ;[best, sb] = [d2, lb[j]! + t * (lb[j + 1]! - lb[j]!)]
+    }
+    if (sb !== undefined) out.push({ x: p.x, y: p.y, sa, sb })
+  }
+  return out
+}
+
 /** Point and unit tangent at arc length `at` along a polyline with precomputed arc lengths. */
 export const pointAt = (
   pts: ReadonlyArray<V>,
@@ -247,194 +314,6 @@ export const pointAt = (
     y: a.y + (b.y - a.y) * t,
     tx: (b.x - a.x) / len,
     ty: (b.y - a.y) / len,
-  }
-}
-
-interface Buffered<T> {
-  readonly ax: number
-  readonly ay: number
-  readonly bx: number
-  readonly by: number
-  readonly r: number
-  readonly data: T
-}
-
-/** Segments with a buffer radius each, bucketed on a square grid for "is this point within r of a segment" queries. */
-export const segIndex = <T>(bucket = 16) => {
-  const cells = new Map<number, Array<number>>()
-  const segs: Array<Buffered<T>> = []
-  const key = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096)
-  const add = (ax: number, ay: number, bx: number, by: number, r: number, data: T) => {
-    const k = segs.length
-    segs.push({ ax, ay, bx, by, r, data })
-    for (
-      let i = Math.floor((Math.min(ax, bx) - r) / bucket);
-      i <= Math.floor((Math.max(ax, bx) + r) / bucket);
-      i++
-    )
-      for (
-        let j = Math.floor((Math.min(ay, by) - r) / bucket);
-        j <= Math.floor((Math.max(ay, by) + r) / bucket);
-        j++
-      ) {
-        const c = cells.get(key(i, j))
-        if (c === undefined) cells.set(key(i, j), [k])
-        else c.push(k)
-      }
-  }
-  const addLine = (pts: ReadonlyArray<V> | ReadonlyArray<number>, r: number, data: T) => {
-    const xy =
-      typeof pts[0] === "number"
-        ? (pts as ReadonlyArray<number>)
-        : (pts as ReadonlyArray<V>).flatMap((p) => [p.x, p.y])
-    for (let i = 0; i + 3 < xy.length; i += 2)
-      add(xy[i]!, xy[i + 1]!, xy[i + 2]!, xy[i + 3]!, r, data)
-  }
-  /** Calls `visit` for each segment whose buffer contains (x,y), with the squared distance and projection t. */
-  const within = (x: number, y: number, visit: (s: Buffered<T>, d2: number, t: number) => void) => {
-    const c = cells.get(key(Math.floor(x / bucket), Math.floor(y / bucket)))
-    if (c === undefined) return
-    for (const k of c) {
-      const s = segs[k]!
-      const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
-      if (d2 < s.r * s.r) visit(s, d2, t)
-    }
-  }
-  const covers = (x: number, y: number, pred?: (data: T) => boolean): boolean => {
-    let hit = false
-    within(x, y, (s) => {
-      if (pred === undefined || pred(s.data)) hit = true
-    })
-    return hit
-  }
-  return { add, addLine, within, covers }
-}
-
-/**
- * `segIndex` over a fixed set of flat (ax, ay, bx, by) segments, all with buffer radius `r`, the
- * segments of `parts` one after another (the clearance's walls and their shore's, with no copy of
- * both): the same buckets, each one's segment indices packed into one Int32Array in the order added
- * (an object a segment and an array a bucket took about 500 MB at Lunigiana's 1.7 million walls).
- * The query calls `visit` with the index of each segment whose buffer contains (x, y), in index
- * order, the squared distance and the segment.
- */
-export const staticSegs = (parts: ReadonlyArray<ArrayLike<number>>, r: number, bucket = 16) => {
-  // The segments each part ends at, counted from the first part's first.
-  const ends: Array<number> = []
-  let count = 0
-  for (const xy of parts) ends.push((count += Math.floor(xy.length / 4)))
-  let ax = 0,
-    ay = 0,
-    bx = 0,
-    by = 0
-  /** Segment k into (ax, ay, bx, by). */
-  const load = (k: number) => {
-    let p = 0
-    while (k >= ends[p]!) p++
-    const xy = parts[p]!,
-      o = 4 * (k - (p === 0 ? 0 : ends[p - 1]!))
-    ax = xy[o]!
-    ay = xy[o + 1]!
-    bx = xy[o + 2]!
-    by = xy[o + 3]!
-  }
-  // Each segment's buckets, as segIndex's `add` takes them.
-  const span = (k: number) => {
-    load(k)
-    return [
-      Math.floor((Math.min(ax, bx) - r) / bucket),
-      Math.floor((Math.max(ax, bx) + r) / bucket),
-      Math.floor((Math.min(ay, by) - r) / bucket),
-      Math.floor((Math.max(ay, by) + r) / bucket),
-    ] as const
-  }
-  let i0 = Infinity,
-    i1 = -Infinity,
-    j0 = Infinity,
-    j1 = -Infinity
-  for (let k = 0; k < count; k++) {
-    const [a, b, c, d] = span(k)
-    i0 = Math.min(i0, a)
-    i1 = Math.max(i1, b)
-    j0 = Math.min(j0, c)
-    j1 = Math.max(j1, d)
-  }
-  const cols = count === 0 ? 0 : i1 - i0 + 1,
-    rows = count === 0 ? 0 : j1 - j0 + 1
-  // Bucket q's segments are items[starts[q] .. starts[q + 1]): count them, sum, then fill.
-  const starts = new Int32Array(cols * rows + 1)
-  const each = (k: number, f: (q: number) => void) => {
-    const [a, b, c, d] = span(k)
-    for (let i = a; i <= b; i++) for (let j = c; j <= d; j++) f((j - j0) * cols + i - i0)
-  }
-  for (let k = 0; k < count; k++) each(k, (q) => starts[q + 1]!++)
-  for (let q = 0; q < cols * rows; q++) starts[q + 1]! += starts[q]!
-  const items = new Int32Array(starts[cols * rows]!)
-  const next = starts.slice(0, -1)
-  for (let k = 0; k < count; k++) each(k, (q) => (items[next[q]!++] = k))
-  return (
-    x: number,
-    y: number,
-    visit: (k: number, d2: number, ax: number, ay: number, bx: number, by: number) => void,
-  ) => {
-    const i = Math.floor(x / bucket) - i0,
-      j = Math.floor(y / bucket) - j0
-    if (!(i >= 0 && j >= 0 && i < cols && j < rows)) return
-    const q = j * cols + i
-    for (let m = starts[q]!; m < starts[q + 1]!; m++) {
-      const k = items[m]!
-      load(k)
-      const { d2 } = segDist2(x, y, ax, ay, bx, by)
-      if (d2 < r * r) visit(k, d2, ax, ay, bx, by)
-    }
-  }
-}
-
-/**
- * `staticGrid` (sim/collide.ts) over points, the i-th at (xy[stride·i], xy[stride·i + 1]): the same
- * cells and the same query, its visits in the same order, without the box `staticGrid` keeps a
- * point while it builds or the mark it keeps an item for those that span cells (both 270 MB at
- * Lunigiana's 7.4 million trees).
- */
-export const staticPoints = (xy: ArrayLike<number>, stride: number, cellSize: number) => {
-  const count = Math.floor(xy.length / stride)
-  let x0 = 0,
-    y0 = 0,
-    x1 = 0,
-    y1 = 0
-  for (let i = 0; i < count; i++) {
-    const x = xy[stride * i]!,
-      y = xy[stride * i + 1]!
-    x0 = i === 0 ? x : Math.min(x0, x)
-    y0 = i === 0 ? y : Math.min(y0, y)
-    x1 = i === 0 ? x : Math.max(x1, x)
-    y1 = i === 0 ? y : Math.max(y1, y)
-  }
-  const cols = Math.floor((x1 - x0) / cellSize) + 1,
-    rows = Math.floor((y1 - y0) / cellSize) + 1
-  const col = (x: number) => Math.floor((x - x0) / cellSize),
-    row = (y: number) => Math.floor((y - y0) / cellSize)
-  const cellOf = (i: number) => row(xy[stride * i + 1]!) * cols + col(xy[stride * i]!)
-  // Cell k's points are items[starts[k] .. starts[k + 1]): count them, sum, then fill.
-  const starts = new Int32Array(cols * rows + 1)
-  for (let i = 0; i < count; i++) starts[cellOf(i) + 1]!++
-  for (let k = 0; k < cols * rows; k++) starts[k + 1]! += starts[k]!
-  const items = new Int32Array(count)
-  const next = starts.slice(0, -1)
-  for (let i = 0; i < count; i++) items[next[cellOf(i)]!++] = i
-  return (
-    minX: number,
-    minY: number,
-    maxX: number,
-    maxY: number,
-    visit: (item: number) => void,
-  ): void => {
-    const c0 = Math.max(0, col(minX)),
-      c1 = Math.min(cols - 1, col(maxX))
-    for (let r = Math.max(0, row(minY)), r1 = Math.min(rows - 1, row(maxY)); r <= r1; r++)
-      for (let c = c0; c <= c1; c++)
-        for (let j = starts[r * cols + c]!, end = starts[r * cols + c + 1]!; j < end; j++)
-          visit(items[j]!)
   }
 }
 

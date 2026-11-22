@@ -13,7 +13,7 @@ import { wrapAngle } from "../body.ts"
 import { resting } from "../chassis.ts"
 import { staticGrid } from "../collide.ts"
 import { mix } from "../hash.ts"
-import { MAP, type ParkedSpot } from "../map/index.ts"
+import { ANCHOR, MAP, type ParkedSpot } from "../map/index.ts"
 import { roadOf, trafficIndex } from "../route.ts"
 import { type DamageValue, Game, Parked, type PoseValue } from "../schema.ts"
 import { parkedCar, randomColor } from "../spawning.ts"
@@ -115,6 +115,7 @@ const grid = staticGrid(
   SPOTS.length,
   (i) => [SPOTS[i]!.x, SPOTS[i]!.y, SPOTS[i]!.x, SPOTS[i]!.y],
   100,
+  ANCHOR,
 )
 /** The indices of the spots within `r` m of `at`, in a fixed order: by the grid's cells, south to north and west to east, then by index. */
 export const spotsWithin = (at: Vec2.Vec2, r: number): Array<number> => {

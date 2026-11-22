@@ -391,10 +391,14 @@ test("chat: two grown-ups walking side by side stop, face each other and talk, t
     ended > began + 8 * 60 - 2 && ended <= began + 25 * 60 + 2,
     `for ${(ended - began) / 60} s`,
   )
+  // Walking on: over 2 s, more than a metre a second, though a walker easing round onto its next
+  // edge at that instant goes slower (0.33 m/s once the lookups round Monzone counted from the anchor).
+  const before = world().peds.find((p) => p.id === a)!
   run(120)
   const pa = world().peds.find((p) => p.id === a)!
   assert.equal(pa.mood, "walk")
-  assert.ok(Math.sqrt(pa.vx * pa.vx + pa.vy * pa.vy) > 1, "walking on")
+  const walked = Vec2.distance(pa, before)
+  assert.ok(walked > 2, `walking on: ${walked.toFixed(2)} m in 2 s`)
 })
 
 test("parties: a kid keeps within 2 m of its parent walking, runs when the parent runs, crying out", () => {

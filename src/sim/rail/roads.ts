@@ -17,7 +17,16 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { staticGrid } from "../collide.ts"
 import { graph } from "../map/index.ts"
-import { endNode, type Lane, laneOf, lanePoint, roadOf, type Step, stepKey } from "../route.ts"
+import {
+  endNode,
+  isTrafficEdge,
+  type Lane,
+  laneOf,
+  lanePoint,
+  roadOf,
+  type Step,
+  stepKey,
+} from "../route.ts"
 import { STEP } from "../schema.ts"
 import { type CrossingState, LOWERING, MARGIN, OPEN, WARNING } from "./barriers.ts"
 import { CLEARANCE, type SeenTrain } from "./bodies.ts"
@@ -90,10 +99,9 @@ interface BoxAhead {
   }
 }
 
-const trafficSet: ReadonlySet<number> = new Set(graph.trafficEdges)
 /** How far short of a junction's node a car arriving on `from` toward `to` holds, m: the widest other road's half-width and JUNCTION_CLEAR; undefined where the node is no junction (it only carries the road on). */
 const holdShort = (node: number, from: number, to: number): number | undefined => {
-  const others = graph.adjacency[node]!.filter((e) => trafficSet.has(e) && e !== from && e !== to)
+  const others = graph.adjacency[node]!.filter((e) => isTrafficEdge(e) && e !== from && e !== to)
   if (others.length === 0) return undefined
   return Math.max(...others.map((e) => roadOf(e).w / 2)) + JUNCTION_CLEAR
 }

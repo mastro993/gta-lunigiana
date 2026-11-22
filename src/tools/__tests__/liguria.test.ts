@@ -6,6 +6,7 @@ import { test } from "node:test"
 
 import { gaussBoagaToLatLon } from "../crs.ts"
 import { cropOf } from "../dtm-mosaic.ts"
+import { CELL, partTiles } from "../dtm-tiles.ts"
 import { toLocal } from "../geometry.ts"
 import {
   beyondCoverage,
@@ -368,21 +369,44 @@ test("dtmTiles' crops cover fetch-rt's crop of a part: a tall part on the tiles'
         )
       }
   }
-  // The Sarzana test region's: its 6 tiles and the row south of them, which its crop reaches.
+  // Sarzana's town's rectangle: its 6 tiles and the row south of them, which its crop reaches.
   assert.deepEqual(
     dtmTiles(parts[2]!).map(({ i, j }) => `${i}_${j}`),
     ["-8_-5", "-7_-5", "-8_-4", "-7_-4", "-8_-3", "-7_-3", "-8_-2", "-7_-2"],
   )
 })
 
+test("dtmTiles' crops cover a Lunigiana part's tiles' cells: a box grown past its rectangles, HALO into the next row", () => {
+  // Fosdinovo's rectangle in a box grown 2.4 km south of it, as Sarzana's part grows Lunigiana's
+  // (issue #20): its tiles of row −4 need their whole squares and HALO into row −5, which the crop
+  // of its rectangles misses.
+  const rects: ReadonlyArray<Rect> = [[-11500, -6100, -2900, 3900]],
+    bounds = { minX: -23100, minY: -8500, maxX: 10600, maxY: 13000 }
+  const boxes = dtmTiles(rects, bounds).map(({ i, j }) => dtmCropBox(i, j))
+  for (const { need } of partTiles(rects, bounds)) {
+    const corners = [
+      [need.e0, need.n0],
+      [need.e0 + CELL * (need.cols - 1), need.n0],
+      [need.e0, need.n0 + CELL * (need.rows - 1)],
+      [need.e0 + CELL * (need.cols - 1), need.n0 + CELL * (need.rows - 1)],
+    ]
+    for (const [e, n] of corners)
+      assert.ok(
+        boxes.some(([x0, y0, x1, y1]) => e! >= x0 && e! <= x1 && n! >= y0 && n! <= y1),
+        `cell at ${toLocal(...gaussBoagaToLatLon(e!, n!)).map(Math.round)}`,
+      )
+  }
+  assert.ok(dtmTiles(rects, bounds).some(({ i, j }) => i === -5 && j === -5))
+})
+
 test("ligFolders: the parts' Liguria folders fetch-lig wrote under a root, in the parts' order", (t) => {
   const root = mkdtempSync(join(tmpdir(), "lig-"))
   t.after(() => rmSync(root, { recursive: true }))
-  const parts = [{ key: "sarzana-town" }, { key: "lucido" }, { key: "coast" }]
-  for (const key of ["coast", "sarzana-town"])
+  const parts = [{ key: "sarzana" }, { key: "lucido" }, { key: "coast" }]
+  for (const key of ["coast", "sarzana"])
     mkdirSync(join(root, "data/raw/lig", key), { recursive: true })
   assert.deepEqual(ligFolders(root, parts), [
-    join(root, "data/raw/lig/sarzana-town"),
+    join(root, "data/raw/lig/sarzana"),
     join(root, "data/raw/lig/coast"),
   ])
 })

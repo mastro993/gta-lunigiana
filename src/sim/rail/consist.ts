@@ -36,20 +36,38 @@ const pivotsOf = (model: TrainModel) => {
   })
 }
 
+/** Rounds of the search for a pivot its spacing on from the last along the chord: a crossover's 7° kink needs two. */
+const CHORD_ROUNDS = 4
+
 /**
  * The cars of a `model` train with its active cab's nose at s on `line`, the cab facing `facing`, from that cab back. On a curve
- * a car's body is the chord between its pivots, so each end car hangs from the joint it shares and a middle car sits midway: the
- * cars meet at the joints.
+ * a car's body is the chord between its pivots, so each end car hangs from the joint it shares and a middle car sits midway; each
+ * pivot stands its spacing on from the last along the chord, not the arc, so the cars meet at the joints however sharp the bend
+ * (a crossover's kink at Vezzano Ligure, which the Parma–La Spezia trains take, left them 2.6 cm apart placed by arc length).
  */
 export const carsOf = (
   line: Line,
   s: number,
   facing: 1 | -1,
   model: TrainModel,
-): ReadonlyArray<CarPose> =>
-  pivotsOf(model).map(({ front, rear, ahead, car, first, last }) => {
-    const a = pointAt(line, s - facing * front),
-      b = pointAt(line, s - facing * rear)
+): ReadonlyArray<CarPose> => {
+  const pivots = pivotsOf(model)
+  // The pivots' arc lengths: the first its offset from the nose, each next its spacing on from the last along the chord.
+  const at = [s - facing * pivots[0]!.front]
+  for (const { front, rear } of pivots) {
+    const from = at.at(-1)!,
+      p = pointAt(line, from),
+      spacing = rear - front
+    let to = from - facing * spacing
+    for (let round = 0; round < CHORD_ROUNDS; round++) {
+      const q = pointAt(line, to)
+      to -= facing * (spacing - Math.sqrt((q.x - p.x) ** 2 + (q.y - p.y) ** 2))
+    }
+    at.push(to)
+  }
+  return pivots.map(({ front, rear, ahead, car, first, last }, k) => {
+    const a = pointAt(line, at[k]!),
+      b = pointAt(line, at[k + 1]!)
     const dx = a.x - b.x,
       dy = a.y - b.y,
       span = Math.sqrt(dx * dx + dy * dy) || 1
@@ -70,3 +88,4 @@ export const carsOf = (
       width: TRAINS[model].width,
     }
   })
+}

@@ -146,6 +146,16 @@ test("conflateRail throws when a crossing node would slide past half of its road
   )
 })
 
+test("conflateRail moves a road that ends on the line with it, onto the CTR's track", () => {
+  // As driveway 1455968336 at Santo Stefano di Magra: it ends on OSM's line, which the CTR puts 1 m
+  // south, short of the road's last segment, so the road's end comes onto the line where it is nearest.
+  const ends = road(10, v(500, 20, "r0"), v(500, 1, "lc"))
+  const c = conflateRail(RAIL, [ends], [], ctr(TRACKS.slice(0, 2)), NONE)
+  assert.deepEqual(c.roads[0]!.pts.at(-1), { x: 500, y: 0, id: "lc" })
+  assert.ok(c.rail.some((r) => r.pts.some((p) => p.id === "lc" && p.x === 500 && p.y === 0)))
+  assert.equal(c.report.crossings[0]!.shift, 1)
+})
+
 test("conflateRail re-homes OSM's ids by the layout: dropped ways, reserved CTR tracks, swapped nodes", () => {
   // As at Gragnola: OSM's line crosses over to where the CTR has the loop (its node "lc" there), and
   // OSM's loop way 9 lies on the CTR's line (its node "lc2"). Way 9 is dropped, the CTR loop may not
@@ -359,5 +369,59 @@ test("conflateRail leaves out a CTR-only track lying along a railway OSM maps wi
   assert.deepEqual(
     c.report.extras.map((e) => e.src),
     ["23D01 VLI#2.0"],
+  )
+})
+
+// Regression: OSM ends the Genova–Pisa's bridge over the Magra (111752512) 3.7 m past the farm track 205932342 under it, whose
+// core, lowered under the deck, held the first cell of the at-grade track beyond the deck's end: the track stood 3.6 m over
+// the ground there. A bridge reaches past the core of every road at grade a pass cores under it, as past a main road's.
+test("conflateRail slides a bridge's end out past the core of a road at grade under it and a cell's diagonal, but not past a path's or a tunnel's", () => {
+  const rail: ReadonlyArray<RailF> = [
+    { id: 1, pts: [v(-100, 0, "a"), v(100, 0, "b")] },
+    { id: 2, bridge: true, pts: [v(100, 0, "b"), v(200, 0, "c")] },
+    { id: 3, pts: [v(200, 0, "c"), v(400, 0, "d")] },
+  ]
+  const under = (id: number, x: number, more: Partial<RoadF>) => ({
+    ...road(id, v(x, -20), v(x, 20)),
+    ...more,
+  })
+  const ends = (roads: ReadonlyArray<RoadF>) => {
+    const deck = conflateRail(rail, roads, [], ctr([]), NONE).rail.find((r) => r.id === 2)!
+    return [deck.pts[0]!.x, deck.pts.at(-1)!.x]
+  }
+  // A farm track (w 3) 3.7 m in from the east end: its core reaches 3.8 m, and a cell's diagonal 5.66 m past it.
+  const [, east] = ends([under(10, 196.3, { cls: "track", w: 3 })])
+  assert.ok(east! >= 196.3 + 3.8 + 4 * Math.SQRT2 - 1e-6, `the east end at x ${east}`)
+  // A footway and a road's tunnel write no core under the deck: the ends stay.
+  assert.deepEqual(
+    ends([
+      under(11, 196.3, { cls: "path", w: 1.5 }),
+      under(12, 103, { cls: "track", w: 3, tunnel: true }),
+    ]),
+    [100, 200],
+  )
+})
+// Regression: the 9.8 m path tunnel 375205228 dips under the Genova–Pisa's bank by Sarzana 2.7 and 3.2 m from its two tracks;
+// the path pass holds its mouths' first MOUTH m at its floor ahead of every claim, and the tracks stood on that hold, 1.8 m over
+// the ground, its drain's water on their bed.
+test("conflateRail makes track crossing a path's tunnel within a cell's diagonal of its mouth a bridge, but not farther in or by a bore's inner end", () => {
+  const rail: ReadonlyArray<RailF> = [{ id: 1, pts: [v(0, 0, "a"), v(200, 0, "b")] }]
+  const path = (id: number, ...pts: ReadonlyArray<V>): RoadF => ({
+    ...road(id, ...pts),
+    cls: "path",
+    w: 1.5,
+    tunnel: true,
+  })
+  const bridged = (roads: ReadonlyArray<RoadF>) =>
+    conflateRail(rail, roads, [], ctr([]), NONE)
+      .rail.filter((r) => r.bridge === true)
+      .map((r) => Math.round((r.pts[0]!.x + r.pts.at(-1)!.x) / 2))
+  // Its south mouth 3 m from the track: a bridge about the crossing at x 50.
+  assert.deepEqual(bridged([path(10, v(50, -3, "m0"), v(50, 7, "m1"))]), [50])
+  // 7 m in from its mouth, or 3 m from an end another piece of its bore goes on from (an inner joint): none.
+  assert.deepEqual(bridged([path(10, v(50, -7, "m0"), v(50, 7, "m1"))]), [])
+  assert.deepEqual(
+    bridged([path(10, v(50, -3, "j"), v(50, 7, "m1")), path(11, v(50, -3, "j"), v(70, -20, "m2"))]),
+    [],
   )
 })

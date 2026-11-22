@@ -13,6 +13,7 @@
 // cut into tiles, baked and written (build-output.ts), and the full map's overview painted from
 // its vectors into `<file>/overview.png` beside the tiles (overview.ts).
 import { join } from "node:path"
+import { setFlagsFromString } from "node:v8"
 
 import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
@@ -32,6 +33,12 @@ if (REGION.ownBuildings)
   throw new Error(
     `--region ${REGION.key} has buildings alone and builds no map: pontremoli.map-test.ts reads them`,
   )
+// The JS heap grows by a fifth of what a full collection leaves before the next one, not by V8's
+// own factor (up to fourfold): the garbage of a stage's short-lived indexes and fields took the
+// heap, and the resident set with it, 0.6-0.9 GB past what was live (docs/map.md, "Pipeline").
+// `pnpm map` and `pnpm maps` give it on node's command line, V8's supported way; set here too for a
+// build run as `node src/tools/build-map.ts`, though V8 may ignore a flag set once it has started.
+setFlagsFromString("--heap-growing-percent=20")
 const t0 = performance.now()
 // Each stage's end: seconds from the start and the process's resident memory then.
 const lap = (label: string) =>
@@ -58,27 +65,19 @@ const sourcesAndTerrain = async () => {
   return { src, terrain: finishTerrain(src, profiled, lap), sources }
 }
 
-/** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
-const cutBuilt = async () => {
+/**
+ * The map put together, and what the report prints about the build. The sources, the terrain and
+ * the world live in this function's frame alone, so they go before the cut: the finished grid
+ * (Lunigiana's 45 million nodes, 362 MB), the features' vertex objects and what lies beyond the play
+ * area.
+ */
+const assembled = async () => {
   const { src, terrain, sources } = await sourcesAndTerrain()
   const world = buildWorld(src, terrain, lap)
   const built = assembleMap(src, terrain, world)
   lap("map")
-  const cut = cutMap(built, REGION.file)
-  lap("cut")
   return {
-    cut,
-    overview: {
-      bounds: built.bounds,
-      layers: {
-        outline: built.outline,
-        areas: built.areas,
-        water: built.water,
-        rail: built.rail,
-        roads: built.roads,
-        buildings: built.buildings,
-      },
-    },
+    built,
     report: {
       sources,
       rail: src.railReport,
@@ -95,6 +94,28 @@ const cutBuilt = async () => {
       shoreWalls: built.walls.shore.length / 4,
       trees: built.trees.length / 3,
     },
+  }
+}
+
+/** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
+const cutBuilt = async () => {
+  const { built, report } = await assembled()
+  const cut = cutMap(built, REGION.file)
+  lap("cut")
+  return {
+    cut,
+    overview: {
+      bounds: built.bounds,
+      layers: {
+        outline: built.outline,
+        areas: built.areas,
+        water: built.water,
+        rail: built.rail,
+        roads: built.roads,
+        buildings: built.buildings,
+      },
+    },
+    report,
   }
 }
 
@@ -175,10 +196,10 @@ console.log({
   parked: map.spawns.parked.length,
   player: map.spawns.player,
   grades,
-  // the files' parts before gzip (the global JSON line and its sections, the tiles' sections and vectors summed), and two of the JSON line's biggest fields
+  // the files' parts before gzip (the global JSON line and its sections, the tiles' lines and sections summed, and each layer of the tiles' vectors, its JSON on their lines and its coordinates), and the JSON line's two biggest fields
   sizes: {
     ...Object.fromEntries(Object.entries(written.sizes).map(([part, n]) => [part, kb(n)])),
-    spawns: jsonKb(map.spawns),
     roads: jsonKb(map.roads),
+    pois: jsonKb(map.pois),
   },
 })

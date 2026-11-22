@@ -313,6 +313,55 @@ test("extractPois: a named pond is an area:lake, a named river polygon an area:r
   )
 })
 
+// Regression (issue #20): the lower Calcandola (way 814811500, natural=water with no water=*, the
+// stream of its name through it) was a lake held at its lowest edge node, 3.1 m by the Magra, 17 m
+// under the stream's ground upstream, so the stream ran dry for 568 m. Untagged water a watercourse
+// of its very name runs through is that river's polygon; a lake, a pond, water another stream or an
+// unnamed one runs through, and a namesake that only passes by stay still water.
+test("extractAreas: untagged water its namesake watercourse runs through is a river, other still water a lake", () => {
+  const { osm, square } = areaOsm()
+  const stream = (name: string | undefined, x0: number, y0: number, x1: number, y1: number) => {
+    const id = `s${osm.ways.size + 1}`
+    const nds = [
+      [x0, y0],
+      [(x0 + x1) / 2, (y0 + y1) / 2],
+      [x1, y1],
+    ].map(([x, y], k) => {
+      const [lat, lon] = fromLocal(x!, y!)
+      osm.nodes.set(`${id}:${k}`, { id: `${id}:${k}`, lat, lon, tags: {} })
+      return `${id}:${k}`
+    })
+    osm.ways.set(id, {
+      id,
+      nds,
+      tags: { waterway: "stream", ...(name === undefined ? {} : { name }) },
+    })
+  }
+  square(0, 0, 20, { natural: "water", name: "Calcandola" })
+  stream("Calcandola", -10, 10, 30, 10)
+  square(40, 0, 20, { natural: "water", name: "Lago Fario" })
+  stream(undefined, 30, 10, 70, 10)
+  square(80, 0, 20, { natural: "water", water: "pond", name: "Gora" })
+  stream("Gora", 70, 10, 110, 10)
+  square(120, 0, 20, { natural: "water", name: "Bottaccio" })
+  stream("Canale del Bottaccio", 110, 10, 150, 10)
+  square(160, 0, 20, { natural: "water", name: "Vara" })
+  stream("Vara", 160, 70, 180, 70)
+  assert.deepEqual(
+    extractAreas(osm).map((a) => [
+      Math.round(Math.min(...a.rings[0]!.filter((_, i) => i % 2 === 0)) / 40),
+      a.kind,
+    ]),
+    [
+      [0, "river"],
+      [1, "lake"],
+      [2, "lake"],
+      [3, "lake"],
+      [4, "lake"],
+    ],
+  )
+})
+
 // Regression: Fosdinovo's restaurant compound by Canepari (way 1496142522, amenity=restaurant,
 // building=no) stood as a 2,060 m² block 6 m tall over its house, and a pool's pergola (697022823,
 // building=roof) as a closed 6 m box. OSM's building=no is no building, and a roof is open at ground
@@ -367,6 +416,27 @@ test("extractBuildings: an OSM building sharing half the smaller one's area with
   assert.deepEqual(
     [...held, ...beyond].map((b) => b.id).sort((a, b) => a - b),
     [-3, -2, -1, 3, 4],
+  )
+})
+
+// Issue #20: the Fortezza di Sarzanello (OSM 89665866, building=yes, historic=castle) stood in no
+// survey's building layer (the NC5 keeps it among its monuments) and inside the NC5's mapped area,
+// which dropped OSM's footprint, so the map had no fortress. A castle or fort OSM maps stays where a
+// survey maps the ground, but where a surveyed building takes half of it, as any OSM building.
+test("extractBuildings: an OSM castle or fort stays where a survey maps the ground, unless a surveyed building takes half of it", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 20, { building: "yes", historic: "castle" }) // no survey building on it
+  square(40, 0, 20, { building: "fortress" })
+  square(80, 0, 20, { building: "yes", historic: "fort" }) // a surveyed unit takes 80% of it
+  square(120, 0, 20, { building: "house" }) // any other building: dropped by the mapped area
+  const { held, beyond } = extractBuildings(osm, {
+    buildings: [{ id: -1, kind: "house", h: 6, outer: [80, 0, 96, 0, 96, 20, 80, 20] }],
+    roadAreas: [],
+    mapped: [[-10, -10, 200, -10, 200, 40, -10, 40]],
+  })
+  assert.deepEqual(
+    [...held, ...beyond].map((b) => b.id).sort((a, b) => a - b),
+    [-1, 1, 2],
   )
 })
 

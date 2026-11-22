@@ -1,18 +1,20 @@
 // The rail as a graph: tracks meet only at piece ends (switches and crossings of two tracks cut the
-// pieces there), a line is the straightest way from a terminal on the map's edge to another or to a
-// terminus inside the map, never entering a stub (track leading only to dead ends in the map), and
-// the track no line takes is a loop (it rejoins other track at both ends) or a siding (it ends in the
-// open). Nothing here knows this map: more railways need no code.
+// pieces there), a line is the way an OSM train route runs from a terminal on the map's edge to
+// another or to a terminus inside the map (the straightest way where no route runs), never entering
+// a stub (track leading only to dead ends in the map), and the track no line takes is a loop (it
+// rejoins other track at both ends) or a siding (it ends in the open). Nothing here knows this map:
+// more railways need no code.
 import { Ops } from "@typeonce/ritmo-math"
 
 import type { LinePiece } from "../sim/map/index.ts"
 import type { RailKind } from "../sim/map/kinds.ts"
 import type { RailF } from "./features.ts"
 
-/** A rail piece as shipped: flat x, y and z per vertex. */
+/** A rail piece as shipped: flat x, y and z per vertex, and the id of the OSM way it lies on (OSM's train routes list ways). */
 export interface Piece {
   readonly pts: ReadonlyArray<number>
   readonly z: ReadonlyArray<number>
+  readonly way?: number
 }
 
 /** A line with its chained polyline: s from its first vertex, and each piece's start s. */
@@ -26,6 +28,12 @@ export interface LineOut {
   readonly terminus: boolean
 }
 
+/** A terminus: the pieces trains reach it along, and its station (a station's termini end one line from a terminal). */
+export interface Terminus {
+  readonly pieces: ReadonlySet<number>
+  readonly station: string
+}
+
 /** Beyond this turn (degrees) at a junction no way runs on: the walk ends there. */
 export const MAX_TURN = 60
 /**
@@ -34,6 +42,23 @@ export const MAX_TURN = 60
  * Gragnola).
  */
 export const HEADING_SPAN = 5
+
+/**
+ * The unit heading from vertex 0 of a line of `n` vertices (`at(k)`, vertex k's x and y) to its first
+ * vertex `span` m or more from it, else its last: a piece's heading out of a node.
+ */
+export const headingOut = (
+  n: number,
+  at: (k: number) => readonly [number, number],
+  span: number,
+): readonly [number, number] => {
+  const [ax, ay] = at(0)
+  let k = 1
+  while (k < n - 1 && Math.hypot(at(k)[0] - ax, at(k)[1] - ay) < span) k++
+  const [bx, by] = at(k)
+  const d = Math.hypot(bx - ax, by - ay) || 1
+  return [(bx - ax) / d, (by - ay) / d]
+}
 
 /** Arc length of a flat polyline, m. */
 export const lengthOf = (pts: ReadonlyArray<number>): number => {
@@ -121,20 +146,49 @@ const deadEnds = (
 }
 
 /**
+ * Where a walk along a route goes onto a piece of way `way` from its place `at` in the route (the
+ * index of the way it runs on) going `dir` (+1 or −1, 0 while not yet known): on along the same way,
+ * or onto the next way the route lists that way round, past ways no piece in the map carries
+ * (`present`). Undefined where the route does not run onto that way.
+ */
+const stepAlong = (
+  route: ReadonlyArray<number>,
+  present: ReadonlySet<number>,
+  at: number,
+  dir: number,
+  way: number | undefined,
+): { readonly at: number; readonly dir: number } | undefined => {
+  if (way === undefined) return undefined
+  if (route[at] === way) return { at, dir }
+  for (const d of dir === 0 ? [1, -1] : [dir]) {
+    let n = at + d
+    while (n >= 0 && n < route.length && !present.has(route[n]!)) n += d
+    if (route[n] === way) return { at: n, dir: d }
+  }
+  return undefined
+}
+
+/**
  * The lines: from each terminal (a dead end where `terminal` holds: the map's edge, where the
- * track runs on beyond it), the walk that at every junction takes the way turning least (under
- * MAX_TURN, headings over HEADING_SPAN m) but into a stub (`deadEnds`: the safety stub straight on
- * past a switch where a double track joins a single one), kept when it ends at another terminal or
- * reaches a terminus along one of its pieces (`termini`: by node, "x,y" as shipped, the pieces
- * trains reach it along, where they turn round inside the map), where it ends; of two walks between
- * one pair of terminals, the one turning less in all. A walk never takes a piece twice, so a ring
- * gives no line. Each line runs the way most of its length was drawn, but toward its terminus,
- * longest line first.
+ * track runs on beyond it), a walk along each of OSM's train routes running its piece (`routes`: each
+ * route's ways, OSM ids in its running order), which at every junction takes the piece of the way the
+ * route runs on along (`stepAlong`), and, from a terminal no route walk leads from to another, the
+ * walk that takes the way turning least; both turn under MAX_TURN (headings over HEADING_SPAN m) and
+ * never into a stub (`deadEnds`: the safety stub straight on past a switch where a double track joins
+ * a single one). A walk is kept when it ends at another terminal or reaches a terminus along one of
+ * its pieces (`termini`: by node, "x,y" as shipped, the pieces trains reach it along and the station,
+ * where they turn round inside the map), where it ends; of two walks between one pair of terminals
+ * (or from one terminal to one station's termini), a route's over one turning least, then the one
+ * turning less in all. A walk never takes a piece twice, so a ring
+ * gives no line. Each line runs the way most of its length was drawn, but toward its terminus; the
+ * lines come in the order of their first piece in `rail` (a new branch's after the line it leaves),
+ * the longer first of two from one piece.
  */
 export const findLines = (
   rail: ReadonlyArray<Piece>,
   terminal: (x: number, y: number) => boolean,
-  termini: ReadonlyMap<string, ReadonlySet<number>> = new Map(),
+  termini: ReadonlyMap<string, Terminus> = new Map(),
+  routes: ReadonlyArray<ReadonlyArray<number>> = [],
 ): Array<LineOut> => {
   const at = nodesOf(rail)
   /** Unit direction leaving piece i at `end`, into the piece, over HEADING_SPAN m. */
@@ -142,13 +196,7 @@ export const findLines = (
     const p = rail[i]!.pts,
       n = p.length / 2
     const v = (k: number) => (end === 0 ? k : n - 1 - k)
-    const [ax, ay] = [p[2 * v(0)]!, p[2 * v(0) + 1]!]
-    let k = 1
-    while (k < n - 1 && Math.hypot(p[2 * v(k)]! - ax, p[2 * v(k) + 1]! - ay) < HEADING_SPAN) k++
-    const bx = p[2 * v(k)]!,
-      by = p[2 * v(k) + 1]!
-    const d = Math.hypot(bx - ax, by - ay) || 1
-    return [(bx - ax) / d, (by - ay) / d] as const
+    return headingOut(n, (k) => [p[2 * v(k)]!, p[2 * v(k) + 1]!], HEADING_SPAN)
   }
   const isTerminal = (k: string) => {
     if (at.get(k)!.length !== 1) return false
@@ -156,43 +204,67 @@ export const findLines = (
     return terminal(x!, y!)
   }
   const stubs = deadEnds(rail, (k) => isTerminal(k) || termini.has(k))
-  /** The pieces from piece i entered at `end`, with the turns taken, until no way runs on or it reaches a terminus. */
-  const walk = (i: number, end: 0 | 1) => {
+  const present = new Set(rail.flatMap((r) => (r.way === undefined ? [] : [r.way])))
+  /**
+   * The pieces from piece i entered at `end`, with the turns taken, until no way runs on or it
+   * reaches a terminus: along `route` where one is given, else the way turning least.
+   */
+  const walk = (i: number, end: 0 | 1, route?: ReadonlyArray<number>) => {
     const out: Array<LinePiece> = []
     const seen = new Set<number>()
-    let turned = 0
+    let turned = 0,
+      place = { at: route?.indexOf(rail[i]!.way!) ?? -1, dir: 0 }
     for (let piece = i, from: 0 | 1 = end; ;) {
       out.push({ rail: piece, rev: from === 1 })
       seen.add(piece)
       const exit = from === 0 ? 1 : 0,
         node = endKey(rail[piece]!.pts, exit)
-      if (termini.get(node)?.has(piece) === true)
+      if (termini.get(node)?.pieces.has(piece) === true)
         return { pieces: out, end: node, turned, terminus: true }
       const [ox, oy] = leaving(piece, exit)
       let next: { piece: number; end: 0 | 1 } | undefined,
-        turn = MAX_TURN
+        turn = MAX_TURN,
+        onto = place
       for (const o of at.get(node)!) {
         if (seen.has(o.piece) || stubs.has(o.piece)) continue
+        const step =
+          route === undefined
+            ? place
+            : stepAlong(route, present, place.at, place.dir, rail[o.piece]!.way)
+        if (step === undefined) continue
         const [lx, ly] = leaving(o.piece, o.end)
         // Going on means leaving into the next piece opposite to how this one leaves the node backwards.
         const a = (Ops.acos(Math.max(-1, Math.min(1, -(ox * lx + oy * ly)))) * 180) / Math.PI
-        if (a < turn) [next, turn] = [o, a]
+        if (a < turn) [next, turn, onto] = [o, a, step]
       }
       if (next === undefined) return { pieces: out, end: node, turned, terminus: false }
       turned += turn
+      place = onto
       ;[piece, from] = [next.piece, next.end]
     }
   }
-  const best = new Map<string, ReturnType<typeof walk>>()
+  const best = new Map<string, ReturnType<typeof walk> & { readonly routed: boolean }>()
+  /** Keeps walk `w` from terminal `k` when it makes a line, returning whether it does. */
+  const keep = (k: string, w: ReturnType<typeof walk>, routed: boolean) => {
+    if (w.end === k || !(w.terminus || isTerminal(w.end))) return false
+    const pair = w.terminus ? `${k} ${termini.get(w.end)!.station}` : [k, w.end].sort().join(" ")
+    const was = best.get(pair)
+    if (
+      was === undefined ||
+      (routed && !was.routed) ||
+      (routed === was.routed && w.turned < was.turned - 1e-9)
+    )
+      best.set(pair, { ...w, routed })
+    return true
+  }
   rail.forEach((r, i) => {
     for (const end of [0, 1] as const) {
       const k = endKey(r.pts, end)
       if (!isTerminal(k)) continue
-      const w = walk(i, end)
-      if (w.end === k || !(w.terminus || isTerminal(w.end))) continue
-      const pair = [k, w.end].sort().join(" ")
-      const was = best.get(pair)
-      if (was === undefined || w.turned < was.turned - 1e-9) best.set(pair, w)
+      const runs = routes.filter((route) => r.way !== undefined && route.includes(r.way))
+      // Every route walk, so the lines are each route's; `some` would stop at the first.
+      const routed = runs.map((route) => keep(k, walk(i, end, route), true))
+      if (!routed.includes(true)) keep(k, walk(i, end), false)
     }
   })
   return [...best.values()]
@@ -219,8 +291,11 @@ export const findLines = (
       }
       return { pieces, pts, z, starts, length: s, terminus }
     })
-    .sort((a, b) => b.length - a.length || a.pieces[0]!.rail - b.pieces[0]!.rail)
+    .sort((a, b) => firstPiece(a) - firstPiece(b) || b.length - a.length)
 }
+
+/** The first of a line's pieces in the rail's order: lines are numbered by it. */
+const firstPiece = (line: LineOut) => Math.min(...line.pieces.map((p) => p.rail))
 
 /**
  * Each piece's kind: none on a line; off the lines, a `siding` when it leads only to dead ends

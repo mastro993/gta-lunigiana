@@ -14,11 +14,11 @@ import {
   type Slab,
   slabNodes,
 } from "../deck-ground.ts"
-import type { Grid } from "../terrain.ts"
+import { decimetre, type DmGrid } from "../terrain.ts"
 import { deckShortfalls, meshOf } from "./decks.ts"
 
-/** A 4 m grid of 41 × 21 nodes from (0, 0), its node (i, j) at `z(x, y)`. */
-const grid = (z: (x: number, y: number) => number): Grid => {
+/** A 4 m grid of 41 × 21 nodes from (0, 0), its node (i, j) at `z(x, y)`, in decimetres as the build holds it. */
+const grid = (z: (x: number, y: number) => number): DmGrid => {
   const cols = 41,
     rows = 21
   return {
@@ -29,20 +29,22 @@ const grid = (z: (x: number, y: number) => number): Grid => {
     y0: 0,
     ax: 0,
     ay: 0,
-    z: Float64Array.from({ length: cols * rows }, (_, n) =>
-      z((n % cols) * 4, Math.floor(n / cols) * 4),
+    dm: Int16Array.from({ length: cols * rows }, (_, n) =>
+      decimetre(z((n % cols) * 4, Math.floor(n / cols) * 4), n % cols, Math.floor(n / cols)),
     ),
   }
 }
-const node = (g: Grid, i: number, j: number) => j * g.cols + i
+const node = (g: DmGrid, i: number, j: number) => j * g.cols + i
+/** Node n's height on `g`, m. */
+const zAt = (g: DmGrid, n: number) => g.dm[n]! / 10
 /** Where the ground reaches into `slabs`, one bridge's pieces, on `g`'s mesh (decks.ts). */
-const short = (g: Grid, ...slabs: ReadonlyArray<Slab>) =>
+const short = (g: DmGrid, ...slabs: ReadonlyArray<Slab>) =>
   deckShortfalls(
     slabs.map((slab, k) => [`piece ${k}`, slab] as const),
-    meshOf({ heightmap: { ...g, data: Array.from(g.z, (z) => Math.round(z * 10)) } }),
+    meshOf({ heightmap: { ...g, data: Array.from(g.dm) } }),
   )
 /** The stretch between `slab`'s end runs on `g`'s mesh, both its ends outer ones. */
-const runOf = (g: Grid, slab: Slab) =>
+const runOf = (g: DmGrid, slab: Slab) =>
   clearRun(sections(slab, gridGround(g).terrainZ), [true, true])
 /** A tertiary road's deck 6.5 m wide along y 40 from x 22 to x 138 (mid-cell, clear of the nodes), its profile `za` to `zb`. */
 const tertiary = (za: number, zb: number) =>
@@ -62,11 +64,11 @@ test("deckGround lowers a hump between a deck's end runs to the slab's underside
   const moved = deckGround(g, [deck], approach)
   // Under the slab (y 36.35–43.65) the top is 10.16 m: 0.9 m under it, floored to 0.1 m.
   assert.deepEqual(
-    [8, 9, 10, 11, 12].map((j) => g.z[node(g, 20, j)]),
+    [8, 9, 10, 11, 12].map((j) => zAt(g, node(g, 20, j))),
     [9.8, 9.2, 9.2, 9.2, 9.8],
   )
   assert.deepEqual(
-    [5, 35].map((i) => g.z[node(g, i, 10)]),
+    [5, 35].map((i) => zAt(g, node(g, i, 10))),
     [10, 10],
   )
   const { nodes, deepest } = deckReport(moved)
@@ -94,8 +96,8 @@ test("deckGround leaves a bank its slab's edge grazes, lowering the ground under
   assert.deepEqual(runOf(h, deck), [0, 116])
   deckGround(h, [deck], () => false)
   assert.deepEqual(short(h, deck), [])
-  assert.equal(h.z[node(h, 20, 12)], 20)
-  assert.ok(h.z[node(h, 20, 11)]! < 9.26, `${h.z[node(h, 20, 11)]}`)
+  assert.equal(zAt(h, node(h, 20, 12)), 20)
+  assert.ok(zAt(h, node(h, 20, 11)) < 9.26, `${zAt(h, node(h, 20, 11))}`)
 })
 
 test("deckGround keeps a deck's end runs, where it meets the ground, under the road, END_RUN m at most, and the ground out of its slab past them", () => {
@@ -105,21 +107,19 @@ test("deckGround keeps a deck's end runs, where it meets the ground, under the r
   const deck = tertiary(12, 6)
   assert.deepEqual(runOf(g, deck), [END_RUN, 116])
   assert.equal(short(g, deck).length, 1)
-  const moved = deckGround(g, [deck], () => false)
+  deckGround(g, [deck], () => false)
   assert.deepEqual(short(g, deck), [])
-  // Each node it lowers lands on a whole decimetre, as the file ships it and the game reads it.
-  for (const [n] of moved) assert.equal(g.z[n], Math.round(g.z[n]! * 10) / 10, `node ${n}`)
   // The hillside comes down along the end run, under the road: at x 24 the profile is 11.90 m.
-  assert.ok(g.z[node(g, 6, 10)]! <= 11.9, `${g.z[node(g, 6, 10)]}`)
+  assert.ok(zAt(g, node(g, 6, 10)) <= 11.9, `${zAt(g, node(g, 6, 10))}`)
   // Past it, out of the slab: at x 32 (10 m along) the top is 11.64 m, its underside 10.74 m.
-  assert.ok(g.z[node(g, 8, 10)]! <= 10.74, `${g.z[node(g, 8, 10)]}`)
+  assert.ok(zAt(g, node(g, 8, 10)) <= 10.74, `${zAt(g, node(g, 8, 10))}`)
   // Behind the end, and a cell either side of the cells the slab reaches over, it stays.
   for (const [i, j] of [
     [4, 10],
     [6, 8],
     [10, 12],
   ] as const)
-    assert.equal(g.z[node(g, i, j)], 12.5)
+    assert.equal(zAt(g, node(g, i, j)), 12.5)
 })
 
 test("deckGround lowers the ground under a deck lying on it past its end runs, and a rail deck's off its ballast", () => {
@@ -130,7 +130,7 @@ test("deckGround lowers the ground under a deck lying on it past its end runs, a
   assert.deepEqual(runOf(g, deck), [END_RUN, 112])
   deckGround(g, [deck], () => false)
   assert.deepEqual(
-    [9, 10, 11].map((j) => g.z[node(g, 20, j)]),
+    [9, 10, 11].map((j) => zAt(g, node(g, 20, j))),
     [9.1, 9.2, 9.2],
   )
   // Behind its ends and two rows off its line, the bank stays.
@@ -140,14 +140,14 @@ test("deckGround lowers the ground under a deck lying on it past its end runs, a
     [20, 8],
     [20, 12],
   ] as const)
-    assert.equal(g.z[node(g, i, j)], 10)
+    assert.equal(zAt(g, node(g, i, j)), 10)
   assert.deepEqual(short(g, deck), [])
   // A rail deck over the same bump: the ballast's top is 0.04 m over the bed.
   const h = grid((x, y) => (x === 80 && y === 40 ? 10.3 : 0))
   const rail = railSlab({ pts: [22, 40, 138, 40], z: [10, 10] })
   assert.equal(rail.half, 2)
   deckGround(h, [rail], () => false)
-  assert.equal(h.z[node(h, 20, 10)], 9.1)
+  assert.equal(zAt(h, node(h, 20, 10)), 9.1)
   assert.deepEqual(short(h, rail), [])
 })
 
@@ -170,13 +170,43 @@ test("deckGround lowers the ground at a joint between two pieces of a deck as un
   const approach = (n: number) => n % whole.cols <= 5 || n % whole.cols >= 35
   deckGround(whole, [tertiary(10, 10)], approach)
   deckGround(split, pieces, approach)
-  assert.deepEqual(split.z, whole.z)
+  assert.deepEqual(split.dm, whole.dm)
   assert.deepEqual(short(split, ...pieces), [])
   // A deck meeting the joint 0.5 m or more off its level is no piece of it.
   assert.deepEqual(jointsOf([pieces[0]!, { ...pieces[1]!, lift: pieces[1]!.lift + 0.5 }]), [
     [[], []],
     [[], []],
   ])
+})
+
+// Regression: at Santo Stefano di Magra two yard tracks leave a switch side by side, each on its own deck over the road tunnel
+// 99395994, the track at grade behind it; read as joined there, neither kept an end run, and the ground at the switch fell
+// 1.5 m under the loop 377677815 leaving it at grade.
+test("deckGround keeps the end runs of two decks leaving one point the same way: side by side, no joint", () => {
+  // A switch at (22, 40), its two legs on decks over a valley from x 24 to x 90, the track at grade behind it (x < 22).
+  const ground = (x: number) => (x > 24 && x < 90 ? 0 : 10)
+  const legs = [
+    railSlab({ pts: [22, 40, 100, 40], z: [10, 10] }),
+    railSlab({ pts: [22, 40, 60, 44, 100, 46], z: [10, 10, 10] }),
+  ]
+  assert.deepEqual(jointsOf(legs), [
+    [[], []],
+    [[], []],
+  ])
+  // A deck on from the switch the other way makes it a joint of all three.
+  const on = railSlab({ pts: [2, 40, 22, 40], z: [10, 10] })
+  assert.deepEqual(jointsOf([...legs, on]), [
+    [[2], []],
+    [[2], []],
+    [[], [0, 1]],
+  ])
+  const g = grid(ground)
+  deckGround(g, legs, (n) => n % g.cols <= 5)
+  // 2 m in from the switch, under both decks: the end run keeps the approach's level, which the at-grade track's last cell
+  // reads.
+  assert.equal(zAt(g, node(g, 6, 10)), 10)
+  assert.equal(gridGround(g).terrainZ(22, 40), 10)
+  assert.deepEqual(short(g, ...legs), [])
 })
 
 test("slabNodes lists the corners of the cells a slab reaches over, flagging those abeam of its deck", () => {
@@ -189,4 +219,21 @@ test("slabNodes lists the corners of the cells a slab reaches over, flagging tho
   assert.equal(nodes.get(node(g, 5, 10)), false, "x 20: behind the deck's end")
   assert.equal(nodes.get(node(g, 35, 9)), false, "x 140: past its far end")
   assert.equal(nodes.get(node(g, 20, 8)), undefined)
+})
+
+// Regression (#20): the tertiary bridge 23277539 bends 14° at (−15613.6, −6220.8), and the node
+// (−15620, −6220) on the outside of the bend lay abeam of neither of its segments, so it counted as
+// behind the deck's end: the SP331's core beside the deck kept it 1.7 m over the deck, and the ground
+// stood 0.87 m under its top, in its slab.
+test("slabNodes flags a node on the outside of a deck's bend abeam of it, between the lines across its two segments", () => {
+  const g = grid(() => 0)
+  // The bridge's three vertices about its bend, moved by (15640, 6252).
+  const bent = roadSlab(
+    { cls: "tertiary", w: 6.5 },
+    { pts: [28.2, 12.2, 26.4, 31.2, 27.8, 40.9], z: [10, 10, 10] },
+  )
+  const nodes = new Map(slabNodes(g, [bent]))
+  // (20, 32): past the first segment's end, before the second's start, 6.5 m off the bend's vertex.
+  assert.equal(nodes.get(node(g, 5, 8)), true, "outside the bend")
+  assert.equal(nodes.get(node(g, 7, 2)), false, "behind the deck's first end")
 })

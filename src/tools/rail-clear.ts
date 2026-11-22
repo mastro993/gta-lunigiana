@@ -3,7 +3,8 @@
 // verge would is given a narrower one (`Road.verge`), so people walk nearer its middle there; a
 // lane that would throws.
 import { laneOffset, vergeOf } from "../sim/map/kinds.ts"
-import { pointInRing, segDist2, segIndex } from "./geometry.ts"
+import { pointInRing, segDist2 } from "./geometry.ts"
+import { segIndex } from "./spatial-index.ts"
 
 /** The ATR 220's half-width (1.44 m), a person's radius (0.35 m) and 1 m between them, m. */
 const RAIL_CLEAR = 2.8

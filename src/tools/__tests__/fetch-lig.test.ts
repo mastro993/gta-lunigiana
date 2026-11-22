@@ -10,10 +10,10 @@ const fetchLig = (args: ReadonlyArray<string>) =>
   })
 
 test("fetch-lig takes one known part and refuses anything else before it asks for anything", () => {
-  const two = fetchLig(["sarzana-town", "lucido"])
+  const two = fetchLig(["sarzana", "lucido"])
   assert.notEqual(two.status, 0)
   assert.match(two.stderr, /usage: fetch-lig <part>/)
   const unknown = fetchLig(["nowhere"])
   assert.notEqual(unknown.status, 0)
-  assert.match(unknown.stderr, /unknown part nowhere: use one of lucido, .*sarzana-town/)
+  assert.match(unknown.stderr, /unknown part nowhere: use one of lucido, .*sarzana/)
 })

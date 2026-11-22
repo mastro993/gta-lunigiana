@@ -16,12 +16,22 @@
 import { deckGround, deckReport, type Slab, slabNodes } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
-import { segIndex, type V } from "./geometry.ts"
+import { type V } from "./geometry.ts"
 import { type Claim, replayClaims } from "./grid-claims.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
+import type { Profile } from "./profile-fit.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
-import { gridLattice, sampleGrid, slotOf, type Grid, type Profile, type Span } from "./terrain.ts"
+import { segIndex } from "./spatial-index.ts"
+import {
+  decimetre,
+  type DmGrid,
+  gridLattice,
+  sampleGrid,
+  slotOf,
+  type Grid,
+  type Span,
+} from "./terrain.ts"
 import { carveAreas, raiseAreas, seaNodes, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
 
@@ -85,11 +95,12 @@ export const uncarvedGrid = (dem: Dem): Grid => {
 }
 
 /**
- * The finished grid on `uncarved` (`uncarvedGrid`, which it leaves as it is), the nodes the listed
- * tiles hold (`listed`, 1, as `listedNodes` in grid-tiles.ts) and those of them the sea's (`sea`, 1,
- * carved to its floor: the catchments' outlets), the carved grid before its rounding
- * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and the ground
- * under the decks moved. A node no listed tile holds (an L's notch) is, in the finished grid, the
+ * The finished grid on `uncarved` (`uncarvedGrid`, which it leaves as it is), in the decimetres the
+ * file ships (`DmGrid`: each tile's window is worked in metres, rounded to 0.1 m, then written to
+ * it), the nodes the listed tiles hold (`listed`, 1, as `listedNodes` in grid-tiles.ts) and those of
+ * them the sea's (`sea`, 1, carved to its floor: the catchments' outlets), the carved grid before its
+ * rounding under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and
+ * the ground under the decks moved. A node no listed tile holds (an L's notch) is, in the finished grid, the
  * listed node the game reads there (`extendEdges`), so the walls' slopes, the buildings' floors and
  * the water on the play area's inner edge read the edge extended, not a cliff down to 0 m.
  */
@@ -99,7 +110,7 @@ export const tileByTile = (
 ) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
-  const grid: Grid = { ...lattice, z: new Float64Array(size) }
+  const grid: DmGrid = { ...lattice, dm: new Int16Array(size) }
   const written = new Uint8Array(size),
     sea = new Uint8Array(size)
   // Roads may claim river banks but never the water itself: a wide stream's anywhere, and a narrow
@@ -233,20 +244,20 @@ export const tileByTile = (
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {
         const n = (j0 + r) * lattice.cols + i0 + c,
-          z = win.z[r * cols + c]!
-        if (written[n] === 1 && !Object.is(grid.z[n], z))
+          dm = decimetre(win.z[r * cols + c]!, i0 + c, j0 + r)
+        if (written[n] === 1 && grid.dm[n] !== dm)
           throw new Error(
-            `grid node (${i0 + c}, ${j0 + r}) is ${grid.z[n]} in one tile and ${z} in tile ${tile.key}`,
+            `grid node (${i0 + c}, ${j0 + r}) is ${grid.dm[n]! / 10} in one tile and ${dm / 10} in tile ${tile.key}`,
           )
-        grid.z[n] = z
+        grid.dm[n] = dm
         written[n] = 1
       }
     samples.delete(tile.key)
   }
   // The ground under the decks, read as the game draws it: the notch's nodes extend the edge.
-  extendEdges(grid, written)
+  extendEdges(grid, grid.dm, written)
   const lowered = deckGround(grid, slabs, (n) => cores.has(n) || written[n] !== 1)
-  if (lowered.length > 0) extendEdges(grid, written)
+  if (lowered.length > 0) extendEdges(grid, grid.dm, written)
   // A sample whose cell lies in an unlisted tile (one on the notch's west or south side, where the
   // play area cuts the water, reads the cell east or north of it) reads the finished grid there, as
   // the game does: on the side the notch's nodes weigh nothing, and past it they are the edge's.

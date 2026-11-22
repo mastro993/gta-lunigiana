@@ -9,7 +9,6 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import type { JoinedMap } from "../../../tools/map-file.ts"
 import { segDist2 } from "../../collide.ts"
-import { reachOf } from "../../water/channel.ts"
 import { waterAt, waterUnder } from "../../water/rivers.ts"
 import {
   atGrade,
@@ -22,7 +21,7 @@ import {
   terrainZ,
 } from "../ground.ts"
 import { MAP } from "../index.ts"
-import { HALO, TILE } from "../kinds.ts"
+import { HALO, reachOf, TILE } from "../kinds.ts"
 import { surfaceAt } from "../surface.ts"
 import { placeAt, TILE_RANGE } from "../tiles.ts"
 import { oracle } from "./ground-oracle.ts"

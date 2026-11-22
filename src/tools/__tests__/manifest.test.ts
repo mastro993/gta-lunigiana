@@ -6,13 +6,14 @@ import { test } from "node:test"
 
 import { manifestPath, readManifest } from "../manifest.ts"
 
-test("lucido's manifest lists its 25 CTR sheets, 85 LiDAR tiles and one 10 m DTM", () => {
+test("lucido's manifest lists its 25 CTR sheets, 101 LiDAR tiles and one 10 m DTM", () => {
   assert.ok(existsSync(manifestPath("lucido")))
   const { ctr, lidar, dtm10 } = readManifest("lucido")
   assert.equal(ctr.length, 25)
   // The 66 its rectangle's crop took, then the 19 its tiles needed once Fivizzano grew the
-  // region's box past it (pick-lidar --write, issue #17)
-  assert.equal(lidar.length, 85)
+  // region's box past it (pick-lidar --write, issue #17), and the 16 its row −4 needed once
+  // Sarzana's grew it south to y −8500 (issue #20)
+  assert.equal(lidar.length, 101)
   assert.deepEqual(dtm10, ["MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408"])
   assert.equal(new Set(ctr).size, ctr.length)
   assert.equal(new Set(lidar).size, lidar.length)
@@ -23,10 +24,12 @@ test("lucido's manifest lists its 25 CTR sheets, 85 LiDAR tiles and one 10 m DTM
 test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight, in each of its two picks", () => {
   const lots = readManifest("lucido").lidar.map((tile) => tile.split("_")[3])
   // pick-lidar --write keeps a manifest's tiles and adds the new picks after them: its rectangle's
-  // 66 (47 of 2010, 19 of 2012), then the 19 the grown box added (17 and 2).
+  // 66 (47 of 2010, 19 of 2012), then the 19 Fivizzano's grown box added (17 and 2), then the 16
+  // Sarzana's added (2 and 14).
   for (const [pick, n2010, n2012] of [
     [lots.slice(0, 66), 47, 19],
-    [lots.slice(66), 17, 2],
+    [lots.slice(66, 85), 17, 2],
+    [lots.slice(85), 2, 14],
   ] as const) {
     assert.equal(pick.filter((lot) => lot === "004").length, n2010)
     assert.equal(pick.filter((lot) => lot === "005").length, n2012)
@@ -48,9 +51,16 @@ test("a part without a manifest reads as empty lists", () => {
   assert.deepEqual(readManifest("no-such-part"), EMPTY)
 })
 
-test("lucido's manifest lists the 2021 surface model's three elements over its holes", () => {
-  // 249063 over the holes its tiles' cells past its rectangle left once Fivizzano grew the box
-  assert.deepEqual(readManifest("lucido").dsm2021, ["249062", "249063", "249064"])
+test("lucido's manifest lists the 2021 surface model's five elements over its holes", () => {
+  // 249063 over the holes its tiles' cells past its rectangle left once Fivizzano grew the box,
+  // 249091 and 249104 over the 0.18 km² hole by (−3663, −7933) once Sarzana's grew it (issue #20)
+  assert.deepEqual(readManifest("lucido").dsm2021, [
+    "249062",
+    "249063",
+    "249064",
+    "249091",
+    "249104",
+  ])
 })
 
 test("sillara's manifest lists 8 LiDAR tiles of the 2010 flight, Massa-Carrara's 10 m DTM and 5 elements of the 2021 surface model", () => {

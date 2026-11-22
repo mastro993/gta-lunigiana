@@ -62,7 +62,8 @@ test("map-free: once the map is decoded the sky's place is the map's: its origin
     { lat: REFERENCE_PLACE.lat, lon: REFERENCE_PLACE.lon },
   )
   // The slope's direction compared round the circle: Aulla's part turned it to −3.130 rad, 0.011
-  // rad short of ±π, where a later part may tip its sign while hardly turning it.
+  // rad short of ±π, where a later part may tip its sign while hardly turning it (Sarzana's turned
+  // it back to −2.911).
   const turn = ((((where.downslope - REFERENCE_PLACE.downslope) % TAU) + TAU * 1.5) % TAU) - TAU / 2
   assert.ok(
     Math.abs(where.floor - REFERENCE_PLACE.floor) < 0.5 && Math.abs(turn) < 0.005,

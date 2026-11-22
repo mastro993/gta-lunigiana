@@ -3,7 +3,7 @@
 // where the sheets map one.
 import { inPolygon, type CtrArea } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
-import { segDist2, type V } from "./geometry.ts"
+import { crossings, segDist2, type V } from "./geometry.ts"
 import { hitsOn, insertOn } from "./rail-match.ts"
 
 /** A crossing node's new place: its id, the OSM road it is on, how far it slid along it (m), where it is. */
@@ -20,8 +20,10 @@ const CROSSING_NEAR = 10
 
 /**
  * Puts crossing node `id` into the moved rail `line` where it crosses the node's road (`roadsAt`:
- * each road and vertex index holding it), recording it in `moves`. Throws when the rail no longer
- * crosses that road, or when the node would slide half its road segment or more.
+ * each road and vertex index holding it), recording it in `moves`; a road that only ends on the rail
+ * keeps ending on it, where it is nearest. Throws when the rail no longer crosses a road it runs
+ * through (one OSM splits at the node included), or when the node would slide half its road segment
+ * or more.
  */
 export const slideCrossing = (
   line: Array<V>,
@@ -46,6 +48,40 @@ export const slideCrossing = (
             half: Math.hypot(rp[j + 1]!.x - rp[j]!.x, rp[j + 1]!.y - rp[j]!.y) / 2,
           }
       }
+    }
+  }
+  // A road that only ends on the rail (its node that road's first or last, and on no other road)
+  // follows it, to where the moved rail is nearest: the CTR may have moved the rail short of its last
+  // segment (driveway 1455968336 at Santo Stefano di Magra, which ends on the Pontremolese). Two roads
+  // ending on the node are one road through the rail that OSM splits there.
+  const [only, ...others] = roadsAt.get(id)!
+  const rp = roads[only!.road]!.pts
+  if (best === undefined && others.length === 0 && (only!.i === 0 || only!.i === rp.length - 1)) {
+    const end = rp[only!.i]!,
+      next = rp[only!.i === 0 ? 1 : only!.i - 1]!
+    let near: { x: number; y: number; d2: number } | undefined
+    for (let k = 0; k + 1 < line.length; k++) {
+      const { d2, t } = segDist2(
+        end.x,
+        end.y,
+        line[k]!.x,
+        line[k]!.y,
+        line[k + 1]!.x,
+        line[k + 1]!.y,
+      )
+      if (near === undefined || d2 < near.d2)
+        near = {
+          x: line[k]!.x + t * (line[k + 1]!.x - line[k]!.x),
+          y: line[k]!.y + t * (line[k + 1]!.y - line[k]!.y),
+          d2,
+        }
+    }
+    best = {
+      x: near!.x,
+      y: near!.y,
+      road: only!.road,
+      shift: Math.sqrt(near!.d2),
+      half: Math.hypot(next.x - end.x, next.y - end.y) / 2,
     }
   }
   if (best === undefined)
@@ -90,4 +126,33 @@ export const checkCrossings = (
       if (d > 0 && d < CROSSING_NEAR)
         throw new Error(`level crossing ${v.id} lies ${d.toFixed(2)} m outside CTR ${c.src}`)
     }
+}
+
+/**
+ * The roads, each one OSM lays on a lower layer than at-grade track it crosses with no node in common
+ * now in a tunnel: it runs under the track, though OSM tags no tunnel (the farm track 205932314, 17.7
+ * m at layer −1 under the Genova–Pisa's bank by Sarzana, crossed both its tracks at grade between
+ * their vertices). The tunnel is then the track's underpass as any other (`underpasses` in
+ * rail-spans.ts, `railLevels`).
+ */
+export const underRail = (
+  roads: ReadonlyArray<RoadF>,
+  rail: ReadonlyArray<RailF>,
+): Array<RoadF> => {
+  const track = rail.filter((r) => r.bridge !== true && r.tunnel !== true)
+  return roads.map((r) => {
+    if (r.bridge === true || r.tunnel === true) return r
+    const ids = new Set(r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id])))
+    const under = track.some(
+      (t) =>
+        (r.layer ?? 0) < (t.layer ?? 0) &&
+        crossings(t.pts, r.pts).some(
+          (c) =>
+            !t.pts.some(
+              (v) => v.id !== undefined && ids.has(v.id) && Math.hypot(v.x - c.x, v.y - c.y) < 0.1,
+            ),
+        ),
+    )
+    return under ? { ...r, tunnel: true } : r
+  })
 }

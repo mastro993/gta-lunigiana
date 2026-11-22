@@ -65,6 +65,19 @@ const PENOLO_FAN_BELOW = 93
  * floor widens from a headwater's 4-6 m to 7-10 m, and 789354800 (204.3 m, 7.7 km²).
  */
 const PENOLO_GORGE_BELOW = 202
+/**
+ * Mean ground (m) below which a Torrente Amola way runs on its open gravel fan across the plain:
+ * halfway between sarzana's 206634001 (117.7 m), its one way from its source at (-13276, -153) to
+ * the foot of its hills at (-14524, -3411), and 917637857 (36.9 m), its first on the plain, where
+ * the NC5's riverbed widens from a 3-10 m channel to 15-30 m.
+ */
+const AMOLA_FAN_BELOW = 77
+/**
+ * Mean ground (m) below which a Torrente Amola way runs in its banked channel to the Magra: halfway
+ * between 238383122 (29.3 m), its last on the fan, and 238383121 (14.6 m), whose NC5 channel is
+ * 4.8-7.3 m (OSM's est_width 3.5).
+ */
+const AMOLA_CHANNEL_BELOW = 22
 
 /**
  * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
@@ -95,7 +108,24 @@ const PENOLO_GORGE_BELOW = 202
  * (-5916, 1052) and 7 m at 797861233 (-5550, 1172), over a LiDAR floor of a median 8-9 m: at its
  * mouth it drains 18 km² to the Bardinello's 15 (issue #18). Above Vinca the Lucido runs in a
  * beech-wood gully with only 3-6 m of bed showing, like the other named streams (4 m); unnamed ones
- * are 2 m. The depths are the classes' own, as no photo shows them.
+ * are 2 m. In Liguria, where Regione Toscana's recent photos stop, the widths are read on the
+ * NC5's watercourses (Area bagnata di corso d'acqua and Alveo, 1:5000: M2052 layers L6896, L6919
+ * and L6920), each a channel between its banks (issue #20). The Vara's is 12-139 m across its
+ * channels (median 34) at 17 sections from the play area's north edge to Fornola, in a gravel bed
+ * of 100-290 m that its OSM river polygon draws and carves all its course on the map: as the
+ * Magra's, its line takes the water alone. The Amola on the plain, from the foot of its hills to
+ * 238383122, crosses a riverbed of 15-30 m (median 20) round a 5.8-24 m channel (median 8), 18-25 m
+ * of bright gravel on the 1978 flight: a fan's. The Durasca, 11.0 km² across the play area's west
+ * edge and 13.5 at the Vara, runs in a 4.3-12.8 m channel between its banks (median 8) down to
+ * x -21085 and a 10.5-18 m one (median 15) below, over a LiDAR floor of 12-21 m: a wooded
+ * torrent's, as the Pesciola's. The Canale Lunense is a lined channel 3.3-6.3 m between its walls
+ * (median 5.3, 80 sections; OSM tags its Sarzana stretches width=8), 4-7 m of water on the 2010
+ * orthophoto by Albiano. The Calcandola keeps a named stream's 4 m: its LiDAR floor in Fosdinovo's
+ * woods is a headwater's (median 6 m), and on its fan the OSM river polygon draws the 10-40 m of
+ * gravel the 2010 flight shows dry but for a 2-4 m channel; so does the Amola in its hills (a
+ * 3-10 m channel, median 6) and to the Magra (4.8-7.3 m, median 6.7). The depths are the classes'
+ * own, as no photo shows them and Liguria's DTM, 5 m cells of whole metres interpolated from the
+ * NC5's heights, shows none of these channels.
  */
 export const waterSize = (
   name: string | undefined,
@@ -107,7 +137,7 @@ export const waterSize = (
     (name === "Torrente Bardine" && z < BARDINE_VALLEY_BELOW)
   )
     return { w: 12, bed: 13, depth: 2.5 }
-  if (name === "Fiume Magra") return { w: 25, bed: 13.5, depth: 2.5 }
+  if (name === "Fiume Magra" || name === "Fiume Vara") return { w: 25, bed: 13.5, depth: 2.5 }
   if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
   if (
     (name === "Torrente Rosaro" && kind === "river") ||
@@ -118,7 +148,8 @@ export const waterSize = (
     return { w: 7, bed: 7, depth: 2.5 }
   const fan =
     (name === "Torrente Osca" && z < OSCA_FAN_BELOW) ||
-    (name === "Torrente Penolo" && z < PENOLO_FAN_BELOW)
+    (name === "Torrente Penolo" && z < PENOLO_FAN_BELOW) ||
+    (name === "Torrente Amola" && z < AMOLA_FAN_BELOW && z >= AMOLA_CHANNEL_BELOW)
   if (fan) return { w: 4, bed: 13, depth: 1.5 }
   const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
   const wooded =
@@ -128,8 +159,9 @@ export const waterSize = (
     (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW) ||
     name === "Torrente Pesciola" ||
     (name === "Torrente Osca" && z < OSCA_GORGE_BELOW) ||
-    (name === "Torrente Penolo" && z < PENOLO_GORGE_BELOW)
-  const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
+    (name === "Torrente Penolo" && z < PENOLO_GORGE_BELOW) ||
+    name === "Durasca"
+  const w = main ? 8 : wooded ? 6 : name === "Canale Lunense" ? 5 : name === undefined ? 2 : 4
   return {
     w,
     bed: Math.max(w / 2 + 1, 3),
